@@ -1,7 +1,7 @@
 library(ggplot2)
 splicing_full = fread("data/splicing_full_delta_psi_tables.csv")
 
-merged_nmd_ce = fread('https://raw.githubusercontent.com/frattalab/cryptic_biology/f7f01522ef8d3285ac0b952d5aee6affaabbba75/data/merged_nmd_CE.csv?token=GHSAT0AAAAAACAKYNAXRYLQSFZY7NGDVHAEZBGVUAQ')
+merged_nmd_ce = fread('data/merged_nmd_CE.csv')
 merged_nmd_ce = merged_nmd_ce |> 
     mutate(gene_id.x =  gsub("\\..*","",gene_id.x),
            gene_id.y =  gsub("\\..*","",gene_id.y))
