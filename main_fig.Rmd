@@ -135,30 +135,8 @@ maxc_type <- maxc_al %>%
                                "H2O"))) %>% 
   group_by(gene_name) %>%
   filter(sum(n_cryptic) > 0) %>%
-  ungroup()
-  #group_by(gene_name) %>%
-  #filter(sum(n_cryptic) > 0) %>%
-  #ungroup() %>%
-  #group_by(gene_name, sample_name_ari) %>%
-  #mutate(detected = ifelse(n_cryptic <= 4, "No", "Yes"))
-
-maxc_type %>%
-  #filter(gene_name != "PRELID3A" & gene_name != "IQCE") %>%
-  mutate(timing_shsy5y = case_when(timing_shsy5y == "Earli" ~ 1,
-                                   timing_shsy5y == "Early" ~ 1,
-                                   timing_shsy5y == "Intermediate" ~ 3,
-                                   timing_shsy5y == "Late" ~ 4)) %>% 
-  mutate(gene_name = fct_reorder(gene_name, as.numeric(timing_shsy5y))) %>%
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  facet_grid(facets = vars(timing_shsy5y)) +
-  scale_fill_manual(values =colorspace::diverge_hcl(n = 16)) +
-  #scale_fill_viridis_d() +
-  #scale_fill_brewer(palette = "RdYlGn") +
- # scale_y_continuous(limits = c(0,0.3)) +
-  #labs(x = "", y = "", fill = "Early") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
+  ungroup() %>% 
+    filter(group != "H2O")
 
 
 maxc_type %>%
@@ -192,20 +170,20 @@ maxc_early <- maxc_type %>%
   ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
   geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
   #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Oranges") +
+  scale_fill_brewer(palette = "Reds") +
   scale_y_continuous(limits = c(0,0.3)) +
   labs(x = "", y = "", fill = "Early") +
   #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
   theme_bw()
 maxc_intermediate <- maxc_type %>%
-  filter(timing_shsy5y == "Intermediate") %>%
+  filter(timing_shsy5y == "Intermediate" | timing_shsy5y == "Late") %>%
   filter(gene_name != "SETD5") %>%
   ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
   geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
   #facet_grid(facets = vars(gene_name)) +
   scale_fill_brewer(palette = "Greens") +
   scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Intermediate") +
+  labs(x = "", y = "", fill = "Intermediate/Late") +
   #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
   theme_bw()
 maxc_late <- maxc_type %>%
@@ -220,117 +198,27 @@ maxc_late <- maxc_type %>%
   #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
   theme_bw()
 
-maxc_earli / maxc_early / maxc_intermediate / maxc_late #/ maxc_na
-
-
-
-maxc_type$progression <- as.factor(maxc_type$progression)
-maxc_type <- arrange(maxc_type, progression)
-maxc_type$gene_name <- factor(maxc_type$gene_name, levels = unique(maxc_type$gene_name))
-maxc_type %>%
-  filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>% #|
-  ggplot(aes(x = reorder(gene_name, progression), y = fraction_cryptic)) +
-  geom_bar(aes(fill = progression), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  facet_grid(facets = vars(sample_name_ari)) +
-  #scale_fill_grey() +
-  #scale_y_continuous(limits = c(0,0.3)) +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-reorder(maxc_type$gene_name, maxc_type$progression)
-unique(maxc_type$gene_name)
-
-maxc_type %>%
-  filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>% #|
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_col(aes(fill = gene_name), position = position_dodge(width = 0.8)) +
-  facet_grid(facets = vars(progression)) +
-  #scale_fill_brewer(palette = "Set1") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-
-maxc_type %>%
-  filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>%
-  filter(group != "H2O") %>%
-  ggplot(aes(x = group, y = fraction_cryptic)) +
-  geom_boxplot(aes(fill = progression)) +
-  facet_wrap(facets = vars(progression), ncol = 3) +
-  scale_fill_brewer(palette = "Set1") +
-  theme_bw()
-
-maxc_type %>%
-  filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>%
-  #filter(group != "H2O") %>%
-  ggplot(aes(x = gene_name, y = fraction_cryptic)) +
-  geom_col(aes(fill = progression)) +
-  facet_wrap(facets = vars(sample_name_ari), ncol = 5) +
-  scale_fill_brewer(palette = "Set1") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90))
-
-maxc_type %>%
-  filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>%
-  #filter(group != "H2O") %>%
-  ggplot(aes(x = progression, y = fraction_cryptic)) +
-  geom_boxplot(aes(fill = progression)) +
-  facet_wrap(facets = vars(sample_name_ari), ncol = 5) +
-  scale_fill_brewer(palette = "Set1") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90))
+#maxc_earli / 
+    maxc_early / maxc_intermediate #/ maxc_late #/ maxc_na
 
 
 maxc_type %>%
   filter(group != "H2O") %>%
+    filter(timing_shsy5y != "Earli") %>% 
+    mutate(timing_shsy5y = ifelse(timing_shsy5y == "Late" | timing_shsy5y == "Intermediate", "Intermediate / Late", timing_shsy5y)) %>% 
   ggplot(aes(x = sample_name_ari, y = gene_name, fill = fraction_cryptic)) +
   geom_tile() +
   #scale_fill_viridis_d() +
   scale_fill_gradient(low = "white", high = "black") +
-  facet_grid(rows = vars(progression), cols = vars(group), 
+  facet_grid(rows = vars(timing_shsy5y), cols = vars(group), 
              scales = "free", space = "free") +
   ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90))
 
 
-
-
-maxc_matrix <- maxc_type %>%
-  #filter(progression != "NA") %>%
-  filter(gene_name != "SETD5") %>%
-  select(sample_name_ari, fraction_cryptic, gene_name) %>%
-  arrange(sample_name_ari) %>%
-  pivot_wider(names_from = sample_name_ari, values_from = fraction_cryptic) %>%
-  mutate(across(where(anyNA), ~ replace_na(., 0))) %>%
-  column_to_rownames("gene_name") %>%
-  as.matrix() #
-pheatmap::pheatmap(maxc_matrix)
-
-cal_z_score <- function(x){
-  (x - mean(x)) / sd(x)
-}
-
-data_subset_norm <- t(apply(maxc_matrix, 1, cal_z_score))
-pheatmap::pheatmap(data_subset_norm)
-
-maxc_type %>%
-  filter(grepl("FT", sample_name_ari)) %>%
-  #filter(progression == "Early") %>%
-  filter(gene_name != "SETD5") %>% 
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = timing_shsy5y), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  facet_grid(facets = vars(timing_shsy5y)) +
-  scale_fill_brewer(palette = "Set1") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-
-
-
 ```
 A.
 B.
-C.
+C. Detection of CEs from in vivo samples
 D.
