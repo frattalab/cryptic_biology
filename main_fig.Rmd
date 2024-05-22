@@ -19,41 +19,77 @@ here::here()
 ### TDP-43 cryptic exon biology paper
 ## Figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features 
 ```{r, echo = FALSE}
-curves <- read.csv("~/Desktop/ce_bio/the_table_of_tables.csv")
-names(curves)[1] <- "dox0"
+curves <- read.csv(here::here("data/master_table.csv"))
+#names(curves)[14] <- "dox0"
 
-#####method?
+#####methods?
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
-big_data_filtereds_early_late_new <- curves[,c(2,1,3:9,20:24)] %>%
+big_data_filtereds_early_late_sh <- curves %>% #[,c(2,1,3:9,20:24)] %>%
+    mutate(dox0 = dox0_sh) %>% 
+    select(c(gene,paste_into_igv_junction,chr,start,end,strand,junc_cat,cryptic,junction_for_clustering,
+             dox0,dox0125,dox0187,dox021,dox025,dox075,
+             tdp43_sensitivity_sh,max_psi_sh)) %>% 
     group_by(gene) %>% 
     arrange(desc(dox025)) %>% 
     distinct(gene, .keep_all = T) %>% 
   filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
              !is.na(dox0)) %>%
-  pivot_longer(cols = c(2:7)) %>% 
+  pivot_longer(cols = c(10:15)) %>% 
   mutate(name = factor(name, levels = c("dox0","dox0125", "dox0187", "dox021", "dox025", "dox075"))) %>%
   mutate(label_junction = case_when(name == "dox025" & gene %in% list_gene ~ gene, T ~ ""))
-table(big_data_filtereds_early_late_new$timing_shsy5y)
+table(big_data_filtereds_early_late_sh$tdp43_sensitivity_sh)
 
-big_data_filtereds_early_late_new %>%
+big_data_filtereds_early_late_sh %>%
   ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +
-  geom_line(aes(color = timing_shsy5y), show.legend = F) +
+  geom_line(aes(color = tdp43_sensitivity_sh), show.legend = F) +
   geom_text_repel(aes(label = label_junction), point.padding = 0.3,
                   nudge_y = 0.2, min.segment.length = 0.5, box.padding  = 2, max.overlaps = Inf, size=4, show.legend = F) +
   #geom_hline(yintercept = 0.2, linetype = "dotted") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#000000")) +
+  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) + #, "#984EA3", "#000000")) +
   #scale_alpha_manual(values = c(0.1,1)) +
   xlab("TDP-43 knockdown level") +
   ylab("PSI") +
   scale_x_discrete(labels = c("-", "+", "++", "+++", "++++", "+++++")) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
-  facet_wrap(~timing_shsy5y) + 
+  facet_wrap(~tdp43_sensitivity_sh) + 
   theme_classic()
+
+big_data_filtereds_early_late_be2 <- curves %>% #[,c(2,1,3:9,20:24)] %>%
+    mutate(dox0 = dox0_be2) %>% 
+    select(c(gene,paste_into_igv_junction,chr,start,end,strand,junc_cat,cryptic,junction_for_clustering,
+             dox0,dox002,dox003,dox004,dox005,dox0075,dox01,dox1,
+             #dox0,dox0125,dox0187,dox021,dox025,dox075,
+             tdp43_sensitivity_be2,max_psi_be2)) %>% 
+    group_by(gene) %>% 
+    arrange(desc(dox01)) %>% 
+    distinct(gene, .keep_all = T) %>% 
+  filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
+             !is.na(dox0)) %>%
+  pivot_longer(cols = c(10:17)) %>% 
+  mutate(name = factor(name, levels = c("dox0","dox002","dox003","dox004","dox005","dox0075","dox01","dox1"))) %>%
+  mutate(label_junction = case_when(name == "dox01" & gene %in% list_gene ~ gene, T ~ ""))
+table(big_data_filtereds_early_late_be2$tdp43_sensitivity_be2)
+
+big_data_filtereds_early_late_be2 %>%
+  ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +
+  geom_line(aes(color = tdp43_sensitivity_be2), show.legend = F) +
+  geom_text_repel(aes(label = label_junction), point.padding = 0.3,
+                  nudge_y = 0.2, min.segment.length = 0.5, box.padding  = 2, max.overlaps = Inf, size=4, show.legend = F) +
+  #geom_hline(yintercept = 0.2, linetype = "dotted") +
+  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) + #, "#984EA3", "#000000")) +
+  #scale_alpha_manual(values = c(0.1,1)) +
+  xlab("TDP-43 knockdown level") +
+  ylab("PSI") +
+  scale_x_discrete(labels = c("-", "+", "++", "+++", "++++", "+++++", "++++++", "+++++++")) +
+  scale_y_continuous(breaks=seq(0,1,0.2)) +
+  facet_wrap(~tdp43_sensitivity_be2) + 
+  theme_classic()
+
 
   
 ```
 A. Spaghetti plot in SH-SY5Y
-B.
+B. Spaghetti plot in BE(2)
 C.
 D.
 
