@@ -20,7 +20,6 @@ here::here()
 ## Figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features 
 ```{r, echo = FALSE}
 curves <- read.csv(here::here("data/master_table.csv"))
-#names(curves)[14] <- "dox0"
 
 #####methods?
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
@@ -32,12 +31,13 @@ big_data_filtereds_early_late_sh <- curves %>% #[,c(2,1,3:9,20:24)] %>%
     group_by(gene) %>% 
     arrange(desc(dox025)) %>% 
     distinct(gene, .keep_all = T) %>% 
-  filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
+    filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
              !is.na(dox0)) %>%
   pivot_longer(cols = c(10:15)) %>% 
   mutate(name = factor(name, levels = c("dox0","dox0125", "dox0187", "dox021", "dox025", "dox075"))) %>%
   mutate(label_junction = case_when(name == "dox025" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_sh$tdp43_sensitivity_sh)
+table(big_data_filtereds_early_late_sh$max_psi_sh)
 
 big_data_filtereds_early_late_sh %>%
   ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +
@@ -69,6 +69,7 @@ big_data_filtereds_early_late_be2 <- curves %>% #[,c(2,1,3:9,20:24)] %>%
   mutate(name = factor(name, levels = c("dox0","dox002","dox003","dox004","dox005","dox0075","dox01","dox1"))) %>%
   mutate(label_junction = case_when(name == "dox01" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_be2$tdp43_sensitivity_be2)
+table(big_data_filtereds_early_late_be2$max_psi_be2)
 
 big_data_filtereds_early_late_be2 %>%
   ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +

@@ -1,0 +1,39 @@
+---
+title: "supplementary_fig"
+author: "MZ"
+date: "2024-05-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+###load packages/libraries/scripts
+library(tidyverse)
+library(ggrepel)
+library(patchwork)
+
+#check you're in right folder
+here::here()
+```
+
+### TDP-43 cryptic exon biology paper
+## Supplementary figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features
+```{r, echo=FALSE}
+###
+
+
+```
+A. Spaghetti plot for APA events in SH-SY5Y
+B. Spaghetti plot for APA events in BE(2)
+C. overlap between sensitivity in SH and BE2
+D. UMAP clustering of overlapping events in SH and BE2
+E.
+F.
+G.
+
+## Supplementary figure 2 - 
+```{r}
+
+```
+
+
