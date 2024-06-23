@@ -144,12 +144,15 @@ summary <- master_table %>%
   ungroup()
 ggplot(summary,
        aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
-  geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, ) +
-  geom_stratum(width = 1/12, fill = "black", color = "grey") +
+  geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
+  #geom_stratum(width = 1/12, aes(fill = tdp43_sensitivity_be2), color = "grey") +
   geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+    guides(fill = "none") +
+    geom_stratum(alpha = .25, width = 1/8) +
   #scale_x_discrete(limits = c("Gender", "Dept"), expand = c(.05, .05)) +
   scale_fill_brewer(type = "qual", palette = "Set1") +
     theme_void()
+
 
 print("S1D")
 g <- master_table %>% 
