@@ -19,13 +19,14 @@ here::here()
 ### TDP-43 cryptic exon biology paper
 ## Figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features 
 ```{r, echo = FALSE}
-curves <- read.csv(here::here("data/master_table.csv"))
+master_table <- read.csv(here::here("data/master_table.csv"))
 
-#####methods?
+#####
+print("1A")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
-big_data_filtereds_early_late_sh <- curves %>% #[,c(2,1,3:9,20:24)] %>%
+big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
-    select(c(gene,paste_into_igv_junction,chr,start,end,strand,junc_cat,cryptic,junction_for_clustering,
+    select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox0125,dox0187,dox021,dox025,dox075,
              tdp43_sensitivity_sh,max_psi_sh)) %>% 
     group_by(gene) %>% 
@@ -33,7 +34,7 @@ big_data_filtereds_early_late_sh <- curves %>% #[,c(2,1,3:9,20:24)] %>%
     distinct(gene, .keep_all = T) %>% 
     filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
              !is.na(dox0)) %>%
-  pivot_longer(cols = c(10:15)) %>% 
+  pivot_longer(cols = c(7:12)) %>% 
   mutate(name = factor(name, levels = c("dox0","dox0125", "dox0187", "dox021", "dox025", "dox075"))) %>%
   mutate(label_junction = case_when(name == "dox025" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_sh$tdp43_sensitivity_sh)
@@ -54,9 +55,10 @@ big_data_filtereds_early_late_sh %>%
   facet_wrap(~tdp43_sensitivity_sh) + 
   theme_classic()
 
-big_data_filtereds_early_late_be2 <- curves %>% #[,c(2,1,3:9,20:24)] %>%
+print("1B")
+big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_be2) %>% 
-    select(c(gene,paste_into_igv_junction,chr,start,end,strand,junc_cat,cryptic,junction_for_clustering,
+    select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox002,dox003,dox004,dox005,dox0075,dox01,dox1,
              #dox0,dox0125,dox0187,dox021,dox025,dox075,
              tdp43_sensitivity_be2,max_psi_be2)) %>% 
@@ -65,7 +67,7 @@ big_data_filtereds_early_late_be2 <- curves %>% #[,c(2,1,3:9,20:24)] %>%
     distinct(gene, .keep_all = T) %>% 
   filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
              !is.na(dox0)) %>%
-  pivot_longer(cols = c(10:17)) %>% 
+  pivot_longer(cols = c(7:14)) %>% 
   mutate(name = factor(name, levels = c("dox0","dox002","dox003","dox004","dox005","dox0075","dox01","dox1"))) %>%
   mutate(label_junction = case_when(name == "dox01" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_be2$tdp43_sensitivity_be2)
@@ -86,7 +88,7 @@ big_data_filtereds_early_late_be2 %>%
   facet_wrap(~tdp43_sensitivity_be2) + 
   theme_classic()
 
-
+print("1C")
   
 ```
 A. Spaghetti plot in SH-SY5Y
@@ -94,16 +96,18 @@ B. Spaghetti plot in BE(2)
 C.
 D.
 
-## Figure 2
+## Figure 2 - NMD
 ```{r, echo=FALSE}
 
+
+
 ```
-A.
+A. 
 B.
 C.
 D.
 
-## Figure 3
+## Figure 3 - compendium / in vivo
 ```{r, echo=FALSE}
 ##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
 maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_product_reads.csv") %>%
