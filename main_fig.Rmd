@@ -12,6 +12,8 @@ library(tidyverse)
 library(ggrepel)
 library(patchwork)
 
+source(here::here('trial_nmd_plots.R'))
+
 #check you're in right folder
 here::here()
 ```
@@ -98,7 +100,19 @@ D.
 
 ## Figure 2 - NMD
 ```{r, echo=FALSE}
+print("2A")
 
+print("2B")
+gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
+input_list <- c("Control_Control",
+                "Cycloheximide_Control", 
+                "Control_TDP43KD", 
+                "Cycloheximide_TDP43KD")
+
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+a <- slope_plot_nmd(big_data_chx, 
+               gene_list_slope)
+#plot(a)
 
 
 ```
