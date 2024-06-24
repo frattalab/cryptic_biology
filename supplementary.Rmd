@@ -13,6 +13,7 @@ library(ggrepel)
 library(patchwork)
 library(ggalluvial)
 
+source(here::here('trial_nmd_plots.R'))
 #check you're in right folder
 here::here()
 ```
@@ -194,8 +195,8 @@ F. Spaghetti plot for APA events in BE(2)
 ```
 
 ### Supplementary figure 3 - NMD
-```{r}
-print("2A")
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+print("S2A")
 gene_list_slope_upf1 <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("ctrl_ctrl",
                 "ctrl_UPF1", 

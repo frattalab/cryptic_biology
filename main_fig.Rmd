@@ -20,7 +20,7 @@ here::here()
 
 ### TDP-43 cryptic exon biology paper
 ## Figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features 
-```{r, echo = FALSE}
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
 master_table <- read.csv(here::here("data/master_table.csv"))
 
 #####
@@ -99,7 +99,7 @@ C.
 D.
 
 ## Figure 2 - NMD
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("2A")
 
 print("2B")
@@ -121,7 +121,7 @@ C.
 D.
 
 ## Figure 3 - compendium / in vivo
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
 maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_product_reads.csv") %>%
   mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%
@@ -143,15 +143,6 @@ maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_prod
   #pivot_wider(names_from = sample_name_ari, values_from = ratio_cryptic)
 table(maxc$sample_name_ari)
 
-maxc %>%
-  #filter(gene_name == "UNC13A") %>% ###if to compare to unc13a paper
-  pivot_longer(cols = c(n_counts_for_gene, n_cryptic)) %>%#+
-  ggplot(aes(x = sample_name_ari, y = value, fill = name)) +  #, fill = gene_name)) +
-  geom_col(position = position_dodge(width = 0.8)) +
-  scale_color_manual(values = "black") +
-  facet_wrap(~name, scale = 'free_y', ncol = 1) +
-  theme_bw()
-
 ##use only TDP43path-specific genes (use list from AL) - this is exluding more than 2/3 of genes!!
 al <- read.csv("~/Desktop/ce_bio/expression_by_pathology_updated.csv") %>%
   dplyr::filter(fraction_path > 0.01 & fraction_not_path < 0.005) %>% ####need to carefully check this with AL
@@ -162,20 +153,6 @@ maxc_al <- maxc %>%
   dplyr::filter(!is.na(paste_into_igv_junction))
 table(maxc_al$sample_name_ari)
 table(maxc_al$gene_name)
-
-maxc_al %>%
-  dplyr::filter(gene_name != "SETD5") %>%
-  pivot_longer(cols = c(n_counts_for_gene, n_cryptic)) %>%#+
-  #filter(gene_name != "SETD5") %>% #|
-  #filter(gene_name == "UNC13A") %>% # |
-  #         gene_name == "AARS") %>%
-  ggplot(aes(x = sample_name_ari, y = value, fill = name)) +  #, fill = gene_name)) +
-  geom_col(position = position_dodge(width = 0.8)) +
-  scale_color_manual(values = "black") +
-  facet_grid(facets = vars(name), scale = 'free_y') +
-  theme_bw()
-
-
 
 ##check igv files for these genes
 maxc_type <- maxc_al %>%
@@ -191,7 +168,6 @@ maxc_type <- maxc_al %>%
   filter(sum(n_cryptic) > 0) %>%
   ungroup() %>% 
     filter(group != "H2O")
-
 
 maxc_type %>%
   filter(tdp43_sensitivity_sh != "") %>%
@@ -251,10 +227,7 @@ maxc_late <- maxc_type %>%
   labs(x = "", y = "", fill = "Late") +
   #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
   theme_bw()
-
-#maxc_earli / 
-    maxc_early / maxc_intermediate / maxc_late #/ maxc_na
-
+maxc_early / maxc_intermediate / maxc_late #/ maxc_na
 
 maxc_type %>%
   filter(group != "H2O") %>%
@@ -268,8 +241,6 @@ maxc_type %>%
   ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90))
-
-
 ```
 A.
 B.
