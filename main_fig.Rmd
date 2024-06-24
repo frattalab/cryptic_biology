@@ -1,5 +1,5 @@
 ---
-title: "cryptic bio main figures"
+title: "TDP-43 cryptic exon biology main figures"
 author: "MZ"
 date: "2024-05-06"
 output: html_document
@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
+library(ggalluvial)
 
 source(here::here('trial_nmd_plots.R'))
 
@@ -18,13 +19,97 @@ source(here::here('trial_nmd_plots.R'))
 here::here()
 ```
 
-### TDP-43 cryptic exon biology paper
-## Figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features 
+## Figure 1 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
+#1A and 1B
+levels_sy5y_qpcr <- read.csv(here::here('data',"unc13a_b_tdp43_curves_nature_paper.csv"))
+levels_dz_qpcr <- read.csv(here::here('data','qpcr_dz.csv'))
+#1C and 1D
+diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
+diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
+#1E, 1F, and 1G
 master_table <- read.csv(here::here("data/master_table.csv"))
 
 #####
-print("1A")
+print("1A and 1B")
+a <- levels_sy5y_qpcr %>%
+  ggplot(aes(x = as.character(Treatment), y = Value)) +
+  geom_point() +
+  geom_boxplot() +
+  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+  ylab('TDP-43 levels (% of untreated)') +
+  theme_classic() +
+  theme(text = element_text(size = 10))
+c <- levels_dz_qpcr %>%
+  filter(experiment == "new_new") %>%
+  ggplot(aes(x = as.character(sample), y = 100*value)) +
+  geom_point() +
+  geom_boxplot() +
+  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+  ylab('TDP-43 levels (% of untreated)') +
+  #facet_wrap(facets = vars(experiment)) +
+  theme_classic() +
+  theme(text = element_text(size = 10))
+a+c
+
+print("1C and 1D")
+plot_de <- diff_expr_sh %>%
+    filter(symbol != "RNA5-8SN2") %>% 
+  mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
+  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
+  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
+plot_de_meta <- as.data.frame(table(plot_de$color_gene_name, plot_de$alpha_gene_name, plot_de$source))
+e <- plot_de %>%
+  ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
+  geom_point(aes(color = color_gene_name, alpha = alpha_gene_name),
+             size = 0.2,
+             position = position_jitter(width = 0, height = 0.4),
+             show.legend = F) +
+  geom_text(data = plot_de_meta[plot_de_meta$Var2 == "sig",], 
+            aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
+            size = 5,
+            show.legend = F) +
+  geom_vline(xintercept = 0) +
+  geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
+  coord_flip() +
+  scale_color_brewer(palette = "Set1") +
+  scale_alpha_manual(values = c(0.2, 1)) +
+  xlim(c(-10,10)) +
+  xlab('Gene expression Log2 FC compared to controls') +
+  ylab('TDP-43 KD level') +
+  scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++")) +
+  theme_classic() +
+  theme(text = element_text(size = 10))
+plot_de_dz <- diff_expr_sk %>%
+    filter(symbol != "RNA5-8SN2") %>% 
+  mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
+  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
+  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
+plot_de_dz_meta <- as.data.frame(table(plot_de_dz$color_gene_name, plot_de_dz$alpha_gene_name, plot_de_dz$source))
+f <- plot_de_dz %>%
+  ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
+  geom_point(aes(color = color_gene_name, alpha = alpha_gene_name),
+             size = 0.2,
+             position = position_jitter(width = 0, height = 0.4),
+             show.legend = F) +
+  geom_text(data = plot_de_dz_meta[plot_de_dz_meta$Var2 == "sig",], 
+            aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
+            size = 5,
+            show.legend = F) +
+  geom_vline(xintercept = 0) +
+  geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
+  coord_flip() +
+  scale_color_brewer(palette = "Set1") +
+  scale_alpha_manual(values = c(0.2, 1)) +
+  xlim(c(-10,10)) +
+  xlab('Log2 Fold Change compared to untreated') +
+  ylab('Doxycycline concentration (ug/mL)') +
+  scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++", "++++++", "+++++++")) +
+  theme_classic() +
+  theme(text = element_text(size = 10)) 
+e + f
+
+print("1E and 1F")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
@@ -41,8 +126,7 @@ big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
   mutate(label_junction = case_when(name == "dox025" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_sh$tdp43_sensitivity_sh)
 table(big_data_filtereds_early_late_sh$max_psi_sh)
-
-big_data_filtereds_early_late_sh %>%
+GG <- big_data_filtereds_early_late_sh %>%
   ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +
   geom_line(aes(color = tdp43_sensitivity_sh), show.legend = F) +
   geom_text_repel(aes(label = label_junction), point.padding = 0.3,
@@ -56,8 +140,6 @@ big_data_filtereds_early_late_sh %>%
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_sh) + 
   theme_classic()
-
-print("1B")
 big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_be2) %>% 
     select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
@@ -74,8 +156,7 @@ big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
   mutate(label_junction = case_when(name == "dox01" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_be2$tdp43_sensitivity_be2)
 table(big_data_filtereds_early_late_be2$max_psi_be2)
-
-big_data_filtereds_early_late_be2 %>%
+HH <- big_data_filtereds_early_late_be2 %>%
   ggplot(mapping = aes(x = name, y = value, group = paste_into_igv_junction)) +
   geom_line(aes(color = tdp43_sensitivity_be2), show.legend = F) +
   geom_text_repel(aes(label = label_junction), point.padding = 0.3,
@@ -89,20 +170,51 @@ big_data_filtereds_early_late_be2 %>%
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_be2) + 
   theme_classic()
+GG + HH
 
-print("1C")
-  
+print("1G")  
+summary <- master_table %>%
+  filter(cryptic == "yes" & 
+             tdp43_sensitivity_sh != "" & tdp43_sensitivity_be2 != "") %>% 
+  group_by(tdp43_sensitivity_sh, tdp43_sensitivity_be2) %>%
+  summarise(count = n())%>%
+  ungroup()
+ggplot(summary,
+       aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
+  geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
+  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+  guides(fill = "none") +
+  geom_stratum(alpha = .25, width = 1/8) +
+  scale_fill_brewer(type = "qual", palette = "Set1") +
+  theme_void()
 ```
-A. Spaghetti plot in SH-SY5Y
-B. Spaghetti plot in BE(2)
-C.
-D.
 
-## Figure 2 - NMD
+A. Dose-response curves for SH-SY5Y
+B. Dose-response curves for SK-N-BE(2)
+C. Differential expression in SH-SY5Y
+D. Differential expression in SK-N-BE(2)
+E. Spaghetti plot in SH-SY5Y
+F. Spaghetti plot in SK-N-BE(2)
+G. alluvial plot
+
+## Figure 2 - Features
+```{r}
+
+```
+
+A. Conservation score for CE in SH-SY5Y
+B. Conservation score for non-CE in SH-SY5Y
+C. Kmers enrichment analysis in SH-SY5Y
+D. Density UG motifs by early-late in SH-SY5Y
+E. Density UG motifs by top-bottom in SH-SY5Y
+F. Distance iCLIP TDP43 binding site SH-SY5Y
+G. RNA maps based on figure F
+
+## Figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A")
+print("3A")
 
-print("2B")
+print("3B")
 gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("Control_Control",
                 "Cycloheximide_Control", 
@@ -110,11 +222,12 @@ input_list <- c("Control_Control",
                 "Cycloheximide_TDP43KD")
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 a <- slope_plot_nmd(big_data_chx, 
-               gene_list_slope)
+               gene_list_slope) #### NMD rescued and unaffected
 
-print("2C")
+print("3C")
 
 ```
+
 A. 
 B.
 C.

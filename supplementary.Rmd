@@ -11,7 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
-library(ggalluvial)
 
 source(here::here('trial_nmd_plots.R'))
 #check you're in right folder
@@ -21,28 +20,18 @@ here::here()
 ### Supplementary figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ### load data needed
-levels_sy5y_qpcr <- read.csv(here::here('data',"unc13a_b_tdp43_curves_nature_paper.csv"))
-levels_dz_qpcr <- read.csv(here::here('data','qpcr_dz.csv'))
+#S1A
 normal_counts_sh <- read.csv(here::here('data', 'normed_counts_sh.csv'))
 normal_counts_sk <- read.csv(here::here('data', 'normed_counts_sk.csv'))
 
-diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
-diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
-
+#S1?
 master_table <- read.csv(here::here("data/master_table.csv"))
 
+#S1F #S1G
 #apa_sh <- read.csv(here::here())
 #apa_sk <- read.csv(here::here())
 
 print("S1A")
-a <- levels_sy5y_qpcr %>%
-  ggplot(aes(x = as.character(Treatment), y = Value)) +
-  geom_point() +
-  geom_boxplot() +
-  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-  ylab('TDP-43 levels (% of untreated)') +
-  theme_classic() +
-  theme(text = element_text(size = 10))
 b <- normal_counts_sh[,c(2:19,21)] %>% 
   dplyr::filter(symbol == "TARDBP") %>%
   pivot_longer(c(1:18)) %>%
@@ -52,16 +41,6 @@ b <- normal_counts_sh[,c(2:19,21)] %>%
   geom_point(position = position_dodge2(width = 1), show.legend = F) +
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 Counts per million') +
-  theme_classic() +
-  theme(text = element_text(size = 10))
-c <- levels_dz_qpcr %>%
-  filter(experiment == "new_new") %>%
-  ggplot(aes(x = as.character(sample), y = 100*value)) +
-  geom_point() +
-  geom_boxplot() +
-  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-  ylab('TDP-43 levels (% of untreated)') +
-  #facet_wrap(facets = vars(experiment)) +
   theme_classic() +
   theme(text = element_text(size = 10))
 d <- normal_counts_sk[,c(2:25,27)] %>% 
@@ -76,84 +55,11 @@ d <- normal_counts_sk[,c(2:25,27)] %>%
   scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
   theme_classic() +
   theme(text = element_text(size = 10))
-(a + b) / (c + d)
+b + d
 
 print("S1B")
-plot_de <- diff_expr_sh %>%
-    filter(symbol != "RNA5-8SN2") %>% 
-  mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
-  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
-  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
-plot_de_meta <- as.data.frame(table(plot_de$color_gene_name, plot_de$alpha_gene_name, plot_de$source))
-e <- plot_de %>%
-  ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
-  geom_point(aes(color = color_gene_name, alpha = alpha_gene_name),
-             size = 0.2,
-             position = position_jitter(width = 0, height = 0.4),
-             show.legend = F) +
-  geom_text(data = plot_de_meta[plot_de_meta$Var2 == "sig",], 
-            aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
-            size = 5,
-            show.legend = F) +
-  geom_vline(xintercept = 0) +
-  geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
-  coord_flip() +
-  scale_color_brewer(palette = "Set1") +
-  scale_alpha_manual(values = c(0.2, 1)) +
-  xlim(c(-10,10)) +
-  xlab('Gene expression Log2 FC compared to controls') +
-  ylab('TDP-43 KD level') +
-  scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++")) +
-  theme_classic() +
-  theme(text = element_text(size = 10))
 
-plot_de_dz <- diff_expr_sk %>%
-    filter(symbol != "RNA5-8SN2") %>% 
-  mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
-  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
-  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
-plot_de_dz_meta <- as.data.frame(table(plot_de_dz$color_gene_name, plot_de_dz$alpha_gene_name, plot_de_dz$source))
-f <- plot_de_dz %>%
-  ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
-  geom_point(aes(color = color_gene_name, alpha = alpha_gene_name),
-             size = 0.2,
-             position = position_jitter(width = 0, height = 0.4),
-             show.legend = F) +
-  geom_text(data = plot_de_dz_meta[plot_de_dz_meta$Var2 == "sig",], 
-            aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
-            size = 5,
-            show.legend = F) +
-  geom_vline(xintercept = 0) +
-  geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
-  coord_flip() +
-  scale_color_brewer(palette = "Set1") +
-  scale_alpha_manual(values = c(0.2, 1)) +
-  xlim(c(-10,10)) +
-  xlab('Log2 Fold Change compared to untreated') +
-  ylab('Doxycycline concentration (ug/mL)') +
-  scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++", "++++++", "+++++++")) +
-  theme_classic() +
-  theme(text = element_text(size = 10)) 
-e + f
-
-print("S1C - need fixing")
-summary <- master_table %>%
-  filter(cryptic == "yes" & 
-             tdp43_sensitivity_sh != "" & tdp43_sensitivity_be2 != "") %>% 
-  group_by(tdp43_sensitivity_sh, tdp43_sensitivity_be2) %>%
-  summarise(count = n())%>%
-  ungroup()
-ggplot(summary,
-       aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
-  geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
-  #geom_stratum(width = 1/12, aes(fill = tdp43_sensitivity_be2), color = "grey") +
-  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
-    guides(fill = "none") +
-    geom_stratum(alpha = .25, width = 1/8) +
-  #scale_x_discrete(limits = c("Gender", "Dept"), expand = c(.05, .05)) +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-    theme_void()
-
+print("S1C")
 
 print("S1D")
 g <- master_table %>% 
@@ -179,13 +85,16 @@ g+h
 print("S1E")
 
 print("S1F")
-
+#apa_sh
+print("S1G")
+#apa_sk
 ```
 
-A. qPCR in SH and SK
-B. differential expression in SH and SK
-C. Overlap between sensitivity in SH and BE2
-D. UMAP clustering of events in SH and BE2
+A. levels from DeSeq in SH and SK
+B. Concordance between SH and SK (scatterplot) - to do!!
+C. UMAP clustering of events in SH and BE2 together - to do!!
+D. UMAP clustering of events in SH and in BE2 - separated
+E. differences in differential splicing are not due to changes in gene expression
 E. Spaghetti plot for APA events in SH-SY5Y
 F. Spaghetti plot for APA events in BE(2)
 
@@ -193,6 +102,16 @@ F. Spaghetti plot for APA events in BE(2)
 ```{r}
 
 ```
+
+A. Conservation score for CE in SK-N-BE(2)
+B. Conservation score for non-CE in SK-N-BE(2)
+C. Kmers enrichment analysis in SK-N-BE(2)
+D. Density UG motifs by early-late in SK-N-BE(2)
+E. Density UG motifs by top-bottom in SH-SY5Y
+F. Distance iCLIP TDP43 binding site SK-N-BE(2)
+G. RNA maps based on figure F
+H. 5'ss CE vs normal
+I. 3'ss CE vs normal
 
 ### Supplementary figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -202,8 +121,6 @@ input_list <- c("ctrl_ctrl",
                 "ctrl_UPF1", 
                 "TDP43_ctrl", 
                 "TDP43_UPF1")
-
-
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 a <- slope_plot_nmd(big_data_upf1, 
                gene_list_slope_upf1)
