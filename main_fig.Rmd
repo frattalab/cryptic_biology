@@ -215,6 +215,9 @@ G. RNA maps based on figure F
 print("3A")
 
 print("3B")
+
+
+print("3C")
 gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("Control_Control",
                 "Cycloheximide_Control", 
@@ -224,17 +227,21 @@ big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 a <- slope_plot_nmd(big_data_chx, 
                gene_list_slope) #### NMD rescued and unaffected
 
-print("3C")
+print("3D")
 
 ```
 
-A. 
-B.
-C.
-D.
+A. Categories - Overlap splicing changes?
+C. Slope plot in SH-SY5Y
+D. Differential expression of NMD sensitive and not
+E. Differential expression of NMD sensitive/not but more detailed
+F. TDP-43 dependent loss of dark cryptics
+G. 4-SU
 
-## Figure 3 - compendium / in vivo
+## Figure 4 - compendium / in vivo
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
+print("4A")
+
 ##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
 maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_product_reads.csv") %>%
   mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%

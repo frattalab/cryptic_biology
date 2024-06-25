@@ -115,7 +115,7 @@ I. 3'ss CE vs normal
 
 ### Supplementary figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("S2A")
+print("S3A")
 gene_list_slope_upf1 <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("ctrl_ctrl",
                 "ctrl_UPF1", 
@@ -125,10 +125,13 @@ big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 a <- slope_plot_nmd(big_data_upf1, 
                gene_list_slope_upf1)
 
+print("S3B")
+
 ```
 
-A.
-B.
-C.
+A. Slope plot UPF1
+B. Correlation CHX UPF1 - groups of rescued / non rescued
+C. TDP-43 inhibition doesn't impair NMD (top 50 UPF1)
+D. TDP-43 inhibition doesn't impair NMD (known poison exons)
 
 
