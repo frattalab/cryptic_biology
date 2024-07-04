@@ -231,6 +231,7 @@ sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
 categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
 
 annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+                                show_legend = c(F, F, F),
                                 col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
                                 which = "col")
 
@@ -337,7 +338,36 @@ f <- df_iclip %>%
 f
 
 #G. RNA maps based on figure F
+early_donors <- readDNAStringSet("data/maxent/donors_early_be2.fa")
+late_donors <- readDNAStringSet("data/maxent/donors_late_be2.fa")
+
+g1 <- ggplot() + 
+  geom_logo(data = as.character(early_donors), method = "probability")+
+  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
+  labs( x = "Position", y = "Probability") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
+  )
+g2 <- ggplot() + 
+  geom_logo(data = as.character(late_donors), method = "probability")+
+  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
+  labs( x = "Position", y = "Probability") +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
+  )
+g <- g1 / g2
+g
+
 #H. 5'ss CE vs normal
+
 #I. 3'ss CE vs normal
 
 ```
