@@ -11,6 +11,10 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
+<<<<<<< Updated upstream
+=======
+library(ggpubr)
+>>>>>>> Stashed changes
 library(ggsignif)
 library(ggseqlogo)
 library(Biostrings)
@@ -41,7 +45,7 @@ master_table <- read.csv(here::here("data/master_table.csv"))
 #apa_sh <- read.csv(here::here())
 #apa_sk <- read.csv(here::here())
 
-print("S1A")
+print("S1A - levels from DeSeq in SH and SK")
 b <- normal_counts_sh[,c(2:19,21)] %>% 
   dplyr::filter(symbol == "TARDBP") %>%
   pivot_longer(c(1:18)) %>%
@@ -67,11 +71,36 @@ d <- normal_counts_sk[,c(2:25,27)] %>%
   theme(text = element_text(size = 10))
 b + d
 
-print("S1B")
+print("S1B - Concordance between SH and SK scatterplot")
+#scatterplot from upgrade
+master_table %>% 
+    ggplot(aes(x = dox075, y = dox1)) +
+    geom_point() +
+    geom_smooth(method = 'lm', se = F) +
+    stat_cor() +
+    xlab("Max PSI in SH-SY5Y") +
+    ylab("Max PSI in SK-N-BE(2)") +
+    theme_classic()
 
+<<<<<<< Updated upstream
 print("S1C")
 
 print("S1D")
+=======
+print("S1C - UMAP clustering of events in SH and BE2 together")
+master_table %>% 
+    filter(tdp43_sensitivity_sh != "") %>% 
+    ggplot(aes(x = UMAP_1_together, y = UMAP_2_together, color = as.character(cluster_together))) +
+    geom_point(show.legend = F) +
+    xlab("UMAP 1 together") +
+    ylab("UMAP 2 together") +
+    labs(color = "cluster") +
+    scale_color_brewer(palette = "Set1") +
+    theme_bw()
+
+
+print("S1D - UMAP clustering of events in SH and in BE2 separated")
+>>>>>>> Stashed changes
 g <- master_table %>% 
     filter(tdp43_sensitivity_be2 != "") %>% 
     ggplot(aes(x = UMAP_1_sh, y = UMAP_2_sh, color = as.character(tdp43_sensitivity_be2))) +
@@ -92,7 +121,7 @@ h <- master_table %>%
     theme_bw()
 g+h
 
-print("S1E")
+print("S1E - differences in differential splicing are not due to changes in gene expression")
 
 print("S1F")
 #apa_sh
@@ -102,11 +131,11 @@ print("S1G")
 
 A. levels from DeSeq in SH and SK
 B. Concordance between SH and SK (scatterplot) - to do!!
-C. UMAP clustering of events in SH and BE2 together - to do!!
+C. UMAP clustering of events in SH and BE2 together
 D. UMAP clustering of events in SH and in BE2 - separated
-E. differences in differential splicing are not due to changes in gene expression
-E. Spaghetti plot for APA events in SH-SY5Y
-F. Spaghetti plot for APA events in BE(2)
+E. differences in differential splicing are not due to changes in gene expression??
+F. Spaghetti plot for APA events in SH-SY5Y
+G. Spaghetti plot for APA events in BE(2)
 
 ### Supplementary figure 2 - features 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -397,13 +426,29 @@ h + i
 ```
 
 A. Conservation score for CE in SK-N-BE(2)
+
 B. Conservation score for non-CE in SK-N-BE(2)
+
 C. Kmers enrichment analysis in SK-N-BE(2)
+
 D. Density UG motifs by early-late in SK-N-BE(2)
+<<<<<<< Updated upstream
 E. Density UG motifs by top-bottom in  SK-N-BE(2)
+=======
+<<<<<<< HEAD
+
+E. Density UG motifs by top-bottom in SH-SY5Y
+
+=======
+E. Density UG motifs by top-bottom in  SK-N-BE(2)
+>>>>>>> 0b9c0e2228595ac6a483dcb2fe50b70533dbc2c3
+>>>>>>> Stashed changes
 F. Distance iCLIP TDP43 binding site SK-N-BE(2)
+
 G. RNA maps based on figure F
+
 H. 5'ss CE vs normal
+
 I. 3'ss CE vs normal
 
 ### Supplementary figure 3 - NMD
@@ -423,8 +468,9 @@ print("S3B")
 ```
 
 A. Slope plot UPF1
+
 B. Correlation CHX UPF1 - groups of rescued / non rescued
+
 C. TDP-43 inhibition doesn't impair NMD (top 50 UPF1)
+
 D. TDP-43 inhibition doesn't impair NMD (known poison exons)
-
-

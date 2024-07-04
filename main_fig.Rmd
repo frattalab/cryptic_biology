@@ -42,7 +42,7 @@ diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
 master_table <- read.csv(here::here("data/master_table.csv"))
 
 #####
-print("1A and 1B")
+print("1A and 1B - Dose-response curves for SH-SY5Y and SK-N-BE(2)")
 a <- levels_sy5y_qpcr %>%
   ggplot(aes(x = as.character(Treatment), y = Value)) +
   geom_point() +
@@ -63,7 +63,7 @@ c <- levels_dz_qpcr %>%
   theme(text = element_text(size = plot_text_size))
 a+c
 
-print("1C and 1D")
+print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
     filter(symbol != "RNA5-8SN2") %>% 
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
@@ -120,7 +120,7 @@ f <- plot_de_dz %>%
   theme(text = element_text(size = plot_text_size)) 
 e + f
 
-print("1E and 1F")
+print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
@@ -183,7 +183,7 @@ HH <- big_data_filtereds_early_late_be2 %>%
   theme_classic()
 GG + HH
 
-print("1G")  
+print("1G - Alluvial plot")  
 summary <- master_table %>%
   filter(cryptic == "yes" & 
              tdp43_sensitivity_sh != "" & tdp43_sensitivity_be2 != "") %>% 
@@ -206,7 +206,7 @@ C. Differential expression in SH-SY5Y
 D. Differential expression in SK-N-BE(2)
 E. Spaghetti plot in SH-SY5Y
 F. Spaghetti plot in SK-N-BE(2)
-G. alluvial plot
+G. Alluvial plot
 
 ## Figure 2 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -470,11 +470,17 @@ g
 ```
 
 A. Conservation score for CE in SH-SY5Y
+
 B. Conservation score for non-CE in SH-SY5Y
+
 C. Kmers enrichment analysis in SH-SY5Y
+
 D. Density UG motifs by early-late in SH-SY5Y
+
 E. Density UG motifs by top-bottom in SH-SY5Y
+
 F. Distance iCLIP TDP43 binding site SH-SY5Y
+
 G. RNA maps based on figure F
 
 ## Figure 3 - NMD
@@ -499,19 +505,25 @@ print("3D")
 ```
 
 A. Categories - Overlap splicing changes?
+
+B. ???
+
 C. Slope plot in SH-SY5Y
+
 D. Differential expression of NMD sensitive and not
+
 E. Differential expression of NMD sensitive/not but more detailed
+
 F. TDP-43 dependent loss of dark cryptics
+
 G. 4-SU
 
 ## Figure 4 - compendium / in vivo
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("4A")
-
 ##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
-maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_product_reads.csv") %>%
+maxc <- read.csv(here::here('data',"count_table_of_aligned_remove_200bp_plus_product_reads.csv")) %>%
   mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%
   mutate(sample_name_ari = case_when(sample_name == "P64_11" ~ "HC1",
                                      sample_name == "P17_07" ~ "HC2",
@@ -532,7 +544,7 @@ maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_prod
 table(maxc$sample_name_ari)
 
 ##use only TDP43path-specific genes (use list from AL) - this is exluding more than 2/3 of genes!!
-al <- read.csv("~/Desktop/ce_bio/expression_by_pathology_updated.csv") %>%
+al <- read.csv(here::here('data',"expression_by_pathology_updated.csv")) %>%
   dplyr::filter(fraction_path > 0.01 & fraction_not_path < 0.005) %>% ####need to carefully check this with AL
   distinct(gene, .keep_all = T) ##check when binding with annotated validation table - should be ok since left_join
 names(al)[4] <- "gene_name"
@@ -632,6 +644,9 @@ maxc_type %>%
 ```
 
 A.
+
 B.
+
 C. Detection of CEs from in vivo samples
+
 D.
