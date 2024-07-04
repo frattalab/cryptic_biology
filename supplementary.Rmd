@@ -367,9 +367,33 @@ g <- g1 / g2
 g
 
 #H. 5'ss CE vs normal
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength.csv'))
+h <- df_5ss_strength %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = X5_ss_score_cryptic, y =X5_ss_score_ann, color = tdp43_sensitivity_sh)) +
+  geom_point(size = 2, alpha = 0.8) +  
+  scale_color_manual(values = plot_sensitivity_colors) +
+  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
+  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
+  labs(x = "MaxEnt score (5'ss cryptic site)", y = "MaxEnt score (5'ss annotated site)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
 
 #I. 3'ss CE vs normal
-
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength.csv'))
+i <- df_3ss_strength %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = X3_ss_score_cryptic, y =X3_ss_score_ann, color = tdp43_sensitivity_sh)) +
+  geom_point(size = 2, alpha = 0.8) +  
+  scale_color_manual(values = plot_sensitivity_colors) +
+  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
+  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
+  labs(x = "MaxEnt score (3'ss cryptic site)", y = "MaxEnt score (3'ss annotated site)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+h + i
 ```
 
 A. Conservation score for CE in SK-N-BE(2)
