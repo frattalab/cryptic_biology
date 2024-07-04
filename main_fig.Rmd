@@ -12,11 +12,22 @@ library(tidyverse)
 library(ggrepel)
 library(patchwork)
 library(ggalluvial)
+library(ggsignif)
+library(ggseqlogo)
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(ComplexHeatmap)
+library(RColorBrewer)
 
 source(here::here('trial_nmd_plots.R'))
 
 #check you're in right folder
 here::here()
+
+#plot parameters
+plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
+plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
+plot_text_size <- 10
 ```
 
 ## Figure 1 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
@@ -39,7 +50,7 @@ a <- levels_sy5y_qpcr %>%
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   theme_classic() +
-  theme(text = element_text(size = 10))
+  theme(text = element_text(size = plot_text_size))
 c <- levels_dz_qpcr %>%
   filter(experiment == "new_new") %>%
   ggplot(aes(x = as.character(sample), y = 100*value)) +
@@ -49,7 +60,7 @@ c <- levels_dz_qpcr %>%
   ylab('TDP-43 levels (% of untreated)') +
   #facet_wrap(facets = vars(experiment)) +
   theme_classic() +
-  theme(text = element_text(size = 10))
+  theme(text = element_text(size = plot_text_size))
 a+c
 
 print("1C and 1D")
@@ -79,7 +90,7 @@ e <- plot_de %>%
   ylab('TDP-43 KD level') +
   scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++")) +
   theme_classic() +
-  theme(text = element_text(size = 10))
+  theme(text = element_text(size = plot_text_size))
 plot_de_dz <- diff_expr_sk %>%
     filter(symbol != "RNA5-8SN2") %>% 
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
@@ -106,7 +117,7 @@ f <- plot_de_dz %>%
   ylab('Doxycycline concentration (ug/mL)') +
   scale_y_discrete(labels = c("+", "++", "+++", "++++", "+++++", "++++++", "+++++++")) +
   theme_classic() +
-  theme(text = element_text(size = 10)) 
+  theme(text = element_text(size = plot_text_size)) 
 e + f
 
 print("1E and 1F")
@@ -132,7 +143,7 @@ GG <- big_data_filtereds_early_late_sh %>%
   geom_text_repel(aes(label = label_junction), point.padding = 0.3,
                   nudge_y = 0.2, min.segment.length = 0.5, box.padding  = 2, max.overlaps = Inf, size=4, show.legend = F) +
   #geom_hline(yintercept = 0.2, linetype = "dotted") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) + #, "#984EA3", "#000000")) +
+  scale_color_manual(values = plot_sensitivity_colors) +
   #scale_alpha_manual(values = c(0.1,1)) +
   xlab("TDP-43 knockdown level") +
   ylab("PSI") +
@@ -162,7 +173,7 @@ HH <- big_data_filtereds_early_late_be2 %>%
   geom_text_repel(aes(label = label_junction), point.padding = 0.3,
                   nudge_y = 0.2, min.segment.length = 0.5, box.padding  = 2, max.overlaps = Inf, size=4, show.legend = F) +
   #geom_hline(yintercept = 0.2, linetype = "dotted") +
-  scale_color_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A")) + #, "#984EA3", "#000000")) +
+  scale_color_manual(values = plot_sensitivity_colors) +
   #scale_alpha_manual(values = c(0.1,1)) +
   xlab("TDP-43 knockdown level") +
   ylab("PSI") +
@@ -182,10 +193,10 @@ summary <- master_table %>%
 ggplot(summary,
        aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
   geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
-  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
   guides(fill = "none") +
-  geom_stratum(alpha = .25, width = 1/8) +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
+  geom_stratum(alpha = .5, width = 1/8) +
+  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_fill_manual(values = plot_sensitivity_colors) +
   theme_void()
 ```
 
@@ -198,8 +209,236 @@ F. Spaghetti plot in SK-N-BE(2)
 G. alluvial plot
 
 ## Figure 2 - Features
-```{r}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+print("2A and 2B")
 
+get_signif_stars <- function(p_value) {
+  if (p_value < 0.001) {
+    return("***")
+  } else if (p_value < 0.01) {
+    return("**")
+  } else if (p_value < 0.05) {
+    return("*")
+  } else {
+    return("NS")
+  }
+}
+  
+get_significance <- function(df, value, group, category_col, category) {
+  test_formula <- as.formula(paste(value, "~", group))
+  p_test <- kruskal.test(test_formula, data = df %>% filter(!!sym(category_col) == category))
+  #p1_annotation <- paste("p =", format(p1_test$p.value, digits = 3), get_signif_stars(p1_test$p.value))
+  return(get_signif_stars(p_test$p.value))
+}
+
+cons_score_df <- master_table %>% 
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
+  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score") 
+
+cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes") 
+cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no") 
+a <- cons_score_df_cryptic %>% 
+  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('PhastCons score') +
+  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
+    annotation = c(get_significance(cons_score_df_cryptic,
+                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                   get_significance(cons_score_df_cryptic,
+                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged")) 
+  ) +
+  #facet_wrap(facets = vars(cryptic)) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+b <- cons_score_df_not_cryptic %>% 
+  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('PhastCons score') +
+  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
+    annotation = c(get_significance(cons_score_df_not_cryptic,
+                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                   get_significance(cons_score_df_not_cryptic,
+                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged"))
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+a + b
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#C. Kmers enrichment analysis in SH-SY5Y
+print("2C")
+
+kmer_size <- 6
+yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
+ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
+aa_motifs <- c('GTGTGA', 'AATGAA', 'GAATGA', 'TGAATG', 'ATGAAT', 'GTGAAT', 'GAATGT', 'TTGAAT')
+all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
+
+count_hexamers <- function(row) {
+  if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
+    return(NULL)
+  }
+  
+  coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
+  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
+  if (row[["strand"]] == "-") {
+    seq <- reverseComplement(seq)
+  }
+  counts <- sapply(all_motifs, function(motif) countPattern(motif, seq, max.mismatch = 0))
+  names(counts) <- all_motifs
+  
+  return(counts)
+}
+master_table_filt <- master_table %>% 
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% filter(junc_cat != "exon_skip")
+kmer_table <- apply(master_table_filt, 1, count_hexamers)
+all_counts_df <- as.data.frame(t(kmer_table))
+
+all_counts_df$type <- master_table_filt$tdp43_sensitivity_sh
+all_counts_df$cryptic <- master_table_filt$cryptic
+
+summary_counts <- all_counts_df %>%
+  group_by(type, cryptic) %>%
+  summarise(across(all_motifs, sum))
+
+means <- apply(summary_counts[, -c(1,2)], 1, mean)
+sds <- apply(summary_counts[, -c(1,2)], 1, sd)
+z_scores <- sweep(summary_counts[, -c(1,2)], MARGIN = 1, STATS = means, FUN = "-") / sds
+heatmap_data <- as.matrix(z_scores)
+
+sort_kmers_by_zscore <- function(kmers, z_scores) {
+  kmers[order(z_scores[kmers], decreasing = TRUE)]
+}
+
+sorted_yg <- sort_kmers_by_zscore(yg_motifs, heatmap_data[1,])
+sorted_ya <- sort_kmers_by_zscore(ya_motifs, heatmap_data[1,])
+sorted_aa <- sort_kmers_by_zscore(aa_motifs, heatmap_data[1,])
+
+sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
+categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+
+annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+                                col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
+                                which = "col")
+
+heatmap_data <- as.matrix(z_scores)
+rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
+c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
+        cluster_columns = F,
+        cluster_rows = F,
+        show_row_names = T,
+        show_column_names = T,
+        show_row_dend = F,
+        bottom_annotation = annotation,
+        col = colorRampPalette(brewer.pal(3, "YlGnBu"))(100),
+        show_heatmap_legend = FALSE)
+c
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#D. Density UG motifs by early-late in SH-SY5Y
+print("2D and 2E")
+sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), function(i) {
+  coord <- master_table$paste_into_igv_junction_annotated[i]
+  chr <- sub("^(.*):.*$", "\\1", coord)
+  range <- as.numeric(unlist(strsplit(sub(".*:(.*)$", "\\1", coord), "-")))
+  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = chr, start = range[1], end = range[2])
+
+  if (master_table$strand[i] == "-") {
+    seq <- reverseComplement(seq)
+  }
+  
+  return(seq)
+})
+
+master_table$longest_ug_region <- Biostrings::vcountPattern('TGTGTG', DNAStringSet(sequences), max.mismatch = 1)
+
+master_table <- master_table %>% 
+  mutate(
+    start = as.numeric(sub(".*:(\\d+)-.*", "\\1", paste_into_igv_junction_annotated)),
+    end = as.numeric(sub(".*-(\\d+)", "\\1", paste_into_igv_junction_annotated)),
+    intron_len = end - start,
+    ug_density = longest_ug_region / intron_len
+  ) %>%
+  select(-start, -end)
+
+d <- master_table %>% 
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = cryptic, y = ug_density, fill = tdp43_sensitivity_sh)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('UG-repeat density') +
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+    annotation = c(get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
+                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "no"), 
+                   get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
+                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "yes")), tip_length = 0.02
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+#E. Density UG motifs by top-bottom in SH-SY5Y
+master_table$max_psi_sh <- factor(master_table$max_psi_sh, levels=c("Top", "Bottom"))
+e <- master_table %>% 
+  filter(max_psi_sh %in% c("Top", "Bottom")) %>%
+  ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_sh)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('UG-repeat density') +
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_fill_manual(values = plot_psi_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+    annotation = c(get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
+                                    "ug_density", "max_psi_sh", "cryptic", "no"), 
+                   get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
+                                    "ug_density", "max_psi_sh", "cryptic", "yes")), tip_length = 0.02
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+d + e
+
+#F. Distance iCLIP TDP43 binding site SH-SY5Y
+print("2F")
+df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
+df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
+
+f <- df_iclip %>% 
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+  filter(abs(dist) <= 1000) %>%
+  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
+  geom_density(alpha = 0.5, adjust = 1) +  
+  facet_wrap(~cryptic, 
+             ncol = 2,
+             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+f
+
+#G. RNA maps based on figure F
 ```
 
 A. Conservation score for CE in SH-SY5Y
@@ -239,129 +478,8 @@ F. TDP-43 dependent loss of dark cryptics
 G. 4-SU
 
 ## Figure 4 - compendium / in vivo
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("4A")
 
-##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
-maxc <- read.csv("~/Desktop/ce_bio/count_table_of_aligned_remove_200bp_plus_product_reads.csv") %>%
-  mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%
-  mutate(sample_name_ari = case_when(sample_name == "P64_11" ~ "HC1",
-                                     sample_name == "P17_07" ~ "HC2",
-                                     sample_name == "P47_11" ~ "HC3",
-                                     sample_name == "P35_07" ~ "HC4",
-                                     sample_name == "P56_13" ~ "FTD1",
-                                     sample_name == "P45_15" ~ "FTD2",
-                                     sample_name == "P63_05" ~ "FTD3",
-                                     sample_name == "P28_07" ~ "FTD4",
-                                     sample_name == "P40_04" ~ "FTD5",
-                                     sample_name == "P07_15" ~ "FTD6",
-                                     sample_name == "P16_09" ~ "FTD7",
-                                     sample_name == "P86_08" ~ "FTD8",
-                                     sample_name == "P13_13" ~ "FTD9",
-                                     sample_name == "P11_07" ~ "FTE10",
-                                     sample_name == "ddH2O" ~ "HO2O")) #%>%
-  #pivot_wider(names_from = sample_name_ari, values_from = ratio_cryptic)
-table(maxc$sample_name_ari)
 
-##use only TDP43path-specific genes (use list from AL) - this is exluding more than 2/3 of genes!!
-al <- read.csv("~/Desktop/ce_bio/expression_by_pathology_updated.csv") %>%
-  dplyr::filter(fraction_path > 0.01 & fraction_not_path < 0.005) %>% ####need to carefully check this with AL
-  distinct(gene, .keep_all = T) ##check when binding with annotated validation table - should be ok since left_join
-names(al)[4] <- "gene_name"
-maxc_al <- maxc %>%
-  left_join(al, by = "gene_name") %>%
-  dplyr::filter(!is.na(paste_into_igv_junction))
-table(maxc_al$sample_name_ari)
-table(maxc_al$gene_name)
-
-##check igv files for these genes
-maxc_type <- maxc_al %>%
-  select(-type) %>%
-  mutate(gene = gene_name) %>%
-  filter(gene_name != "SETD5") %>%
-  left_join(master_table, by = "paste_into_igv_junction") %>%
-  filter(!is.na(tdp43_sensitivity_sh)) %>% 
-  mutate(group = ifelse(grepl("FT", sample_name_ari), "FTD",
-                        ifelse(grepl("HC", sample_name_ari), "HC",
-                               "H2O"))) %>% 
-  group_by(gene_name) %>%
-  filter(sum(n_cryptic) > 0) %>%
-  ungroup() %>% 
-    filter(group != "H2O")
-
-maxc_type %>%
-  filter(tdp43_sensitivity_sh != "") %>%
-  filter(gene_name != "SETD5") %>%
-  #filter(detected == "Yes") %>%
-  filter(group != "H2O") %>%
-  ggplot(aes(x = tdp43_sensitivity_sh)) +
-  geom_bar(aes(fill = tdp43_sensitivity_sh)) +
-  facet_wrap(facets = vars(group), ncol = 2) +
-  scale_fill_brewer(palette = "Set1") +
-  xlab("") +
-  ylab("Count of cryptic exons detected by targeted panel") +
-  labs(fill = "Category") +
-  theme_bw()
-
-maxc_earli <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Earli") %>%
-  filter(gene_name != "SETD5") %>% 
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") + #position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Reds") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Earli") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_early <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Early") %>%
-  filter(gene_name != "SETD5") %>% 
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Reds") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Early") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_intermediate <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Intermediate") %>%
-  filter(gene_name != "SETD5") %>%
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Greens") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Intermediate") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_late <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Late") %>%
-  filter(gene_name != "SETD5") %>%
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Blues") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Late") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_early / maxc_intermediate / maxc_late #/ maxc_na
-
-maxc_type %>%
-  filter(group != "H2O") %>%
-    filter(tdp43_sensitivity_sh != "") %>% 
-  ggplot(aes(x = sample_name_ari, y = gene_name, fill = fraction_cryptic)) +
-  geom_tile() +
-  #scale_fill_viridis_d() +
-  scale_fill_gradient(low = "white", high = "black") +
-  facet_grid(rows = vars(tdp43_sensitivity_sh), cols = vars(group), 
-             scales = "free", space = "free") +
-  ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
-```
 A.
 B.
 C. Detection of CEs from in vivo samples

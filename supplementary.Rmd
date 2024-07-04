@@ -11,10 +11,20 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
+library(ggsignif)
+library(ggseqlogo)
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(ComplexHeatmap)
+library(RColorBrewer)
 
 source(here::here('trial_nmd_plots.R'))
 #check you're in right folder
 here::here()
+
+plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
+plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
+plot_text_size <- 10
 ```
 
 ### Supplementary figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features
@@ -63,13 +73,13 @@ print("S1C")
 
 print("S1D")
 g <- master_table %>% 
-    filter(tdp43_sensitivity_sh != "") %>% 
-    ggplot(aes(x = UMAP_1_sh, y = UMAP_2_sh, color = as.character(tdp43_sensitivity_sh))) +
+    filter(tdp43_sensitivity_be2 != "") %>% 
+    ggplot(aes(x = UMAP_1_sh, y = UMAP_2_sh, color = as.character(tdp43_sensitivity_be2))) +
     geom_point(show.legend = F) +
     xlab("UMAP 1") +
     ylab("UMAP 2") +
     labs(color = "TDP43 sensitivity") +
-    scale_color_brewer(palette = "Set1") +
+    scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 h <- master_table %>% 
     filter(tdp43_sensitivity_be2 != "") %>% 
@@ -78,7 +88,7 @@ h <- master_table %>%
     xlab("UMAP 1") +
     ylab("UMAP 2") +
     labs(color = "TDP43 sensitivity") +
-    scale_color_brewer(palette = "Set1") +
+    scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 g+h
 
@@ -99,7 +109,236 @@ E. Spaghetti plot for APA events in SH-SY5Y
 F. Spaghetti plot for APA events in BE(2)
 
 ### Supplementary figure 2 - features 
-```{r}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+print("2A and 2B")
+
+get_signif_stars <- function(p_value) {
+  if (p_value < 0.001) {
+    return("***")
+  } else if (p_value < 0.01) {
+    return("**")
+  } else if (p_value < 0.05) {
+    return("*")
+  } else {
+    return("NS")  # not significant
+  }
+}
+  
+get_significance <- function(df, value, group, category_col, category) {
+  test_formula <- as.formula(paste(value, "~", group))
+  p_test <- kruskal.test(test_formula, data = df %>% filter(!!sym(category_col) == category))
+  return(get_signif_stars(p_test$p.value))
+}
+
+cons_score_df <- master_table %>% 
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
+  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
+  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score") 
+
+cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes") 
+cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no") 
+a <- cons_score_df_cryptic %>% 
+  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_be2)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('PhastCons score') +
+  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
+    annotation = c(get_significance(cons_score_df_cryptic,
+                                    "cons_score", "tdp43_sensitivity_be2", "category", "phastCons_alt"), 
+                   get_significance(cons_score_df_cryptic,
+                                    "cons_score", "tdp43_sensitivity_be2", "category", "phastCons_unchanged")) 
+  ) +
+  #facet_wrap(facets = vars(cryptic)) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+b <- cons_score_df_not_cryptic %>% 
+  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_be2)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('PhastCons score') +
+  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
+    annotation = c(get_significance(cons_score_df_not_cryptic,
+                                    "cons_score", "tdp43_sensitivity_be2", "category", "phastCons_alt"), 
+                   get_significance(cons_score_df_not_cryptic,
+                                    "cons_score", "tdp43_sensitivity_be2", "category", "phastCons_unchanged"))
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+a + b
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#C. Kmers enrichment analysis in  SK-N-BE(2)
+print("2C")
+
+kmer_size <- 6
+yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
+ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
+aa_motifs <- c('GTGTGA', 'AATGAA', 'GAATGA', 'TGAATG', 'ATGAAT', 'GTGAAT', 'GAATGT', 'TTGAAT')
+all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
+
+count_hexamers <- function(row) {
+  if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
+    return(NULL)
+  }
+  
+  coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
+  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
+  if (row[["strand"]] == "-") {
+    seq <- reverseComplement(seq)
+  }
+  counts <- sapply(all_motifs, function(motif) countPattern(motif, seq, max.mismatch = 0))
+  names(counts) <- all_motifs
+  
+  return(counts)
+}
+master_table_filt <- master_table %>% 
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% filter(junc_cat != "exon_skip")
+kmer_table <- apply(master_table_filt, 1, count_hexamers)
+all_counts_df <- as.data.frame(t(kmer_table))
+
+all_counts_df$type <- master_table_filt$tdp43_sensitivity_be2
+all_counts_df$cryptic <- master_table_filt$cryptic
+
+summary_counts <- all_counts_df %>%
+  group_by(type, cryptic) %>%
+  summarise(across(all_motifs, sum))
+
+means <- apply(summary_counts[, -c(1,2)], 1, mean)
+sds <- apply(summary_counts[, -c(1,2)], 1, sd)
+z_scores <- sweep(summary_counts[, -c(1,2)], MARGIN = 1, STATS = means, FUN = "-") / sds
+heatmap_data <- as.matrix(z_scores)
+
+sort_kmers_by_zscore <- function(kmers, z_scores) {
+  kmers[order(z_scores[kmers], decreasing = TRUE)]
+}
+
+sorted_yg <- sort_kmers_by_zscore(yg_motifs, heatmap_data[1,])
+sorted_ya <- sort_kmers_by_zscore(ya_motifs, heatmap_data[1,])
+sorted_aa <- sort_kmers_by_zscore(aa_motifs, heatmap_data[1,])
+
+sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
+categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+
+annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+                                col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
+                                which = "col")
+
+rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
+c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers], 
+        cluster_columns = F,
+        cluster_rows = F,
+        show_row_names = T,
+        show_column_names = T,
+        show_row_dend = F,
+        bottom_annotation = annotation,
+        col = colorRampPalette(brewer.pal(3, "YlGnBu"))(100),
+        show_heatmap_legend = FALSE)
+c
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#D. Density UG motifs by early-late in  SK-N-BE(2)
+print("2D and 2E")
+sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), function(i) {
+  coord <- master_table$paste_into_igv_junction_annotated[i]
+  chr <- sub("^(.*):.*$", "\\1", coord)
+  range <- as.numeric(unlist(strsplit(sub(".*:(.*)$", "\\1", coord), "-")))
+  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = chr, start = range[1], end = range[2])
+
+  if (master_table$strand[i] == "-") {
+    seq <- reverseComplement(seq)
+  }
+  
+  return(seq)
+})
+
+master_table$longest_ug_region <- Biostrings::vcountPattern('TGTGTG', DNAStringSet(sequences), max.mismatch = 1)
+
+master_table <- master_table %>% 
+  mutate(
+    start = as.numeric(sub(".*:(\\d+)-.*", "\\1", paste_into_igv_junction_annotated)),
+    end = as.numeric(sub(".*-(\\d+)", "\\1", paste_into_igv_junction_annotated)),
+    intron_len = end - start,
+    ug_density = longest_ug_region / intron_len
+  ) %>%
+  select(-start, -end)
+
+d <- master_table %>% 
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = cryptic, y = ug_density, fill = tdp43_sensitivity_be2)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('UG-repeat density') +
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+    annotation = c(get_significance(master_table %>% filter(tdp43_sensitivity_be2 %in% c("Early", "Late")),
+                                    "ug_density", "tdp43_sensitivity_be2", "cryptic", "no"), 
+                   get_significance(master_table %>% filter(tdp43_sensitivity_be2 %in% c("Early", "Late")),
+                                    "ug_density", "tdp43_sensitivity_be2", "cryptic", "yes")), tip_length = 0.02
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+#E. Density UG motifs by top-bottom in  SK-N-BE(2)
+master_table$max_psi_be2 <- factor(master_table$max_psi_be2, levels=c("Top", "Bottom"))
+e <- master_table %>% 
+  filter(max_psi_be2 %in% c("Top", "Bottom")) %>%
+  ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_be2)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab('UG-repeat density') +
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_fill_manual(values = plot_psi_colors) +
+  guides(fill = "none") +
+  geom_signif(
+    y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+    annotation = c(get_significance(master_table %>% filter(max_psi_be2 %in% c("Top", "Bottom")),
+                                    "ug_density", "max_psi_be2", "cryptic", "no"), 
+                   get_significance(master_table %>% filter(max_psi_be2 %in% c("Top", "Bottom")),
+                                    "ug_density", "max_psi_be2", "cryptic", "yes")), tip_length = 0.02
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+d + e
+
+#F. Distance iCLIP TDP43 binding site  SK-N-BE(2)
+print("2F")
+df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
+df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
+
+f <- df_iclip %>% 
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>%
+  filter(abs(dist) <= 1000) %>%
+  ggplot(aes(x = dist, fill = tdp43_sensitivity_be2)) +
+  geom_density(alpha = 0.5, adjust = 1) +  
+  facet_wrap(~cryptic, 
+             ncol = 2,
+             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+
+f
+
+#G. RNA maps based on figure F
+#H. 5'ss CE vs normal
+#I. 3'ss CE vs normal
 
 ```
 
@@ -107,7 +346,7 @@ A. Conservation score for CE in SK-N-BE(2)
 B. Conservation score for non-CE in SK-N-BE(2)
 C. Kmers enrichment analysis in SK-N-BE(2)
 D. Density UG motifs by early-late in SK-N-BE(2)
-E. Density UG motifs by top-bottom in SH-SY5Y
+E. Density UG motifs by top-bottom in  SK-N-BE(2)
 F. Distance iCLIP TDP43 binding site SK-N-BE(2)
 G. RNA maps based on figure F
 H. 5'ss CE vs normal
