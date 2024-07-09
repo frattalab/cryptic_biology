@@ -11,10 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
-<<<<<<< Updated upstream
-=======
 library(ggpubr)
->>>>>>> Stashed changes
 library(ggsignif)
 library(ggseqlogo)
 library(Biostrings)
@@ -82,11 +79,10 @@ master_table %>%
     ylab("Max PSI in SK-N-BE(2)") +
     theme_classic()
 
-<<<<<<< Updated upstream
 print("S1C")
 
 print("S1D")
-=======
+
 print("S1C - UMAP clustering of events in SH and BE2 together")
 master_table %>% 
     filter(tdp43_sensitivity_sh != "") %>% 
@@ -100,10 +96,10 @@ master_table %>%
 
 
 print("S1D - UMAP clustering of events in SH and in BE2 separated")
->>>>>>> Stashed changes
+
 g <- master_table %>% 
     filter(tdp43_sensitivity_be2 != "") %>% 
-    ggplot(aes(x = UMAP_1_sh, y = UMAP_2_sh, color = as.character(tdp43_sensitivity_be2))) +
+    ggplot(aes(x = UMAP_1_sh, y = UMAP_2_sh, color = as.character(tdp43_sensitivity_sh))) +
     geom_point(show.legend = F) +
     xlab("UMAP 1") +
     ylab("UMAP 2") +
@@ -474,3 +470,27 @@ B. Correlation CHX UPF1 - groups of rescued / non rescued
 C. TDP-43 inhibition doesn't impair NMD (top 50 UPF1)
 
 D. TDP-43 inhibition doesn't impair NMD (known poison exons)
+
+
+### Supplementary figure 4 - in vivo
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+print("S4A")
+
+print("S4B")
+
+print("S4C")
+maxc_type %>%
+  filter(group != "H2O") %>%
+    filter(tdp43_sensitivity_sh != "") %>% 
+  ggplot(aes(x = sample_name_ari, y = gene_name, fill = fraction_cryptic)) +
+  geom_tile() +
+  #scale_fill_viridis_d() +
+  scale_fill_gradient(low = "white", high = "black") +
+  facet_grid(rows = vars(tdp43_sensitivity_sh), cols = vars(group), 
+             scales = "free", space = "free") +
+  ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+

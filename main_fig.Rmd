@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
+#BiocManager::install("ComplexHeatmap")
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
@@ -210,7 +211,7 @@ G. Alluvial plot
 
 ## Figure 2 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A and 2B")
+print("2A and 2B - Conservation score for CE and non-ce in SH-SY5Y")
 
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
@@ -280,7 +281,7 @@ a + b
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in SH-SY5Y
-print("2C")
+print("2C - Kmers enrichment analysis in SH-SY5Y")
 
 kmer_size <- 6
 yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
@@ -352,7 +353,7 @@ c
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #D. Density UG motifs by early-late in SH-SY5Y
-print("2D and 2E")
+print("2D and 2E - Density UG motifs by early-late and top-bottom in SH-SY5Y")
 sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), function(i) {
   coord <- master_table$paste_into_igv_junction_annotated[i]
   chr <- sub("^(.*):.*$", "\\1", coord)
@@ -419,7 +420,7 @@ e <- master_table %>%
 d + e
 
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
-print("2F")
+print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 
@@ -439,6 +440,7 @@ f <- df_iclip %>%
 
 f
 
+print("2G - RNA maps based on figure F")
 #G. RNA maps based on figure F
 early_donors <- readDNAStringSet("data/maxent/donors_early_sh.fa")
 late_donors <- readDNAStringSet("data/maxent/donors_late_sh.fa")
@@ -470,17 +472,11 @@ g
 ```
 
 A. Conservation score for CE in SH-SY5Y
-
 B. Conservation score for non-CE in SH-SY5Y
-
 C. Kmers enrichment analysis in SH-SY5Y
-
 D. Density UG motifs by early-late in SH-SY5Y
-
 E. Density UG motifs by top-bottom in SH-SY5Y
-
 F. Distance iCLIP TDP43 binding site SH-SY5Y
-
 G. RNA maps based on figure F
 
 ## Figure 3 - NMD
@@ -490,7 +486,7 @@ print("3A")
 print("3B")
 
 
-print("3C")
+print("3C - Slope plot in SH-SY5Y")
 gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("Control_Control",
                 "Cycloheximide_Control", 
@@ -502,20 +498,22 @@ a <- slope_plot_nmd(big_data_chx,
 
 print("3D")
 
+print("3E")
+
+print("3F - TDP-43 dependent loss of dark cryptics genes")
+plot_data <- read.table()
+
+
+print("3G")
+
 ```
 
 A. Categories - Overlap splicing changes?
-
 B. ???
-
 C. Slope plot in SH-SY5Y
-
 D. Differential expression of NMD sensitive and not
-
 E. Differential expression of NMD sensitive/not but more detailed
-
 F. TDP-43 dependent loss of dark cryptics
-
 G. 4-SU
 
 ## Figure 4 - compendium / in vivo
@@ -629,18 +627,7 @@ maxc_late <- maxc_type %>%
   theme_bw()
 maxc_early / maxc_intermediate / maxc_late #/ maxc_na
 
-maxc_type %>%
-  filter(group != "H2O") %>%
-    filter(tdp43_sensitivity_sh != "") %>% 
-  ggplot(aes(x = sample_name_ari, y = gene_name, fill = fraction_cryptic)) +
-  geom_tile() +
-  #scale_fill_viridis_d() +
-  scale_fill_gradient(low = "white", high = "black") +
-  facet_grid(rows = vars(tdp43_sensitivity_sh), cols = vars(group), 
-             scales = "free", space = "free") +
-  ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
+
 ```
 
 A.
