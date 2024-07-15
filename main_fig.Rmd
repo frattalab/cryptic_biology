@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
 #BiocManager::install("ComplexHeatmap")
+library(data.table)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
@@ -306,8 +307,11 @@ count_hexamers <- function(row) {
   
   return(counts)
 }
+
 master_table_filt <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% filter(junc_cat != "exon_skip")
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  filter(junc_cat != "exon_skip") %>%
+  distinct(paste_into_igv_junction_annotated, .keep_all = T)
 kmer_table <- apply(master_table_filt, 1, count_hexamers)
 all_counts_df <- as.data.frame(t(kmer_table))
 
