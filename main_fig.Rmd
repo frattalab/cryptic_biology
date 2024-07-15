@@ -285,10 +285,11 @@ a + b
 print("2C - Kmers enrichment analysis in SH-SY5Y")
 
 kmer_size <- 6
-yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
-ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
-aa_motifs <- c('GTGTGA', 'AATGAA', 'GAATGA', 'TGAATG', 'ATGAAT', 'GTGAAT', 'GAATGT', 'TTGAAT')
+yg_motifs <- c('TGTGTG', 'GTGTGT', 'GTGTGC', 'CGTGTG', 'TGCGTG', 'TGTGCG')
+ya_motifs <- c('ATGTGT', 'TGTGTA', 'TGCATG', 'GTGTAT', 'TGTATG', 'GTATGT')
+aa_motifs <- c('AATGAA', 'TTGAAT', 'ATGAAT', 'GTGTGA', 'TGAATG', 'GAATGA', 'GTGAAT', 'GAATGT')
 all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
+categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
 
 count_hexamers <- function(row) {
   if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
@@ -321,25 +322,23 @@ means <- apply(summary_counts[, -c(1,2)], 1, mean)
 sds <- apply(summary_counts[, -c(1,2)], 1, sd)
 z_scores <- sweep(summary_counts[, -c(1,2)], MARGIN = 1, STATS = means, FUN = "-") / sds
 heatmap_data <- as.matrix(z_scores)
+rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
 
 sort_kmers_by_zscore <- function(kmers, z_scores) {
   kmers[order(z_scores[kmers], decreasing = TRUE)]
 }
 
-sorted_yg <- sort_kmers_by_zscore(yg_motifs, heatmap_data[1,])
-sorted_ya <- sort_kmers_by_zscore(ya_motifs, heatmap_data[1,])
-sorted_aa <- sort_kmers_by_zscore(aa_motifs, heatmap_data[1,])
+sort_categories_by_zscore <- function(kmers, z_scores) {
+  categories[order(z_scores[kmers], decreasing = TRUE)]
+}
 
-sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
-categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+sorted_all_kmers <- sort_kmers_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
+sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
 
-annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
                                 show_legend = c(F, F, F),
-                                col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
+                                col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
                                 which = "col")
-
-heatmap_data <- as.matrix(z_scores)
-rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
 c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
@@ -347,7 +346,7 @@ c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","
         show_column_names = T,
         show_row_dend = F,
         bottom_annotation = annotation,
-        col = colorRampPalette(brewer.pal(3, "YlGnBu"))(100),
+        col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
         show_heatmap_legend = FALSE)
 c
 ```
@@ -502,7 +501,7 @@ print("3D")
 print("3E")
 
 print("3F - TDP-43 dependent loss of dark cryptics genes")
-plot_data <- read.table()
+#plot_data <- read.table()
 
 
 print("3G")

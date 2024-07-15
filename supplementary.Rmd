@@ -207,10 +207,11 @@ a + b
 print("2C")
 
 kmer_size <- 6
-yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
-ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
-aa_motifs <- c('GTGTGA', 'AATGAA', 'GAATGA', 'TGAATG', 'ATGAAT', 'GTGAAT', 'GAATGT', 'TTGAAT')
+yg_motifs <- c('TGTGTG', 'GTGTGT', 'GTGTGC', 'CGTGTG', 'TGCGTG', 'TGTGCG')
+ya_motifs <- c('ATGTGT', 'TGTGTA', 'TGCATG', 'GTGTAT', 'TGTATG', 'GTATGT')
+aa_motifs <- c('AATGAA', 'TTGAAT', 'ATGAAT', 'GTGTGA', 'TGAATG', 'GAATGA', 'GTGAAT', 'GAATGT')
 all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
+categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
 
 count_hexamers <- function(row) {
   if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
@@ -243,32 +244,32 @@ means <- apply(summary_counts[, -c(1,2)], 1, mean)
 sds <- apply(summary_counts[, -c(1,2)], 1, sd)
 z_scores <- sweep(summary_counts[, -c(1,2)], MARGIN = 1, STATS = means, FUN = "-") / sds
 heatmap_data <- as.matrix(z_scores)
+rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
 
 sort_kmers_by_zscore <- function(kmers, z_scores) {
   kmers[order(z_scores[kmers], decreasing = TRUE)]
 }
 
-sorted_yg <- sort_kmers_by_zscore(yg_motifs, heatmap_data[1,])
-sorted_ya <- sort_kmers_by_zscore(ya_motifs, heatmap_data[1,])
-sorted_aa <- sort_kmers_by_zscore(aa_motifs, heatmap_data[1,])
+sort_categories_by_zscore <- function(kmers, z_scores) {
+  categories[order(z_scores[kmers], decreasing = TRUE)]
+}
 
-sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
-categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+sorted_all_kmers <- sort_kmers_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
+sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
 
-annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
                                 show_legend = c(F, F, F),
-                                col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
+                                col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
                                 which = "col")
 
-rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
-c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers], 
+c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
         show_row_names = T,
         show_column_names = T,
         show_row_dend = F,
         bottom_annotation = annotation,
-        col = colorRampPalette(brewer.pal(3, "YlGnBu"))(100),
+        col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
         show_heatmap_legend = FALSE)
 c
 ```
@@ -391,8 +392,8 @@ g2 <- ggplot() +
 g <- g1 / g2
 g
 
-#H. 5'ss CE vs normal
-df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength.csv'))
+#H. 5'ss CE vs normal SH-SY5Y
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_sh.csv'))
 h <- df_5ss_strength %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
   ggplot(aes(x = X5_ss_score_cryptic, y =X5_ss_score_ann, color = tdp43_sensitivity_sh)) +
@@ -405,8 +406,8 @@ h <- df_5ss_strength %>%
   theme(legend.position = "top") +
   guides(color = "none")
 
-#I. 3'ss CE vs normal
-df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength.csv'))
+#I. 3'ss CE vs normal SH-SY5Y
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_sh.csv'))
 i <- df_3ss_strength %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
   ggplot(aes(x = X3_ss_score_cryptic, y =X3_ss_score_ann, color = tdp43_sensitivity_sh)) +
@@ -419,6 +420,36 @@ i <- df_3ss_strength %>%
   theme(legend.position = "top") +
   guides(color = "none")
 h + i
+
+
+#J. 5'ss CE vs normal SK-N-BE(2)
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_be2.csv'))
+j <- df_5ss_strength %>%
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = X5_ss_score_cryptic, y =X5_ss_score_ann, color = tdp43_sensitivity_be2)) +
+  geom_point(size = 2, alpha = 0.8) +  
+  scale_color_manual(values = plot_sensitivity_colors) +
+  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
+  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
+  labs(x = "MaxEnt score (5'ss cryptic site)", y = "MaxEnt score (5'ss annotated site)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+
+#K. 3'ss CE vs normal SK-N-BE(2)
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_be2.csv'))
+k <- df_3ss_strength %>%
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = X3_ss_score_cryptic, y =X3_ss_score_ann, color = tdp43_sensitivity_be2)) +
+  geom_point(size = 2, alpha = 0.8) +  
+  scale_color_manual(values = plot_sensitivity_colors) +
+  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
+  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
+  labs(x = "MaxEnt score (3'ss cryptic site)", y = "MaxEnt score (3'ss annotated site)") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+j + k
 ```
 
 A. Conservation score for CE in SK-N-BE(2)
@@ -428,24 +459,20 @@ B. Conservation score for non-CE in SK-N-BE(2)
 C. Kmers enrichment analysis in SK-N-BE(2)
 
 D. Density UG motifs by early-late in SK-N-BE(2)
-<<<<<<< Updated upstream
-E. Density UG motifs by top-bottom in  SK-N-BE(2)
-=======
-<<<<<<< HEAD
 
-E. Density UG motifs by top-bottom in SH-SY5Y
-
-=======
 E. Density UG motifs by top-bottom in  SK-N-BE(2)
->>>>>>> 0b9c0e2228595ac6a483dcb2fe50b70533dbc2c3
->>>>>>> Stashed changes
+
 F. Distance iCLIP TDP43 binding site SK-N-BE(2)
 
 G. RNA maps based on figure F
 
-H. 5'ss CE vs normal
+H. 5'ss CE vs normal SH-SY5Y
 
-I. 3'ss CE vs normal
+I. 3'ss CE vs normal SH-SY5Y
+
+J. 5'ss CE vs normal SK-N-BE(2)
+
+K. 3'ss CE vs normal SK-N-BE(2)
 
 ### Supplementary figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
