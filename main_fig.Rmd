@@ -668,7 +668,7 @@ junc_cryptic_master <- junc_cryptic_master  %>%
 ```
 
 
-```{r proportionExpressed}
+```{r proportionExpressed, echo=FALSE, warning=FALSE, message=FALSE}
 quick_bind = master_table %>% 
     select(gene,paste_into_igv_junction,junc_cat,tdp43_sensitivity_sh,tdp43_sensitivity_be2) %>% 
     mutate(gene = glue::glue("{gene}_{junc_cat}")) %>% 
@@ -692,7 +692,7 @@ cryptic_prop_cluster <- junc_cryptic_master %>%
 ```
 
 
-```{r proprotionDetected}
+```{r proprotionDetected,  echo=FALSE, warning=FALSE, message=FALSE}
 
 fish_sh = quick_bind %>%
     mutate(overlap = paste_into_igv_junction %in% junc_cryptic_master$junction) %>% 
