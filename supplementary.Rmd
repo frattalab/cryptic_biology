@@ -8,10 +8,12 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
+library(data.table)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
 library(ggpubr)
+library(ggstats)
 library(ggsignif)
 library(ggseqlogo)
 library(Biostrings)
@@ -395,64 +397,52 @@ g2 <- ggplot() +
 g <- g1 / g2
 g
 
-#H. 5'ss CE vs normal SH-SY5Y
+#H. MaxEnt CE vs normal SH-SY5Y
 df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_sh.csv'))
-h <- df_5ss_strength %>%
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = X5_ss_score_cryptic, y =X5_ss_score_ann, color = tdp43_sensitivity_sh)) +
-  geom_point(size = 2, alpha = 0.8) +  
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_sh.csv'))
+df_ss_strength <- rbind(
+  df_5ss_strength  %>%
+    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, tdp43_sensitivity_sh, site, ID_exon),
+  df_3ss_strength  %>%
+    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, tdp43_sensitivity_sh, site, ID_exon)
+) %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late"))
+h <- df_ss_strength %>% 
+  ggplot(aes(x=site, y = ss_ratio, color = tdp43_sensitivity_sh)) +
+  geom_boxplot() +
+  geom_abline(intercept = 1, slope = 0, color = "gray", linetype = "dashed") + 
   scale_color_manual(values = plot_sensitivity_colors) +
-  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
-  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
-  labs(x = "MaxEnt score (5'ss cryptic site)", y = "MaxEnt score (5'ss annotated site)") +
+  ylim(-4.1, 2.5) +
+  labs(y = "MaxEnt score cryptic site vs annotated site", x = "") +
   theme_minimal() +
   theme(legend.position = "top") +
   guides(color = "none")
 
-#I. 3'ss CE vs normal SH-SY5Y
-df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_sh.csv'))
-i <- df_3ss_strength %>%
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = X3_ss_score_cryptic, y =X3_ss_score_ann, color = tdp43_sensitivity_sh)) +
-  geom_point(size = 2, alpha = 0.8) +  
+#I. MaxEnt CE vs normal SK-N-BE(2)
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_be2.csv'))
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_be2.csv'))
+df_ss_strength <- rbind(
+  df_5ss_strength  %>%
+    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, tdp43_sensitivity_be2, site, ID_exon),
+  df_3ss_strength  %>%
+    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, tdp43_sensitivity_be2, site, ID_exon)
+) %>%
+  filter(tdp43_sensitivity_be2 %in% c("Early", "Late"))
+i <- df_ss_strength %>% 
+  ggplot(aes(x=site, y = ss_ratio, color = tdp43_sensitivity_be2)) +
+  geom_boxplot() +
+  geom_abline(intercept = 1, slope = 0, color = "gray", linetype = "dashed") + 
   scale_color_manual(values = plot_sensitivity_colors) +
-  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
-  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
-  labs(x = "MaxEnt score (3'ss cryptic site)", y = "MaxEnt score (3'ss annotated site)") +
+  ylim(-4.1, 2.5) +
+  labs(y = "MaxEnt score cryptic site vs annotated site", x = "") +
   theme_minimal() +
   theme(legend.position = "top") +
   guides(color = "none")
 h + i
-
-
-#J. 5'ss CE vs normal SK-N-BE(2)
-df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_be2.csv'))
-j <- df_5ss_strength %>%
-  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = X5_ss_score_cryptic, y =X5_ss_score_ann, color = tdp43_sensitivity_be2)) +
-  geom_point(size = 2, alpha = 0.8) +  
-  scale_color_manual(values = plot_sensitivity_colors) +
-  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
-  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
-  labs(x = "MaxEnt score (5'ss cryptic site)", y = "MaxEnt score (5'ss annotated site)") +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  guides(color = "none")
-
-#K. 3'ss CE vs normal SK-N-BE(2)
-df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_be2.csv'))
-k <- df_3ss_strength %>%
-  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = X3_ss_score_cryptic, y =X3_ss_score_ann, color = tdp43_sensitivity_be2)) +
-  geom_point(size = 2, alpha = 0.8) +  
-  scale_color_manual(values = plot_sensitivity_colors) +
-  geom_abline(intercept = 0, slope = 1, color = "gray", linetype = "dashed") + 
-  coord_cartesian(xlim = c(-30, 15), ylim = c(-30, 15)) + 
-  labs(x = "MaxEnt score (3'ss cryptic site)", y = "MaxEnt score (3'ss annotated site)") +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  guides(color = "none")
-j + k
 ```
 
 A. Conservation score for CE in SK-N-BE(2)
@@ -469,13 +459,9 @@ F. Distance iCLIP TDP43 binding site SK-N-BE(2)
 
 G. RNA maps based on figure F
 
-H. 5'ss CE vs normal SH-SY5Y
+H. MaxEnt CE vs normal SH-SY5Y
 
-I. 3'ss CE vs normal SH-SY5Y
-
-J. 5'ss CE vs normal SK-N-BE(2)
-
-K. 3'ss CE vs normal SK-N-BE(2)
+I. MaxEnt CE vs normal SK-N-BE(2)
 
 ### Supplementary figure 3 - NMD
 

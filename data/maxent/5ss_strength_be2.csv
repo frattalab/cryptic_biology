@@ -1,4 +1,4 @@
-ID_exon,paste_into_igv_junction,5_ss_score_cryptic,tdp43_sensitivity_be2,cryptic,alt_site,normal_site,5_ss_score_ann
+ID_exon,paste_into_igv_junction,ss_score_cryptic,tdp43_sensitivity_be2,cryptic,alt_site,normal_site,ss_score_ann
 469,chr1:1044988-1045160,-13.23,,yes,1044988,1045160,8.7
 341,chr1:21598502-21598723,6.51,,yes,21598723,21598502,7.54
 241,chr1:53271346-53274643,2.7,Early,yes,53274643,53271346,7.22
