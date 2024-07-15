@@ -20,6 +20,7 @@ library(Biostrings)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(ComplexHeatmap)
 library(RColorBrewer)
+library(ggstats)
 
 source(here::here('trial_nmd_plots.R'))
 
@@ -484,6 +485,81 @@ F. Distance iCLIP TDP43 binding site SH-SY5Y
 G. RNA maps based on figure F
 
 ## Figure 3 - NMD
+
+A. Categories - Overlap splicing changes?
+B. Late/early is not driven by NMD sensitivity
+C. Slope plot in SH-SY5Y
+D. Differential expression of NMD sensitive and not
+E. Differential expression of NMD sensitive/not but more detailed
+F. TDP-43 dependent loss of dark cryptics
+G. 4-SU
+
+```{r LateEarlyNMD, echo=FALSE, warning=FALSE, message=FALSE}
+# reading in the master table again for debug, can remove later
+master_table <- read.csv(here::here("data/master_table.csv"))
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+
+
+sh_nmd_sens = big_data_chx %>% 
+    distinct(paste_into_igv_junction,color_gene_name) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_sh)) %>% 
+    filter(tdp43_sensitivity_sh != "") %>% 
+    group_by(color_gene_name,tdp43_sensitivity_sh) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction)) 
+
+ggplot(sh_nmd_sens) +
+    aes(x = tdp43_sensitivity_sh, fill = color_gene_name, weight = n, by = 1) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Cycloheximide treatment') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom')
+
+sh_nmd_sens %>% 
+    pivot_wider(names_from = 'color_gene_name',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_sh") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+
+sk_nmd_sens = big_data_chx %>% 
+    distinct(paste_into_igv_junction,color_gene_name) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_be2)) %>% 
+    filter(tdp43_sensitivity_be2 != "") %>% 
+    group_by(color_gene_name,tdp43_sensitivity_be2) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction)) 
+
+ggplot(sk_nmd_sens) +
+    aes(x = tdp43_sensitivity_be2, fill = color_gene_name, weight = n, by = 1) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Cycloheximide treatment') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom')
+
+sk_nmd_sens %>% 
+    pivot_wider(names_from = 'color_gene_name',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_be2") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
+
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("3A")
 
@@ -512,13 +588,7 @@ print("3G")
 
 ```
 
-A. Categories - Overlap splicing changes?
-B. ???
-C. Slope plot in SH-SY5Y
-D. Differential expression of NMD sensitive and not
-E. Differential expression of NMD sensitive/not but more detailed
-F. TDP-43 dependent loss of dark cryptics
-G. 4-SU
+
 
 ## Figure 4 - compendium / in vivo
 
