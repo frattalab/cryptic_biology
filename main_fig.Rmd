@@ -191,6 +191,7 @@ summary <- master_table %>%
   group_by(tdp43_sensitivity_sh, tdp43_sensitivity_be2) %>%
   summarise(count = n())%>%
   ungroup()
+
 ggplot(summary,
        aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
   geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
@@ -637,3 +638,111 @@ B.
 C. Detection of CEs from in vivo samples
 
 D.
+```{r readSC junc, echo=FALSE, warning=FALSE, message=FALSE}
+# Based on analyses by Jack Humphrey
+
+# reading in the master table again for debug, can remove later
+master_table <- read.csv(here::here("data/master_table.csv"))
+
+# read in the annotation for cells
+anno_df = fread("data/anno_df_parse.csv")
+# read in the pasre junctions and filter for the cryptic events in the master table
+junc_df <- fread("data/all_parse_junctions_per_cell.tsv.gz")
+
+junc_cryptic_master = junc_df |> 
+    filter(junction %in% master_table$paste_into_igv_junction) |> 
+    left_join((master_table %>% distinct(gene,paste_into_igv_junction,
+                                         cryptic,
+                                         tdp43_sensitivity_sh,
+                                         tdp43_sensitivity_be2,
+                                         longest_ug_region,
+                                         dist_nearest_ug_region)),by = c("junction" = "paste_into_igv_junction")) |> 
+    unique() |> 
+    filter(cryptic == 'yes') 
+
+# add in the cell barcode information and filter for cells with information
+junc_cryptic_master <- junc_cryptic_master  %>%
+    left_join(anno_df, by = c("barcode" = "donor_barcode") ) %>% 
+    filter(!is.na(cluster))
+
+
+```
+
+
+```{r proportionExpressed}
+quick_bind = master_table %>% 
+    select(gene,paste_into_igv_junction,junc_cat,tdp43_sensitivity_sh,tdp43_sensitivity_be2) %>% 
+    mutate(gene = glue::glue("{gene}_{junc_cat}")) %>% 
+    mutate(gene = make.unique(gene))
+
+cluster_size_df <- 
+    anno_df %>% group_by(cluster_label) %>% tally(name = "total")
+
+cryptic_prop_cluster <- junc_cryptic_master %>%
+    left_join(cluster_size_df) %>% 
+    filter(!is.na(cluster)) %>%
+    group_by(junction,cluster_label) %>% 
+    reframe(n = n_distinct(barcode),gene,tdp43_sensitivity_sh,tdp43_sensitivity_be2) %>% 
+    unique() %>% 
+    left_join(cluster_size_df, by = "cluster_label") %>% 
+    mutate(prop = n / total) 
+
+
+
+
+```
+
+
+```{r proprotionDetected}
+
+fish_sh = quick_bind %>%
+    mutate(overlap = paste_into_igv_junction %in% junc_cryptic_master$junction) %>% 
+    select(tdp43_sensitivity_sh,overlap) %>% 
+    filter(tdp43_sensitivity_sh %in% c("Early","Late")) %>% 
+    table() 
+
+ft = rstatix::fisher_test(fish_sh)
+
+fish_sh %>% 
+    melt() %>% 
+    pivot_wider(names_from = overlap, values_from = value) %>%
+    mutate( prop = `TRUE` / (`TRUE` + `FALSE`) ) %>%
+    mutate(prop_label = paste0(`TRUE`, "/", `FALSE`) ) %>%
+    ggplot(aes(x = tdp43_sensitivity_sh, y = prop)) + geom_col() +
+    geom_text(aes(label = prop_label), nudge_y =  0.01) +
+    labs(y = "Proportion detected",x = element_blank()) +
+    geom_signif(
+        comparisons = list(c("Early", "Late")),
+        annotations = paste("p =", round(ft$p, digits = 3)),
+        tip_length = 0.03
+    ) +
+    theme_classic()
+
+
+
+fish_sk = quick_bind %>%
+    mutate(overlap = paste_into_igv_junction %in% junc_cryptic_master$junction) %>% 
+    select(tdp43_sensitivity_be2,overlap) %>% 
+    filter(tdp43_sensitivity_be2 %in% c("Early","Late")) %>% 
+    table() 
+
+ft_sk = rstatix::fisher_test(fish_sk)
+
+fish_sk %>% 
+    melt() %>% 
+    pivot_wider(names_from = overlap, values_from = value) %>%
+    mutate( prop = `TRUE` / (`TRUE` + `FALSE`) ) %>%
+    mutate(prop_label = paste0(`TRUE`, "/", `FALSE`) ) %>%
+    ggplot(aes(x = tdp43_sensitivity_be2, y = prop)) + 
+    geom_col() +
+    geom_text(aes(label = prop_label), nudge_y =  0.01) +
+    labs(y = "Proportion detected",x = element_blank()) +
+    geom_signif(
+        comparisons = list(c("Early", "Late")),
+        annotations = paste("p =", round(ft_sk$p, digits = 3)),
+        tip_length = 0.03
+    ) +
+    theme_classic()
+
+```
+
