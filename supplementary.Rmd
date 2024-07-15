@@ -478,6 +478,10 @@ J. 5'ss CE vs normal SK-N-BE(2)
 K. 3'ss CE vs normal SK-N-BE(2)
 
 ### Supplementary figure 3 - NMD
+
+A. Slope plot UPF1
+
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("S3A")
 gene_list_slope_upf1 <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
@@ -493,14 +497,78 @@ print("S3B")
 
 ```
 
-A. Slope plot UPF1
 
-B. Correlation CHX UPF1 - groups of rescued / non rescued
+B. late/early UPF1
 
-C. TDP-43 inhibition doesn't impair NMD (top 50 UPF1)
+```{r LateEarlyNMD, echo=FALSE, warning=FALSE, message=FALSE}
+# reading in the master table again for debug, can remove later
+master_table <- read.csv(here::here("data/master_table.csv"))
 
-D. TDP-43 inhibition doesn't impair NMD (known poison exons)
 
+sh_nmd_sens_upf1 = big_data_upf1 %>% 
+    distinct(paste_into_igv_junction,color_gene_name) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_sh)) %>% 
+    filter(tdp43_sensitivity_sh != "") %>% 
+    group_by(color_gene_name,tdp43_sensitivity_sh) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction)) 
+
+ggplot(sh_nmd_sens_upf1) +
+    aes(x = tdp43_sensitivity_sh, fill = color_gene_name, weight = n,by = as.factor(tdp43_sensitivity_sh)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'UPF1 KD') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom')
+
+sh_nmd_sens_upf1 %>% 
+    pivot_wider(names_from = 'color_gene_name',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_sh") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+
+sk_nmd_sens_upf1 = big_data_upf1 %>% 
+    distinct(paste_into_igv_junction,color_gene_name) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_be2)) %>% 
+    filter(tdp43_sensitivity_be2 != "") %>% 
+    group_by(color_gene_name,tdp43_sensitivity_be2) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction)) 
+
+ggplot(sk_nmd_sens_upf1) +
+    aes(x = tdp43_sensitivity_be2, fill = color_gene_name, weight = n,by = as.factor(tdp43_sensitivity_be2)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Cycloheximide treatment') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom')
+
+sk_nmd_sens_upf1 %>% 
+    pivot_wider(names_from = 'color_gene_name',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_be2") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
+
+C. Correlation CHX UPF1 - groups of rescued / non rescued
+
+D. TDP-43 inhibition doesn't impair NMD (top 50 UPF1)
+
+E. TDP-43 inhibition doesn't impair NMD (known poison exons)
 
 ### Supplementary figure 4 - in vivo
 

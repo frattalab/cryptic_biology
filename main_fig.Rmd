@@ -509,7 +509,7 @@ sh_nmd_sens = big_data_chx %>%
     reframe(n = n_distinct(paste_into_igv_junction)) 
 
 ggplot(sh_nmd_sens) +
-    aes(x = tdp43_sensitivity_sh, fill = color_gene_name, weight = n, by = 1) +
+    aes(x = tdp43_sensitivity_sh, fill = color_gene_name, weight = n,by = as.factor(tdp43_sensitivity_sh)) +
     geom_bar() +
     geom_text(
         aes(label = scales::percent(after_stat(prop), accuracy = 1)),
@@ -538,7 +538,7 @@ sk_nmd_sens = big_data_chx %>%
     reframe(n = n_distinct(paste_into_igv_junction)) 
 
 ggplot(sk_nmd_sens) +
-    aes(x = tdp43_sensitivity_be2, fill = color_gene_name, weight = n, by = 1) +
+    aes(x = tdp43_sensitivity_be2, fill = color_gene_name, weight = n, by = as.factor(tdp43_sensitivity_be2)) +
     geom_bar() +
     geom_text(
         aes(label = scales::percent(after_stat(prop), accuracy = 1)),
