@@ -606,6 +606,61 @@ master_table %>%
 ```
 
 
+```{r NMDcompendiumCHX, echo=FALSE, warning=FALSE, message=FALSE}
+compendium_events = fread('data/compendium_cryptics.csv')
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+
+compendium_events %>% 
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
+    filter(!is.na(color_gene_name)) %>% 
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>% 
+    ggplot(aes(color = color_gene_name, x = n_significant_data)) + 
+    stat_ecdf()  +
+    labs(x = 'N datasets cryptic detected') + 
+    theme_classic()
+
+compendium_events %>% 
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,color_gene_name)) %>%
+    filter(!is.na(color_gene_name)) %>%
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>%
+    ggplot(aes(color_gene_name, y = n_significant_data)) +
+    geom_boxplot() +
+    labs(y = 'N datasets cryptic detected',
+         x = element_blank()) +
+    theme_classic() +
+    stat_compare_means()
+
+
+```
+
+```{r NMDcompendiumUPF1, echo=FALSE, warning=FALSE, message=FALSE}
+compendium_events = fread('data/compendium_cryptics.csv')
+big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
+
+
+compendium_events %>% 
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
+    filter(!is.na(color_gene_name)) %>% 
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>% 
+    ggplot(aes(color = color_gene_name, x = n_significant_data)) + 
+    stat_ecdf()  +
+    labs(x = 'N datasets cryptic detected') + 
+    theme_classic()
+
+compendium_events %>% 
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,color_gene_name)) %>%
+    filter(!is.na(color_gene_name)) %>%
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>%
+    ggplot(aes(color_gene_name, y = n_significant_data)) +
+    geom_boxplot() +
+    labs(y = 'N datasets cryptic detected',
+         x = element_blank()) +
+    theme_classic() +
+    stat_compare_means()
+
+
+```
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("S4A")
