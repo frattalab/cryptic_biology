@@ -187,14 +187,14 @@ HH <- big_data_filtereds_early_late_be2 %>%
 GG + HH
 
 print("1G - Alluvial plot")  
-summary <- master_table %>%
+s <- master_table %>%
   filter(cryptic == "yes" & 
              tdp43_sensitivity_sh != "" & tdp43_sensitivity_be2 != "") %>% 
   group_by(tdp43_sensitivity_sh, tdp43_sensitivity_be2) %>%
-  summarise(count = n())%>%
+  count(name = 'count') %>% 
   ungroup()
 
-ggplot(summary,
+ggplot(s,
        aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
   geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
   guides(fill = "none") +
