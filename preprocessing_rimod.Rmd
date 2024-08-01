@@ -10,6 +10,9 @@ library(data.table)
 library(pROC)
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
+give.n <- function(x){
+return(c(y = median(x)*1.6, label = length(x)))
+}
 ```
 
 ### Reading in the data
@@ -22,6 +25,18 @@ cell_specific = fread("/Users/annaleigh/Downloads/cell_specific_cryptics.csv")
 meta_rimod = fread("data/metadata_rimod.csv")
 
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue","SH-SY5Y only" = 'grey','SK-N-BE(2) only' = 'darkgrey')
+
+cell_type_df = cell_specific %>% 
+    select(junctions_coords,gene_name,matches('dpsi')) %>% 
+    melt() %>% 
+    separate(variable, into = c(NA,'celltype')) %>% 
+    group_by(junctions_coords) %>% 
+    mutate(cryptic = value >=0.1) %>% 
+    mutate(n_cellType = sum(cryptic,na.rm = TRUE)) %>% 
+    ungroup() %>% 
+    filter(cryptic == TRUE) %>% 
+    group_by(junctions_coords,gene_name) %>% 
+    reframe(cells = paste(celltype, collapse = ','),n_cellType) %>% unique()
 
 master_table = master_table %>% 
     mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '', "SH-SY5Y only",tdp43_sensitivity_be2)) %>% 
@@ -82,7 +97,7 @@ rimod_clustered_long_psi = rimod_clustered %>%
 
 Now everything has been normalized to a psi metric let's find out if anything is predictive of TDP-43 path vs not path
 
-```{r}
+```{r ROCanalysis}
 modeling_ftd_rpm = rimod_clustered_long_psi %>% 
         filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction | 
            paste_into_igv_junction %in% master_table$paste_into_igv_junction |
@@ -95,22 +110,70 @@ modeling_ftd_rpm = rimod_clustered_long_psi %>%
                 names_from = 'paste_into_igv_junction',values_fill = 0) %>% 
     as.data.table() 
 
+
+modeling_ftd_rpm_norm = modeling_ftd_rpm %>% 
+  mutate(across(starts_with("chr"), ~ scale(.) %>% as.vector())) %>% 
+    select(where(~ !any(is.nan(.))))
+
+
 library(pROC)
 
 
-ROCvector = modeling_ftd_rpm %>% colnames()
+ROCvector = modeling_ftd_rpm_norm %>% colnames()
 ROCvector = ROCvector[!(ROCvector %in% c("variable", "numeric_prediction","genotype"))]
 
 
 my_df = data.table()
+
 for (predictor in ROCvector) {
-    pROC_obj <- roc_(data = modeling_ftd_rpm,"numeric_prediction",predictor,quiet = TRUE)
-    lil_list = list(paste_into_igv_junction = predictor,auc = pROC_obj$auc,
+
+    pROC_obj <- roc_(data = modeling_ftd_rpm_norm,"numeric_prediction",predictor,quiet = TRUE)
+    
+    predictor_value <- 0
+    fpr_value <- coords(pROC_obj, x = predictor_value, input = "threshold", ret = "specificity", best.method = "closest.topleft", transpose = FALSE)
+    # Calculate the FPR
+    fpr_value <- 1 - fpr_value
+    tpr_value <- coords(pROC_obj, x = predictor_value, input = "threshold", ret = "sensitivity", best.method = "closest.topleft", transpose = FALSE)
+
+    lil_list = list(paste_into_igv_junction = predictor,
+                    auc = as.numeric(pROC_obj$auc),
                     avg_fpr = 1 - mean(pROC_obj$specificities),
-                    avg_tpr = mean(pROC_obj$sensitivities))
+                    avg_tpr = mean(pROC_obj$sensitivities),
+                    fpr_value = as.numeric(fpr_value),
+                    tpr_value = as.numeric(tpr_value))
     my_df = rbind(my_df,lil_list)
+
 }
 
 ```
 
+Alright we have a df of the True Positive Rate, False Positive Rate and auc. Arguable the FPR is more important than AUC for these questions
+
+```{r filterLowFPR}
+
+my_df %>% 
+    left_join(compendium_events %>% distinct(gene_name,paste_into_igv_junction,junc_cat,n_significant_data)) %>% 
+    filter(!is.na(n_significant_data)) %>% 
+    arrange(avg_fpr) %>% 
+    mutate(binned_fpr = cut_interval(avg_fpr,n = 5)) %>% 
+    mutate(binned_ds = cut_interval(n_significant_data,n = 3)) %>% 
+    arrange(-n_significant_data) %>% 
+    mutate(outliers = ifelse(n_significant_data == 1 & avg_fpr < 0.1,gene_name,NA_character_)) %>% 
+    # filter(n_significant_data > 3 & FPR > 0.5)
+    ggplot(aes(y = avg_fpr, x = binned_ds)) + 
+    geom_boxplot() +
+    stat_summary(fun.data = give.n, geom = "text", 
+                 fun.y = median,
+                 position = position_dodge(width = 0.75)) + 
+    theme_classic() +
+    ggrepel::geom_text_repel(aes(label = outliers),max.overlaps = 100) + 
+    geom_hline(yintercept = 0.1, linetype = 'dotted')
+
+
+my_df %>% 
+    left_join(compendium_events %>% distinct(gene_name,paste_into_igv_junction,junc_cat,n_significant_data)) %>% 
+    filter(!is.na(n_significant_data)) %>% 
+    arrange(avg_fpr) %>% 
+    filter(n_significant_data == 1 & avg_fpr < 0.1)
+```
 
