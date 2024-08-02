@@ -92,7 +92,9 @@ rimod_clustered_long_psi = rimod_clustered %>%
     group_by(cluster,variable) %>% 
     mutate(cluster_count = sum(value)) %>% 
     ungroup() %>% 
-    mutate(psi = value / cluster_count) 
+    mutate(psi = value / cluster_count) %>% 
+    mutate(psi = ifelse(is.na(psi),0,psi)) %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi)) 
 ```
 
 Now everything has been normalized to a psi metric let's find out if anything is predictive of TDP-43 path vs not path
@@ -137,8 +139,8 @@ for (predictor in ROCvector) {
 
     lil_list = list(paste_into_igv_junction = predictor,
                     auc = as.numeric(pROC_obj$auc),
-                    avg_fpr = 1 - mean(pROC_obj$specificities),
-                    avg_tpr = mean(pROC_obj$sensitivities),
+                    avg_fpr = 1 - mean(pROC_obj$specificities[-c(1, length(pROC_obj$sensitivities))]),
+                    avg_tpr = mean(pROC_obj$sensitivities[-c(1, length(pROC_obj$sensitivities))]),
                     fpr_value = as.numeric(fpr_value),
                     tpr_value = as.numeric(tpr_value))
     my_df = rbind(my_df,lil_list)
