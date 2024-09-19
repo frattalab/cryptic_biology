@@ -162,6 +162,33 @@ shsy5y_papa |>
 
 #### G. Spaghetti plot for APA events in BE(2)
 
+```{r}
+shsy5y_papa = fread("data/sknbe2_papa_curve.csv")
+
+    select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |> 
+    complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |> 
+    dplyr::group_by(le_id) %>%
+    fill(timing, .direction = "downup") %>%
+    ungroup() |> 
+    mutate(gene_name = ifelse(experiment == 'zanovello_skndz_curve_1',
+                              gene_name,NA_character_)) |> 
+    ggplot(aes(x = experiment,
+               y = mean_ppau_contrast,
+               group = le_id,color = timing)) + 
+    geom_point() + 
+    geom_line() + 
+    geom_text_repel(aes(label = gene_name),show.legend = FALSE) +
+    theme_bw() + 
+    geom_hline(yintercept = 0.1,linetype = 'dotted') + 
+    scale_color_manual(values = c("#E376BF","#4A6EDD")) +
+    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++","++++++","++++++")) +
+    ylab("% polyA usage") + 
+    scale_y_continuous(labels = scales::percent_format())
+
+```
+
+
+
 ### Supplementary figure 2 - features 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("2A and 2B")
