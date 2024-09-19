@@ -31,6 +31,13 @@ plot_text_size <- 10
 ```
 
 ### Supplementary figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features
+
+A. levels from DeSeq in SH and SK
+B. Concordance between SH and SK (scatterplot) - to do!!
+C. UMAP clustering of events in SH and BE2 together
+D. UMAP clustering of events in SH and in BE2 - separated
+E. differences in differential splicing are not due to changes in gene expression??
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ### load data needed
 #S1A
@@ -127,13 +134,33 @@ print("S1G")
 #apa_sk
 ```
 
-A. levels from DeSeq in SH and SK
-B. Concordance between SH and SK (scatterplot) - to do!!
-C. UMAP clustering of events in SH and BE2 together
-D. UMAP clustering of events in SH and in BE2 - separated
-E. differences in differential splicing are not due to changes in gene expression??
-F. Spaghetti plot for APA events in SH-SY5Y
-G. Spaghetti plot for APA events in BE(2)
+#### F. Spaghetti plot for APA events in SH-SY5Y
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+shsy5y_papa = fread("data/shsy5y_papa_curve.csv")
+
+shsy5y_papa |> 
+    select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |> 
+    complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |> 
+    dplyr::group_by(le_id) %>%
+    fill(timing, .direction = "downup") %>%
+    ungroup() |> 
+    mutate(gene_name = ifelse(experiment == 'zanovello_shsy5y_curve_0075',
+                              gene_name,NA_character_)) %>% 
+    ggplot(aes(x = experiment,
+               y = mean_ppau_contrast,
+               group = le_id,color = timing)) + 
+    geom_point() + 
+    geom_line() + 
+    geom_text_repel(aes(label = gene_name),show.legend = FALSE) +
+    theme_bw() + 
+    geom_hline(yintercept = 0.1,linetype = 'dotted') + 
+    scale_color_manual(values = c("#E376BF","#4A6EDD")) +
+    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++")) 
+    
+    
+```
+
+#### G. Spaghetti plot for APA events in BE(2)
 
 ### Supplementary figure 2 - features 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -528,8 +555,16 @@ sk_nmd_sens_upf1 = big_data_upf1 %>%
     group_by(color_gene_name,tdp43_sensitivity_be2) %>% 
     reframe(n = n_distinct(paste_into_igv_junction)) 
 
+sk_nmd_sens_upf1 = big_data_upf1 %>% 
+    distinct(paste_into_igv_junction,color_gene_name) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(new_cate)) %>% 
+    filter(new_cate != "") %>% 
+    group_by(color_gene_name,new_cate) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction)) 
+
 ggplot(sk_nmd_sens_upf1) +
-    aes(x = tdp43_sensitivity_be2, fill = color_gene_name, weight = n,by = as.factor(tdp43_sensitivity_be2)) +
+    aes(x = new_cate, fill = color_gene_name, weight = n,by = as.factor(new_cate)) +
     geom_bar() +
     geom_text(
         aes(label = scales::percent(after_stat(prop), accuracy = 1)),
@@ -539,13 +574,13 @@ ggplot(sk_nmd_sens_upf1) +
     theme_classic() + 
     labs(y = 'N junctions',
          x = element_blank(),
-         fill = 'Cycloheximide treatment') +
+         fill = 'UPF1 KD ') +
     scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
     theme(legend.position = 'bottom')
 
 sk_nmd_sens_upf1 %>% 
     pivot_wider(names_from = 'color_gene_name',values_from = 'n') %>% 
-    column_to_rownames("tdp43_sensitivity_be2") %>% 
+    column_to_rownames("new_cate") %>% 
     as.matrix() %>% 
     rstatix::pairwise_fisher_test()
 ```
@@ -565,10 +600,29 @@ compendium_events = fread('data/compendium_cryptics.csv')
 master_table %>% 
     left_join(compendium_events %>% select(paste_into_igv_junction,n_significant_data)) %>% 
     unique() %>% 
-    select(tdp43_sensitivity_sh,n_significant_data,paste_into_igv_junction) %>% 
+    select(tdp43_sensitivity_sh,n_significant_data,paste_into_igv_junction,new_cate) %>% 
     mutate(n_significant_data = ifelse(is.na(n_significant_data),0,n_significant_data)) %>% 
-    filter(tdp43_sensitivity_sh != "") %>% 
-    ggplot(aes(tdp43_sensitivity_sh, y = n_significant_data)) + 
+    # filter(tdp43_sensitivity_sh != "") %>% 
+    ggplot(aes(new_cate, y = n_significant_data)) + 
+    geom_boxplot() + 
+    labs(y = 'N datasets cryptic detected',
+         x = element_blank()) + 
+    theme_classic() + 
+    stat_compare_means()
+
+compendium_events %>% 
+    left_join(master_table,by = c("paste_into_igv_junction")) %>% 
+    unique()  %>% 
+    filter(!is.na(new_cate)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_be2 == 'Early' | tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                            tdp43_sensitivity_be2 == 'Late' | tdp43_sensitivity_sh == 'Late' ~ 'Late'))  %>% 
+    mutate(n_significant_data = ifelse(is.na(n_significant_data),0,n_significant_data)) %>% 
+        select(tdp43_sensitivity_sh,n_significant_data,paste_into_igv_junction,new_cate)  %>% 
+    # filter(tdp43_sensitivity_sh != "") %>% 
+    ggplot(aes(new_cate, y = n_significant_data)) + 
     geom_boxplot() + 
     labs(y = 'N datasets cryptic detected',
          x = element_blank()) + 
@@ -598,6 +652,7 @@ big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
 compendium_events %>% 
     left_join(big_data_chx %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
+    mutate(color_gene_name = ifelse(color_gene_name == 'non-NMD rescued', "NMD insensitive","NMD sensitive")) %>% 
     filter(!is.na(color_gene_name)) %>% 
     distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>% 
     ggplot(aes(color = color_gene_name, x = n_significant_data)) + 
@@ -608,13 +663,16 @@ compendium_events %>%
 compendium_events %>% 
     left_join(big_data_chx %>% distinct(paste_into_igv_junction,color_gene_name)) %>%
     filter(!is.na(color_gene_name)) %>%
-    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>%
+    mutate(color_gene_name = ifelse(color_gene_name == 'non-NMD rescued', "NMD insensitive","NMD sensitive")) %>% 
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data,gene_name) %>%
+    mutate(plot_name = ifelse(color_gene_name == "NMD sensitive" & n_significant_data > 5,gene_name,NA_character_)) %>% 
     ggplot(aes(color_gene_name, y = n_significant_data)) +
     geom_boxplot() +
     labs(y = 'N datasets cryptic detected',
          x = element_blank()) +
     theme_classic() +
-    stat_compare_means()
+    stat_compare_means() + 
+    geom_text_repel(aes(label = plot_name))
 
 
 ```
@@ -636,13 +694,16 @@ compendium_events %>%
 compendium_events %>% 
     left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,color_gene_name)) %>%
     filter(!is.na(color_gene_name)) %>%
-    distinct(paste_into_igv_junction,color_gene_name,n_significant_data) %>%
+    mutate(color_gene_name = ifelse(color_gene_name == 'non-NMD rescued', "NMD insensitive","NMD sensitive")) %>% 
+    mutate(plot_name = ifelse(color_gene_name == "NMD sensitive" & n_significant_data > 5,gene_name,NA_character_)) %>% 
+    distinct(paste_into_igv_junction,color_gene_name,n_significant_data,plot_name) %>%
     ggplot(aes(color_gene_name, y = n_significant_data)) +
     geom_boxplot() +
     labs(y = 'N datasets cryptic detected',
          x = element_blank()) +
     theme_classic() +
-    stat_compare_means()
+    stat_compare_means()+
+    geom_text_repel(aes(label = plot_name))
 
 
 ```
