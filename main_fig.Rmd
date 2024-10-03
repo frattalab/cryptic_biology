@@ -255,7 +255,6 @@ G. Alluvial plot
 
 ## Figure 2 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A and 2B - Conservation score for CE and non-ce in combined categories")
 master_table <- master_table %>%
   mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
                             tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
@@ -274,7 +273,7 @@ get_signif_stars <- function(p_value) {
     return("NS")
   }
 }
-  
+
 get_significance <- function(df, value, group, category_col, category) {
   test_formula <- as.formula(paste(value, "~", group))
   p_test <- kruskal.test(test_formula, data = df %>% filter(!!sym(category_col) == category))
@@ -282,44 +281,76 @@ get_significance <- function(df, value, group, category_col, category) {
   return(get_signif_stars(p_test$p.value))
 }
 
-cons_score_df <- master_table %>% 
-  filter(new_cate %in% c("Early", "Late")) %>% 
-  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
-  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score") 
+print("2A - Splice site strength")
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_combined.csv'))
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_combined.csv'))
+df_ss_strength <- rbind(
+  df_5ss_strength  %>%
+    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon),
+  df_3ss_strength  %>%
+    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon)
+) %>%
+  filter(new_cate %in% c("Early", "Late"))
+h <- df_ss_strength %>%
+  ggplot(aes(x=site, y = ss_ratio, color = new_cate)) +
+  geom_boxplot() +
+  geom_abline(intercept = 1, slope = 0, color = "gray", linetype = "dashed") +
+  # geom_signif(
+  #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+  #  annotation = c(get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "3' splice site"),
+  #                 get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
+  # ) +
+  scale_color_manual(values = plot_sensitivity_colors) +
+  #ylim(-4.1, 2.5) +
+  labs(y = "MaxEnt score cryptic site vs annotated site", x = "") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+h
 
-cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes") 
-cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no") 
-a <- cons_score_df_cryptic %>% 
+print("2B - Conservation score for CE and non-ce in combined categories")
+cons_score_df <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
+  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score")
+
+cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes")
+cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no")
+a <- cons_score_df_cryptic %>%
   ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) + 
+  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_cryptic,
-                                    "cons_score", "new_cate", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"),
                    get_significance(cons_score_df_cryptic,
-                                    "cons_score", "new_cate", "category", "phastCons_unchanged")) 
+                                    "cons_score", "new_cate", "category", "phastCons_unchanged"))
   ) +
   #facet_wrap(facets = vars(cryptic)) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
-b <- cons_score_df_not_cryptic %>% 
+b <- cons_score_df_not_cryptic %>%
   ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) + 
+  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_not_cryptic,
-                                    "cons_score", "new_cate", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"),
                    get_significance(cons_score_df_not_cryptic,
                                     "cons_score", "new_cate", "category", "phastCons_unchanged"))
   ) +
@@ -344,7 +375,7 @@ count_hexamers <- function(row) {
   if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
     return(NULL)
   }
-  
+
   coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
   seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
   if (row[["strand"]] == "-") {
@@ -352,12 +383,12 @@ count_hexamers <- function(row) {
   }
   counts <- sapply(all_motifs, function(motif) countPattern(motif, seq, max.mismatch = 0))
   names(counts) <- all_motifs
-  
+
   return(counts)
 }
 
-master_table_filt <- master_table %>% 
-  filter(new_cate %in% c("Early", "Late")) %>% 
+master_table_filt <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
   filter(junc_cat != "exon_skip") %>%
   distinct(paste_into_igv_junction_annotated, .keep_all = T)
 kmer_table <- apply(master_table_filt, 1, count_hexamers)
@@ -415,13 +446,13 @@ sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), f
   if (master_table$strand[i] == "-") {
     seq <- reverseComplement(seq)
   }
-  
+
   return(seq)
 })
 
 master_table$longest_ug_region <- Biostrings::vcountPattern('TGTGTG', DNAStringSet(sequences), max.mismatch = 1)
 
-master_table <- master_table %>% 
+master_table <- master_table %>%
   mutate(
     start = as.numeric(sub(".*:(\\d+)-.*", "\\1", paste_into_igv_junction_annotated)),
     end = as.numeric(sub(".*-(\\d+)", "\\1", paste_into_igv_junction_annotated)),
@@ -430,19 +461,19 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-d <- master_table %>% 
-  filter(new_cate %in% c("Early", "Late")) %>% 
+d <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('UG-repeat density') +
-  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
     annotation = c(get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
-                                    "ug_density", "new_cate", "cryptic", "no"), 
+                                    "ug_density", "new_cate", "cryptic", "no"),
                    get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
                                     "ug_density", "new_cate", "cryptic", "yes")), tip_length = 0.02
   ) +
@@ -451,53 +482,56 @@ d <- master_table %>%
 
 #E. Density UG motifs by top-bottom in SH-SY5Y
 master_table$max_psi_sh <- factor(master_table$max_psi_sh, levels=c("Top", "Bottom"))
-e <- master_table %>% 
+e <- master_table %>%
   filter(max_psi_sh %in% c("Top", "Bottom")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_sh)) +
   geom_boxplot() +
   xlab("") +
   ylab('UG-repeat density') +
-  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) +
   scale_fill_manual(values = plot_psi_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
     annotation = c(get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
-                                    "ug_density", "max_psi_sh", "cryptic", "no"), 
+                                    "ug_density", "max_psi_sh", "cryptic", "no"),
                    get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
                                     "ug_density", "max_psi_sh", "cryptic", "yes")), tip_length = 0.02
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 d + e
+```
 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 
-f <- df_iclip %>% 
+f <- df_iclip %>%
   filter(new_cate %in% c("Early", "Late")) %>%
   filter(abs(dist) <= 1000) %>%
   ggplot(aes(x = dist, fill = new_cate)) +
-  geom_density(alpha = 0.5, adjust = 1) +  
-  facet_wrap(~cryptic, 
+  geom_density(alpha = 0.5, adjust = 1) +
+  facet_wrap(~cryptic,
              ncol = 2,
              labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
-  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
+  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
 f
 
-print("2G - RNA maps based on figure F")
+print("2G - RNA maps based on figure A")
 #G. RNA maps based on figure F
 early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
 late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
-g1 <- ggplot() + 
+g1 <- ggplot() +
   geom_logo(data = as.character(early_donors), method = "probability")+
   scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
   labs( x = "Position", y = "Probability") +
@@ -508,7 +542,7 @@ g1 <- ggplot() +
     axis.ticks = element_blank(),
     plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
   )
-g2 <- ggplot() + 
+g2 <- ggplot() +
   geom_logo(data = as.character(late_donors), method = "probability")+
   scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
   labs( x = "Position", y = "Probability") +
@@ -522,43 +556,14 @@ g2 <- ggplot() +
 g <- g1 / g2
 g
 
-df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_combined.csv'))
-df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_combined.csv'))
-df_ss_strength <- rbind(
-  df_5ss_strength  %>%
-    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
-    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon),
-  df_3ss_strength  %>%
-    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
-    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon)
-) %>%
-  filter(new_cate %in% c("Early", "Late"))
-h <- df_ss_strength %>% 
-  ggplot(aes(x=site, y = ss_ratio, color = new_cate)) +
-  geom_boxplot() +
-  geom_abline(intercept = 1, slope = 0, color = "gray", linetype = "dashed") + 
-  # geom_signif(
-  #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
-  #  annotation = c(get_significance(df_ss_strength,
-  #                                  "ss_ratio", "new_cate", "site", "3' splice site"), 
-  #                 get_significance(df_ss_strength,
-  #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
-  # ) +
-  scale_color_manual(values = plot_sensitivity_colors) +
-  #ylim(-4.1, 2.5) +
-  labs(y = "MaxEnt score cryptic site vs annotated site", x = "") +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  guides(color = "none")
-h
 ```
 
-A. Conservation score for CE in SH-SY5Y
-B. Conservation score for non-CE in SH-SY5Y
-C. Kmers enrichment analysis in SH-SY5Y
-D. Density UG motifs by early-late in SH-SY5Y
-E. Density UG motifs by top-bottom in SH-SY5Y
-F. Distance iCLIP TDP43 binding site SH-SY5Y
+A. Splice site strength
+B. Conservation score for CE and non-CE
+C. Kmers enrichment analysis
+D. Density UG motifs by early-late
+E. Density UG motifs by top-bottom
+F. Distance iCLIP TDP43 binding site
 G. RNA maps based on figure F
 
 ## Figure 3 - NMD
