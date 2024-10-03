@@ -255,7 +255,13 @@ G. Alluvial plot
 
 ## Figure 2 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A and 2B - Conservation score for CE and non-ce in SH-SY5Y")
+print("2A and 2B - Conservation score for CE and non-ce in combined categories")
+master_table <- master_table %>%
+  mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                            tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
 
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
@@ -277,14 +283,14 @@ get_significance <- function(df, value, group, category_col, category) {
 }
 
 cons_score_df <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  filter(new_cate %in% c("Early", "Late")) %>% 
   subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
   pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score") 
 
 cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes") 
 cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no") 
 a <- cons_score_df_cryptic %>% 
-  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+  ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
@@ -294,16 +300,16 @@ a <- cons_score_df_cryptic %>%
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"), 
                    get_significance(cons_score_df_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged")) 
+                                    "cons_score", "new_cate", "category", "phastCons_unchanged")) 
   ) +
   #facet_wrap(facets = vars(cryptic)) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
 b <- cons_score_df_not_cryptic %>% 
-  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+  ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
@@ -313,9 +319,9 @@ b <- cons_score_df_not_cryptic %>%
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_not_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"), 
                    get_significance(cons_score_df_not_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged"))
+                                    "cons_score", "new_cate", "category", "phastCons_unchanged"))
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
@@ -351,13 +357,13 @@ count_hexamers <- function(row) {
 }
 
 master_table_filt <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
+  filter(new_cate %in% c("Early", "Late")) %>% 
   filter(junc_cat != "exon_skip") %>%
   distinct(paste_into_igv_junction_annotated, .keep_all = T)
 kmer_table <- apply(master_table_filt, 1, count_hexamers)
 all_counts_df <- as.data.frame(t(kmer_table))
 
-all_counts_df$type <- master_table_filt$tdp43_sensitivity_sh
+all_counts_df$type <- master_table_filt$new_cate
 all_counts_df$cryptic <- master_table_filt$cryptic
 
 summary_counts <- all_counts_df %>%
@@ -425,8 +431,8 @@ master_table <- master_table %>%
   select(-start, -end)
 
 d <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = cryptic, y = ug_density, fill = tdp43_sensitivity_sh)) +
+  filter(new_cate %in% c("Early", "Late")) %>% 
+  ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('UG-repeat density') +
@@ -435,10 +441,10 @@ d <- master_table %>%
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
-    annotation = c(get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
-                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "no"), 
-                   get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
-                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "yes")), tip_length = 0.02
+    annotation = c(get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
+                                    "ug_density", "new_cate", "cryptic", "no"), 
+                   get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
+                                    "ug_density", "new_cate", "cryptic", "yes")), tip_length = 0.02
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
@@ -471,9 +477,9 @@ df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep=
 df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 
 f <- df_iclip %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
   filter(abs(dist) <= 1000) %>%
-  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
+  ggplot(aes(x = dist, fill = new_cate)) +
   geom_density(alpha = 0.5, adjust = 1) +  
   facet_wrap(~cryptic, 
              ncol = 2,
@@ -488,8 +494,8 @@ f
 
 print("2G - RNA maps based on figure F")
 #G. RNA maps based on figure F
-early_donors <- readDNAStringSet("data/maxent/donors_early_sh.fa")
-late_donors <- readDNAStringSet("data/maxent/donors_late_sh.fa")
+early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
+late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
 g1 <- ggplot() + 
   geom_logo(data = as.character(early_donors), method = "probability")+
@@ -515,6 +521,36 @@ g2 <- ggplot() +
   )
 g <- g1 / g2
 g
+
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_combined.csv'))
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_combined.csv'))
+df_ss_strength <- rbind(
+  df_5ss_strength  %>%
+    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon),
+  df_3ss_strength  %>%
+    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon)
+) %>%
+  filter(new_cate %in% c("Early", "Late"))
+h <- df_ss_strength %>% 
+  ggplot(aes(x=site, y = ss_ratio, color = new_cate)) +
+  geom_boxplot() +
+  geom_abline(intercept = 1, slope = 0, color = "gray", linetype = "dashed") + 
+  # geom_signif(
+  #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+  #  annotation = c(get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "3' splice site"), 
+  #                 get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
+  # ) +
+  scale_color_manual(values = plot_sensitivity_colors) +
+  #ylim(-4.1, 2.5) +
+  labs(y = "MaxEnt score cryptic site vs annotated site", x = "") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+h
 ```
 
 A. Conservation score for CE in SH-SY5Y
