@@ -125,14 +125,92 @@ h <- master_table %>%
     scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 g+h
-
-print("S1E - differences in differential splicing are not due to changes in gene expression")
-
-print("S1F")
-#apa_sh
-print("S1G")
-#apa_sk
 ```
+
+
+### Are late / early genes more likely to be DE?
+
+```{r de_late_early_sh}
+master_table = as.data.table(master_table)
+
+diff_plt_sh = diff_expr_sh %>% 
+    left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_sh)]),by = c("symbol" = 'gene')) %>% 
+    filter(symbol != "RNA5-8SN2") %>% 
+    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
+    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
+    filter(!is.na(sig_de)) %>% 
+    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
+    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(is.na(tdp43_sensitivity_sh),'Non-splicing',tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) 
+    
+sh_d_gene = diff_plt_sh %>% 
+    group_by(source,tdp43_sensitivity_sh) %>% 
+    summarize(denom = n_distinct(symbol))
+
+diff_plt_sh %>% 
+    group_by(tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(sh_d_gene) %>% 
+    mutate(prop = n_genes/denom) %>% 
+    ggplot(aes(x = tdp43_sensitivity_sh,
+               y = prop,
+               fill = sig_de)) + 
+    geom_col(position = position_dodge(preserve = "single"),color = 'black') + 
+    facet_wrap(~source,scales = 'free_x') + 
+    theme_classic() + 
+    ylab("Proportion of genes") + 
+    xlab(element_blank()) +
+    theme(legend.position = 'bottom') + 
+    scale_fill_manual(values = c("#9DC7C8","#F25757","#13293D","#4F000B"),
+                      labels = c("N.S.\nDownregulated", "N.S.\nUpregulated",
+                                 "Downregulated", "Upregulated"))
+
+
+new_cate_nmd_sens %>% 
+    pivot_wider(names_from = 'new_cate',values_from = 'n') %>% 
+    column_to_rownames("color_gene_name") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
+
+```{r de_late_early_be2}
+
+diff_plt_be2 = diff_expr_sk %>% 
+    left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_be2)]),by = c("symbol" = 'gene')) %>% 
+    filter(symbol != "RNA5-8SN2") %>% 
+    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
+    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
+    filter(!is.na(sig_de)) %>% 
+    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
+    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'non-splicing',tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) 
+    
+be2_d_gene = diff_plt_be2 %>% 
+    group_by(source,tdp43_sensitivity_be2) %>% 
+    summarize(denom = n_distinct(symbol))
+
+diff_plt_be2 %>% 
+    group_by(tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(be2_d_gene) %>% 
+    mutate(prop = n_genes/denom) %>% View()
+    ggplot(aes(x = tdp43_sensitivity_be2,
+               y = prop,
+               fill = sig_de)) + 
+    geom_col(position = position_dodge(preserve = "single") ) + 
+    facet_wrap(~source,scales = 'free_x') + 
+    theme_classic() + 
+    ylab("Proportion of genes") + 
+    theme(legend.position = 'bottom')
+
+
+```
+
+
 
 #### F. Spaghetti plot for APA events in SH-SY5Y
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
@@ -164,9 +242,15 @@ shsy5y_papa |>
 
 ```{r}
 shsy5y_papa = fread("data/sknbe2_papa_curve.csv")
+<<<<<<< Updated upstream
 
     select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |>
     complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |>
+=======
+shsy5y_papa %>% 
+    select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |> 
+    complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |> 
+>>>>>>> Stashed changes
     dplyr::group_by(le_id) %>%
     fill(timing, .direction = "downup") %>%
     ungroup() |>
@@ -914,6 +998,21 @@ compendium_events %>%
 ```
 
 ```{r earlyLateCompendiumSK, echo=FALSE, warning=FALSE, message=FALSE}
+master_table %>% 
+    left_join(compendium_events %>% select(paste_into_igv_junction,n_significant_data)) %>% 
+    unique() %>% 
+    select(tdp43_sensitivity_be2,n_significant_data,paste_into_igv_junction) %>% 
+    mutate(n_significant_data = ifelse(is.na(n_significant_data),0,n_significant_data)) %>% 
+    filter(tdp43_sensitivity_be2 != "") %>% 
+    ggplot(aes(tdp43_sensitivity_be2, y = n_significant_data)) + 
+    geom_boxplot() + 
+    labs(y = 'N datasets cryptic detected',
+         x = element_blank()) + 
+    theme_classic() + 
+    stat_compare_means()
+```
+
+```{r earlyLateNewCate, echo=FALSE, warning=FALSE, message=FALSE}
 master_table %>% 
     left_join(compendium_events %>% select(paste_into_igv_junction,n_significant_data)) %>% 
     unique() %>% 
