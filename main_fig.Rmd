@@ -1,6 +1,6 @@
 ---
 title: "TDP-43 cryptic exon biology main figures"
-author: "MZ"
+author: "MZ; AM; ALB"
 date: "2024-05-06"
 output: html_document
 ---
@@ -762,7 +762,7 @@ diff_plt_sh %>%
 ```
 
 
-<<<<<<< Updated upstream
+
 ```{r}
 parse_coords <- function(coord_str) {
   parts <- str_match(coord_str, "(chr\\w+):(\\d+)-(\\d+)")
@@ -921,7 +921,7 @@ ggplot(counts_chx_symmetric %>%
   theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
-=======
+
 ```{r de_late_early_be2}
 
 diff_plt_be2 = diff_expr_sk %>% 
@@ -957,7 +957,7 @@ diff_plt_be2 %>%
 
 
 
->>>>>>> Stashed changes
+
 
 
 ## Figure 4 - compendium / in vivo
