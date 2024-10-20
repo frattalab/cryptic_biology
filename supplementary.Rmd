@@ -103,7 +103,7 @@ g <- master_table %>%
     geom_point(show.legend = F) +
     xlab("UMAP 1") +
     ylab("UMAP 2") +
-    labs(color = "TDP43 sensitivity") +
+    labs(color = "TDP43 sensitivity", title = "SH-SY5Y") +
     scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 h <- master_table %>% 
@@ -112,10 +112,11 @@ h <- master_table %>%
     geom_point() +
     xlab("UMAP 1") +
     ylab("UMAP 2") +
-    labs(color = "TDP43 sensitivity") +
+    labs(color = "TDP43 sensitivity", title = "SK-N-BE(2)") +
     scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 g+h
+
 
 print("S1E - differences in differential splicing are not due to changes in gene expression")
 
@@ -428,17 +429,9 @@ B. Conservation score for non-CE in SK-N-BE(2)
 C. Kmers enrichment analysis in SK-N-BE(2)
 
 D. Density UG motifs by early-late in SK-N-BE(2)
-<<<<<<< Updated upstream
-E. Density UG motifs by top-bottom in  SK-N-BE(2)
-=======
-<<<<<<< HEAD
 
-E. Density UG motifs by top-bottom in SH-SY5Y
-
-=======
 E. Density UG motifs by top-bottom in  SK-N-BE(2)
->>>>>>> 0b9c0e2228595ac6a483dcb2fe50b70533dbc2c3
->>>>>>> Stashed changes
+
 F. Distance iCLIP TDP43 binding site SK-N-BE(2)
 
 G. RNA maps based on figure F
@@ -460,6 +453,34 @@ a <- slope_plot_nmd(big_data_upf1,
                gene_list_slope_upf1)
 
 print("S3B")
+
+###top50_upf1 - load this table!!
+#write.table(results_table_upf1vsctrl, "~/Desktop/results_table_upf1_vs_ctrl.csv",
+#            sep = ",", quote = F, row.names = F)
+results_table_upf1vsctrl <- read.csv(here::here("data/results_table_upf1_vs_ctrl.csv"))
+results_table_UPF1_ctrl <- read.csv(here::here("data/results_table_UPF1_ctrl.csv"))
+
+
+results_table_upf1vsctrl_filtered <- results_table_upf1vsctrl %>%
+  filter(log2FoldChange > 1 | log2FoldChange < -1) %>%
+  filter(!is.na(symbol))
+
+results_table_UPF1_ctrl_filtered <- results_table_UPF1_ctrl %>%
+  filter(symbol %in% results_table_upf1vsctrl_filtered$symbol) %>%
+  filter(!is.na(symbol))
+
+results_table_upf1vsctrl_filtered_2 <- results_table_upf1vsctrl_filtered %>%
+  filter(symbol %in% results_table_UPF1_ctrl_filtered$symbol)
+
+ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2FoldChange), y = 0, fill = log2FoldChange)) +
+  geom_tile() +
+  geom_tile(data = results_table_UPF1_ctrl_filtered, aes(x = symbol, y = -1, fill = log2FoldChange)) +
+  theme_classic() +
+  colorspace::scale_fill_continuous_diverging() +
+  theme(axis.text.x = element_text(angle = 90))
+
+
+
 
 ```
 
@@ -491,6 +512,5 @@ maxc_type %>%
   ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90))
-
 ```
 

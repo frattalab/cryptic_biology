@@ -63,6 +63,7 @@ c <- levels_dz_qpcr %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 a+c
+#ggsave("~/Desktop/curves_qpcr.png", width = 6)
 
 print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
@@ -120,6 +121,7 @@ f <- plot_de_dz %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size)) 
 e + f
+#ggsave("~/Desktop/de_curves.png", width = 10,height = 5)
 
 print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
@@ -199,6 +201,7 @@ ggplot(summary,
   geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   theme_void()
+
 ```
 
 A. Dose-response curves for SH-SY5Y
@@ -483,10 +486,8 @@ G. RNA maps based on figure F
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("3A")
 
-print("3B")
 
-
-print("3C - Slope plot in SH-SY5Y")
+print("3B - Slope plot in SH-SY5Y")
 gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("Control_Control",
                 "Cycloheximide_Control", 
@@ -501,7 +502,80 @@ print("3D")
 print("3E")
 
 print("3F - TDP-43 dependent loss of dark cryptics genes")
-plot_data <- read.table()
+####read in data!!
+big_delta_de <- read.csv(here::here('data','big_delta_de.csv'))
+
+for_plot <- big_delta_de[,c(4,8,10,11)] %>%
+  dplyr::filter(symbol == "STMN2" | symbol == "AARS1" | symbol == "HDGFL2" | symbol == "UNC13A" |
+                  symbol == "SYNE1" | symbol == "CYFIP2")
+for_plot_0 <- for_plot %>% 
+  distinct(symbol, .keep_all = T) %>% 
+  mutate(log2FoldChange = 0, padj = 0, source = 0)
+for_plot <- rbind(for_plot_0,for_plot) %>% 
+  mutate(symbol = factor(symbol, levels = c("AARS1", "HDGFL2", "SYNE1", "CYFIP2", "UNC13A", "STMN2")))
+
+big_delta_de_tdp <- big_delta_de[,c(4,8,10,11)] %>% 
+  dplyr::filter(symbol == "TARDBP")
+for_plot_0_tdp <- big_delta_de_tdp[1,] %>% 
+  mutate(log2FoldChange = 0, padj = 0, source = 0)
+big_delta_de_tdp <- rbind(for_plot_0_tdp,big_delta_de_tdp)
+
+for_plot$source <- as.factor(for_plot$source)
+a <- for_plot %>%   
+  ggplot() +
+  geom_col(aes(x = as.character(source), y = log2FoldChange, fill = symbol), data = big_delta_de_tdp, alpha = 0.3, show.legend = F) +
+  geom_point(aes(x = source, y = log2FoldChange, color = symbol, group = symbol), show.legend = F) +
+  geom_line(aes(x = source, y = log2FoldChange, color = symbol, group = symbol), show.legend = F) +
+  scale_fill_manual(values = "black") +
+  scale_color_manual(values = c("#A6CEE3", "#1F78B4", "#FF7F00", "#FDBF6F", "#FB9A99", "#E31A1C"))+ # "#B2DF8A" "#33A02C" "#CAB2D6" "#6A3D9A")) +
+  scale_y_continuous(limits = c(-6.2,0.6)) +
+  labs(x = "Doxycycline concentration", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+a
+#ggsave("~/Desktop/curves_nmd.png", width = 6, height = 4)
+
+
+
+big_delta_de_dz <- read.csv(here::here('data','big_delta_de_dz.csv'))
+
+
+big_delta_de_dz_tdp <- big_delta_de_dz[,c(4,8,10,11)] %>% 
+  dplyr::filter(symbol == "TARDBP")
+for_plot_dz_0_tdp <- big_delta_de_dz_tdp[1,] %>% 
+  mutate(log2FoldChange = 0, padj = 0, source = 0)
+big_delta_de_dz_tdp <- rbind(for_plot_dz_0_tdp,big_delta_de_dz_tdp)
+
+for_plot_dz <- big_delta_de_dz[,c(4,8,10,11)] %>%
+  dplyr::filter(symbol == "STMN2" | symbol == "AARS1" | symbol == "HDGFL2" | symbol == "UNC13A" |
+                  symbol == "SYNE1" | symbol == "CYFIP2")
+for_plot_dz_0 <- for_plot_dz %>% 
+  distinct(symbol, .keep_all = T) %>% 
+  mutate(log2FoldChange = 0, padj = 0, source = 0)
+for_plot_dz <- rbind(for_plot_dz_0,for_plot_dz) %>% 
+  mutate(symbol = factor(symbol, levels = c("AARS1", "HDGFL2", "SYNE1", "CYFIP2", "UNC13A", "STMN2")))
+
+for_plot_dz$source <- as.factor(for_plot_dz$source)
+b <- for_plot_dz %>%   
+  ggplot() +
+  geom_col(aes(x = as.character(source), y = log2FoldChange, fill = symbol), data = big_delta_de_dz_tdp, alpha = 0.3) +
+  geom_point(aes(x = source, y = log2FoldChange, color = symbol, group = symbol)) +
+  geom_line(aes(x = source, y = log2FoldChange, color = symbol, group = symbol)) +
+  scale_fill_manual(values = "black") +
+  scale_color_manual(values = c("#A6CEE3", "#1F78B4", "#FF7F00", "#FDBF6F", "#FB9A99", "#E31A1C"))+ # "#B2DF8A" "#33A02C" "#CAB2D6" "#6A3D9A")) +
+  scale_y_continuous(limits = c(-5.2,0.5)) +
+  labs(x = "Doxycycline concentration", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+b
+#ggsave("~/Desktop/curves_nmd_dz.png", width = 6, height = 4)
+
+#library(patchwork)
+a+b
+
+#ggsave("~/Desktop/caio.png", caio, width = 8, height = 4)
+
+
 
 
 print("3G")
@@ -509,12 +583,11 @@ print("3G")
 ```
 
 A. Categories - Overlap splicing changes?
-B. ???
-C. Slope plot in SH-SY5Y
-D. Differential expression of NMD sensitive and not
-E. Differential expression of NMD sensitive/not but more detailed
-F. TDP-43 dependent loss of dark cryptics
-G. 4-SU
+B. Slope plot in SH-SY5Y
+C. Differential expression of NMD sensitive and not
+D. Differential expression of NMD sensitive/not but more detailed
+E. TDP-43 dependent loss of dark cryptics
+F. 4-SU
 
 ## Figure 4 - compendium / in vivo
 
@@ -634,6 +707,6 @@ A.
 
 B.
 
-C. Detection of CEs from in vivo samples
+C. Detection of CEs from in vivo samples - panel
 
 D.
