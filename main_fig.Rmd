@@ -365,6 +365,143 @@ a + b
 ```
 
 
+
+```{r}
+parse_coords <- function(coord_str) {
+  parts <- str_match(coord_str, "(chr\\w+):(\\d+)-(\\d+)")
+  list(chrom = parts[, 2], start = as.numeric(parts[, 3]), end = as.numeric(parts[, 4]))
+}
+
+merge_junctions <- function(df, distance_threshold = 2000) {
+  df <- df %>% arrange(paste_into_igv_junction)
+
+  result <- list()
+  i <- 1
+  while (i <= nrow(df)) {
+    current <- parse_coords(df$paste_into_igv_junction[i])
+
+    if (i < nrow(df)) {
+      next_junction <- parse_coords(df$paste_into_igv_junction[i + 1])
+
+      # Check if chromosomes are the same and distance is less than threshold
+      if (current$chrom == next_junction$chrom &&
+          (next_junction$start - current$end) < distance_threshold &&
+          (next_junction$start - current$end) > 0) {
+
+        # Merge the junctions
+        merged_coord <- sprintf("%s:%d-%d", current$chrom, current$end, next_junction$start)
+        result[[length(result) + 1]] <- c(
+          list(paste_into_igv_junction = merged_coord),
+          new_cate = df$new_cate[i],
+          cryptic = df$cryptic[i],
+          gene = df$gene[i]
+        )
+
+        i <- i + 2  # Skip the next row as it's been merged
+        next
+      }
+    }
+
+    # If not merged, don't add to the result
+    i <- i + 1
+  }
+
+  # Convert result to data frame
+  result_df <- do.call(rbind, lapply(result, data.frame))
+
+  # Remove rows with same start or end coordinates
+  result_df <- result_df %>%
+    mutate(
+      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
+      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
+    ) %>%
+    group_by(start, end) %>%
+    filter(n() == 1) %>%
+  ungroup()
+}
+
+exons_combine <- merge_junctions(master_table) %>%
+  mutate(
+    symmetric = (end-start+1) %% 3==0
+  )
+
+exons1 <- read.table("data/noDox-dox0075.cryptic_exons.bed",col.names = c("chrom","start","end","name","score","strand"))
+exons1 <- exons1 %>%
+  tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE)
+
+exons1 <- merge(exons1,
+                master_table %>%
+                  select(paste_into_igv_junction, new_cate, cryptic),
+                by = "paste_into_igv_junction", all.x=T) %>%
+  distinct(paste_into_igv_junction, .keep_all = T) %>%
+  mutate(
+    symmetric = (end-start) %% 3==0
+  )
+
+exons2 <- read.table("data/all_the_ce_length_manual_filtered.bed.txt", fill = TRUE, header = T)
+exons2 <- exons2 %>%
+  mutate(
+    symmetric = (end-start) %% 3==0
+  )
+exons2$paste_into_igv_junction <- paste0(exons2$chr, ":", exons2$start + 1, "-", exons2$end)
+master_table <- master_table %>%
+    mutate(
+      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
+      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
+    )
+
+exons2 <- merge(exons2,
+                master_table %>%
+                  select(gene, paste_into_igv_junction, new_cate, cryptic),
+                by.x="gene_name",by.y = "gene", all.x=F) %>%
+  distinct(gene_name, symmetric, .keep_all = T)
+exons2 <- exons2[!duplicated(exons2$gene_name) & !duplicated(exons2$gene_name, fromLast = TRUE), ]
+
+exons2 <- exons2 %>% select(gene_name, paste_into_igv_junction.x, new_cate, cryptic, symmetric)
+colnames(exons2) <- c("gene", "paste_into_igv_junction", "new_cate", "cryptic", "symmetric")
+
+result_mrg <- rbind(
+  exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons2 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
+  na.omit() %>%
+  distinct()
+
+junction_counts <- result_mrg %>%
+  group_by(new_cate, cryptic, symmetric) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+ggplot(junction_counts %>%
+         filter(new_cate != "Intermediate") %>%
+         filter(new_cate != ""), 
+       aes(x = new_cate, y = count, fill = symmetric)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_signif(data = data.frame(cryptic = c("no","yes"), symmetric=c(TRUE, FALSE)),
+              aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
+              annotations=c("*", "NS")), tip_length=0.02, manual = T) +
+  facet_grid(~cryptic)+
+  labs(
+    #title = "Number of Symmetric and Non-Symmetric Exons by Type",
+    x = "",
+    y = "Number of exons",
+    fill = "Symmetric"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "darkslategray", "FALSE" = "tan2")) +
+  guides(fill = "none") +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
+
+symmetry_signif <- junction_counts %>%
+  filter(cryptic!="yes") %>%
+   filter(new_cate!="Intermediate") %>%
+    pivot_wider(names_from = symmetric, values_from = count, values_fill = 0L) %>%
+  select(-new_cate, -cryptic) %>%
+    as.matrix() %>%
+    chisq.test()
+
+```
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in SH-SY5Y
 print("2C - Kmers enrichment analysis in SH-SY5Y")
@@ -466,14 +603,8 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-<<<<<<< Updated upstream
 d <- master_table %>%
   filter(new_cate %in% c("Early", "Late")) %>%
-=======
-d <- master_table %>% 
-    filter(cryptic == 'yes') %>% 
-  # filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
->>>>>>> Stashed changes
   ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
@@ -758,138 +889,6 @@ diff_plt_sh %>%
     ylab("Proportion of genes") + 
     theme(legend.position = 'bottom')  
     
-
-```
-
-
-
-```{r}
-parse_coords <- function(coord_str) {
-  parts <- str_match(coord_str, "(chr\\w+):(\\d+)-(\\d+)")
-  list(chrom = parts[, 2], start = as.numeric(parts[, 3]), end = as.numeric(parts[, 4]))
-}
-
-merge_junctions <- function(df, distance_threshold = 2000) {
-  df <- df %>% arrange(paste_into_igv_junction)
-
-  result <- list()
-  i <- 1
-  while (i <= nrow(df)) {
-    current <- parse_coords(df$paste_into_igv_junction[i])
-
-    if (i < nrow(df)) {
-      next_junction <- parse_coords(df$paste_into_igv_junction[i + 1])
-
-      # Check if chromosomes are the same and distance is less than threshold
-      if (current$chrom == next_junction$chrom &&
-          (next_junction$start - current$end) < distance_threshold &&
-          (next_junction$start - current$end) > 0) {
-
-        # Merge the junctions
-        merged_coord <- sprintf("%s:%d-%d", current$chrom, current$end, next_junction$start)
-        result[[length(result) + 1]] <- c(
-          list(paste_into_igv_junction = merged_coord),
-          new_cate = df$new_cate[i],
-          cryptic = df$cryptic[i],
-          gene = df$gene[i]
-        )
-
-        i <- i + 2  # Skip the next row as it's been merged
-        next
-      }
-    }
-
-    # If not merged, don't add to the result
-    i <- i + 1
-  }
-
-  # Convert result to data frame
-  result_df <- do.call(rbind, lapply(result, data.frame))
-
-  # Remove rows with same start or end coordinates
-  result_df <- result_df %>%
-    mutate(
-      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
-      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
-    ) %>%
-    group_by(start, end) %>%
-    filter(n() == 1) %>%
-  ungroup()
-}
-
-exons_combine <- merge_junctions(master_table) %>%
-  mutate(
-    symmetric = (end-start+1) %% 3==0
-  )
-
-exons1 <- read.table("data/noDox-dox0075.cryptic_exons.bed",col.names = c("chrom","start","end","name","score","strand"))
-exons1 <- exons1 %>%
-  tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE)
-
-exons1 <- merge(exons1,
-                master_table %>%
-                  select(paste_into_igv_junction, new_cate, cryptic),
-                by = "paste_into_igv_junction", all.x=T) %>%
-  distinct(paste_into_igv_junction, .keep_all = T) %>%
-  mutate(
-    symmetric = (end-start) %% 3==0
-  )
-
-exons2 <- read.table("data/all_the_ce_length_manual_filtered.bed.txt", fill = TRUE, header = T)
-exons2 <- exons2 %>%
-  mutate(
-    symmetric = (end-start) %% 3==0
-  )
-exons2$paste_into_igv_junction <- paste0(exons2$chr, ":", exons2$start + 1, "-", exons2$end)
-master_table <- master_table %>%
-    mutate(
-      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
-      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
-    )
-
-exons2 <- merge(exons2,
-                master_table %>%
-                  select(gene, paste_into_igv_junction, new_cate, cryptic),
-                by.x="gene_name",by.y = "gene", all.x=F) %>%
-  distinct(gene_name, symmetric, .keep_all = T)
-exons2 <- exons2[!duplicated(exons2$gene_name) & !duplicated(exons2$gene_name, fromLast = TRUE), ]
-
-exons2 <- exons2 %>% select(gene_name, paste_into_igv_junction.x, new_cate, cryptic, symmetric)
-colnames(exons2) <- c("gene", "paste_into_igv_junction", "new_cate", "cryptic", "symmetric")
-
-result_mrg <- rbind(
-  exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons2 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
-  na.omit() %>%
-  distinct()
-
-junction_counts <- result_mrg %>%
-  group_by(new_cate, cryptic, symmetric) %>%
-  summarise(count = n()) %>%
-  ungroup()
-
-ggplot(junction_counts %>%
-         filter(new_cate != ""), aes(x = new_cate, y = count, fill = symmetric)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~cryptic)+
-  labs(
-    #title = "Number of Symmetric and Non-Symmetric Exons by Type",
-    x = "",
-    y = "Number of exons",
-    fill = "Symmetric"
-  ) +
-  scale_fill_manual(values = c("TRUE" = "darkslategray", "FALSE" = "tan2")) +
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
-
-junction_counts %>%
-  filter(cryptic=="yes") %>%
-   filter(new_cate!="Intermediate") %>%
-    pivot_wider(names_from = symmetric, values_from = count, values_fill = 0L) %>%
-  select(-new_cate, -cryptic) %>%
-    as.matrix() %>%
-    chisq.test()
 
 ```
 
