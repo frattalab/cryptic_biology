@@ -320,7 +320,8 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
                                 tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
                                 tdp43_sensitivity_be2 == 'Early' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Early',
-                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) 
+                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) %>% 
+    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
 
 df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2","new_cate"))
@@ -830,13 +831,6 @@ g
 
 
 
-A. Conservation score for CE in SH-SY5Y
-B. Conservation score for non-CE in SH-SY5Y
-C. Kmers enrichment analysis in SH-SY5Y
-D. Density UG motifs by early-late in SH-SY5Y
-E. Density UG motifs by top-bottom in SH-SY5Y
-F. Distance iCLIP TDP43 binding site SH-SY5Y
-G. RNA maps based on figure F
 
 ## Figure 3 - NMD
 
@@ -865,12 +859,16 @@ a <- slope_plot_nmd(big_data_chx,
 # reading in the master table again for debug, can remove later
 master_table <- read.csv(here::here("data/master_table.csv"))
 master_table <- master_table %>%
-  mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
-                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                            tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
-                            tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
+                                tdp43_sensitivity_be2 == 'Early' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Early',
+                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) %>% 
+    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
@@ -879,7 +877,7 @@ sh_nmd_sens = big_data_chx %>%
     distinct(paste_into_igv_junction,color_gene_name) %>% 
     left_join(master_table) %>% 
     filter(!is.na(tdp43_sensitivity_sh)) %>% 
-    filter(tdp43_sensitivity_sh != "") %>% 
+    filter(tdp43_sensitivity_sh != "Not found") %>% 
     filter(junction_for_clustering == 'yes') %>% 
     group_by(color_gene_name,tdp43_sensitivity_sh) %>% 
     reframe(n = n_distinct(paste_into_igv_junction)) 
