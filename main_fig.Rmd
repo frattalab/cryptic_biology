@@ -5,6 +5,85 @@ date: "2024-05-06"
 output: html_document
 ---
 
+```{r}
+build_all_potential_exon_table = function(grange_object,exon_annotation){
+
+    ##check that exon_coords exists as a metadata column
+
+
+
+
+    if(!("exon_coords" %in% (colnames(mcols(exon_annotation))))){
+        exon_annotation$exon_coords = paste0(as.character(seqnames(exon_annotation)),
+                                             ":",
+                                             as.character(start(exon_annotation)),
+                                             "-",
+                                             as.character(end(exon_annotation)),
+                                             ":",
+                                             as.character(strand(exon_annotation)))
+    }
+    ##check that the exons have names, splice jam needs it
+    if(is.null(names(exon_annotation))){
+        names(exon_annotation) = exon_annotation$exon_coords
+    }
+    ####build a table of all potential exons for all junctions####
+    splicejamobject = splicejam_closestExonToJunctions(
+        grange_object,
+        exon_annotation,
+        flipNegativeStrand = TRUE,
+        sampleColname = "sample_id",
+    )
+
+    ####build a table of all potential exons for all junctions####
+    spliceStartExonEndD = splicejamobject$spliceStartExonEndD
+    spliceEndExonStartD = splicejamobject$spliceEndExonStartD
+
+    #retrieve the junctions that we queried, the splice start
+    inputSpliceStarts = as.data.table(grange_object[spliceStartExonEndD$queryHits,]) %>%
+        dplyr::select(seqnames,
+                      start,
+                      end,
+                      strand)
+
+    # get all the exons taht end on those splice starts
+    inputExonsEnds = as.data.table(exon_annotation[spliceStartExonEndD$subjectHits,]) %>%
+        dplyr::select(exon_coords)
+
+    allPossibleSourceExons = cbind(inputSpliceStarts,inputExonsEnds,spliceStartExonEndD$strandedDistance) %>%
+        filter(V3 == 0) %>%
+        dplyr::select(-V3) %>%
+        unique()
+
+    ####now for the TargetExons
+    ####all possible target exons ####
+    inputSpliceEnds = as.data.table(grange_object[spliceEndExonStartD$queryHits,]) %>%
+        dplyr::select(seqnames,
+                      start,
+                      end,
+                      strand)
+
+    inputExonsStarts = as.data.table(exon_annotation[spliceEndExonStartD$subjectHits,]) %>%
+        dplyr::select(exon_coords)
+
+    allPossibleTargetExons = cbind(inputSpliceEnds,inputExonsStarts,spliceEndExonStartD$strandedDistance) %>%
+        filter(V3 == 0) %>% #only take distance zero
+        dplyr::select(-V3) %>%
+        unique()
+
+    ###merge together the source and target
+    allPossibleJunctionExon = allPossibleSourceExons %>%
+        rbind(allPossibleTargetExons) %>%
+        unique() %>% 
+        as.data.table()
+
+    allPossibleJunctionExon[,paste_into_igv_junction := paste0(seqnames, ":",start, "-",end)]
+
+    return(allPossibleJunctionExon)
+}
+```
+
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
@@ -34,6 +113,15 @@ plot_text_size <- 10
 ```
 
 ## Figure 1 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
+
+A. Dose-response curves for SH-SY5Y
+B. Dose-response curves for SK-N-BE(2)
+C. Differential expression in SH-SY5Y
+D. Differential expression in SK-N-BE(2)
+E. Spaghetti plot in SH-SY5Y
+F. Spaghetti plot in SK-N-BE(2)
+G. Alluvial plot
+
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
 #1A and 1B
 levels_sy5y_qpcr <- read.csv(here::here('data',"unc13a_b_tdp43_curves_nature_paper.csv"))
@@ -83,7 +171,6 @@ a+c
 
 
 
-
 ```{r de_by_levels}
 print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 
@@ -114,7 +201,7 @@ e <- plot_de %>%
     geom_vline(xintercept = 0) +
     geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
     coord_flip() +
-    scale_color_brewer(palette = "Set1") +
+    scale_color_manual(values = c("#2B4162","#721817")) +
     scale_alpha_manual(values = c(0.2, 1)) +
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
@@ -149,7 +236,7 @@ f <- plot_de_dz %>%
     geom_vline(xintercept = 0) +
     geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
     coord_flip() +
-    scale_color_brewer(palette = "Set1") +
+    scale_color_manual(values = c("#2B4162","#721817")) +
     scale_alpha_manual(values = c(0.2, 1)) +
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
@@ -247,18 +334,9 @@ ggplot(s,
   theme_void()
 ```
 
-A. Dose-response curves for SH-SY5Y
-B. Dose-response curves for SK-N-BE(2)
-C. Differential expression in SH-SY5Y
-D. Differential expression in SK-N-BE(2)
-E. Spaghetti plot in SH-SY5Y
-F. Spaghetti plot in SK-N-BE(2)
-G. Alluvial plot
-
-
-
 
 ## Figure 2 - Features
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 master_table <- master_table %>%
   mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
@@ -466,14 +544,13 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-<<<<<<< Updated upstream
 d <- master_table %>%
-  filter(new_cate %in% c("Early", "Late")) %>%
-=======
+  filter(new_cate %in% c("Early", "Late"))
+
 d <- master_table %>% 
-    filter(cryptic == 'yes') %>% 
-  # filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
->>>>>>> Stashed changes
+    # filter(cryptic == 'yes') %>% 
+    filter(new_cate %in% c("Early", "Late")) %>% 
+
   ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
@@ -536,6 +613,14 @@ f <- df_iclip %>%
   theme(text = element_text(size = plot_text_size))
 
 f
+df_iclip %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  filter(abs(dist) <= 1000) %>%
+  ggplot(aes(y = dist, x = new_cate,fill = junc_cat)) + 
+    geom_boxplot() +
+      facet_wrap(~cryptic,
+             ncol = 2,
+             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) 
 
 print("2G - RNA maps based on figure A")
 #G. RNA maps based on figure F
@@ -579,13 +664,25 @@ G. RNA maps based on figure F
 
 ## Figure 3 - NMD
 
-A. Categories - Overlap splicing changes?
+A. Overlap between UPF1 and CHX experiment
 B. Late/early is not driven by NMD sensitivity
-C. Slope plot in SH-SY5Y
-D. Differential expression of NMD sensitive and not
-E. Differential expression of NMD sensitive/not but more detailed
+E. Differential expression of NMD sensitive/not 
 F. TDP-43 dependent loss of dark cryptics
 G. 4-SU
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+print("3C - Slope plot in SH-SY5Y")
+gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
+input_list <- c("Control_Control",
+                "Cycloheximide_Control", 
+                "Control_TDP43KD", 
+                "Cycloheximide_TDP43KD")
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+a <- slope_plot_nmd(big_data_chx, 
+               gene_list_slope) #### NMD rescued and unaffected
+```
 
 ```{r LateEarlySushi, echo=FALSE, warning=FALSE, message=FALSE}
 # reading in the master table again for debug, can remove later
@@ -595,7 +692,9 @@ master_table <- master_table %>%
                             tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
                             tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                             tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                            tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
+                            tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
+                            tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
+
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
 
@@ -696,71 +795,38 @@ new_cate_nmd_sens %>%
 
 ```
 
-
-
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("3A")
-
-print("3B")
-
-
-print("3C - Slope plot in SH-SY5Y")
-gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
-input_list <- c("Control_Control",
-                "Cycloheximide_Control", 
-                "Control_TDP43KD", 
-                "Cycloheximide_TDP43KD")
-big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
-a <- slope_plot_nmd(big_data_chx, 
-               gene_list_slope) #### NMD rescued and unaffected
-```
-
 ### Are NMD sensitive events up/downregulated?
 
 ```{r nmd_up_down_sh}
-simple_chx = big_data_chx %>% 
-    distinct(gene_name,color_gene_name) %>% 
-    group_by(gene_name) %>%
-    mutate(status = ifelse(any(color_gene_name == 'NMD rescued'), "NMD rescued", color_gene_name)) %>% 
-    ungroup() %>% 
-    distinct(gene_name,status)
-
-
-diff_plt_sh = diff_expr_sh %>% 
-    left_join(simple_chx,by = c("symbol" = "gene_name")) %>% 
-    filter(symbol != "RNA5-8SN2") %>% 
-    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
-    filter(!is.na(sig_de)) %>% 
-    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
-    distinct(symbol,status,fc_direction,sig_de,source) %>% 
-    mutate(status = ifelse(is.na(status),'non-splicing',status)) %>% 
-    mutate(status = ifelse(status == '','non-splicing',status)) 
-    
-sh_d_gene = diff_plt_sh %>% 
-    group_by(status,source) %>% 
-    summarize(denom = n_distinct(symbol))
-
-diff_plt_sh %>% 
-    group_by(status,fc_direction,sig_de,source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(sh_d_gene) %>% 
-    mutate(prop = n_genes/denom) %>% 
-    ggplot(aes(x = status,
-               y = prop,
-               fill = sig_de)) + 
-    geom_col(position = position_dodge(preserve = "single")) + 
-    facet_wrap(~source,scales = 'free_x') +
-    # scale_fill_manual(values = c("#3288BD","#D53E4F","darkgrey")) +
-    theme_classic() + 
-    ylab("Proportion of genes") + 
-    theme(legend.position = 'bottom')  
-    
+expre_table = fread('data/nmd_expression_effect.csv')
+expre_table |> 
+    mutate(nmd_call = ifelse(max_exp2 == 'Dark cryptic', "Dark cryptic",nmd_call)) %>% 
+    mutate(total_rna = fct_relevel(total_rna,'upregulated','N.S.')) %>% 
+    ggplot(aes(x = nmd_call,
+               fill = total_rna)) +
+    geom_bar() +
+    # geom_bar() +
+    facet_wrap(~experiment_clean + max_exp2,scales = 'free',nrow = 2) + 
+    # geom_text(stat = "count",aes(label=..count..), position = position_fill(.5)) + 
+    # scale_y_continuous(labels = scales::percent) + 
+    theme_bw() + 
+    scale_fill_manual(values = c("#721817",'#6C6F6A',"#2B4162")) +
+    ylab(element_blank()) +
+    xlab(element_blank()) +
+    theme(legend.position = 'bottom',legend.title = element_blank()) 
 
 ```
 
+
+### Do dark cryptics ?
+
+```{r}
+expre_table %>% 
+    filter(max_exp2 == 'Dark cryptic') %>% 
+    filter(total_rna == 'downregulated')
+
+
+```
 
 
 ```{r}
@@ -788,10 +854,11 @@ merge_junctions <- function(df, distance_threshold = 2000) {
         # Merge the junctions
         merged_coord <- sprintf("%s:%d-%d", current$chrom, current$end, next_junction$start)
         result[[length(result) + 1]] <- c(
-          list(paste_into_igv_junction = merged_coord),
+          list(exon_coord = merged_coord),
           new_cate = df$new_cate[i],
           cryptic = df$cryptic[i],
-          gene = df$gene[i]
+          gene = df$gene[i],
+          paste_into_igv_junction = df$paste_into_igv_junction[i]
         )
 
         i <- i + 2  # Skip the next row as it's been merged
@@ -822,9 +889,11 @@ exons_combine <- merge_junctions(master_table) %>%
     symmetric = (end-start+1) %% 3==0
   )
 
-exons1 <- read.table("data/noDox-dox0075.cryptic_exons.bed",col.names = c("chrom","start","end","name","score","strand"))
+exons1 <- rtracklayer::import("data/noDox-dox0075.cryptic_exons.bed") %>% as.data.table()
 exons1 <- exons1 %>%
-  tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE)
+    tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE) %>% 
+    mutate(exon_coord = paste0(seqnames,":",start,"-",end))
+
 
 exons1 <- merge(exons1,
                 master_table %>%
@@ -835,38 +904,45 @@ exons1 <- merge(exons1,
     symmetric = (end-start) %% 3==0
   )
 
-exons2 <- read.table("data/all_the_ce_length_manual_filtered.bed.txt", fill = TRUE, header = T)
-exons2 <- exons2 %>%
-  mutate(
-    symmetric = (end-start) %% 3==0
-  )
-exons2$paste_into_igv_junction <- paste0(exons2$chr, ":", exons2$start + 1, "-", exons2$end)
-master_table <- master_table %>%
-    mutate(
-      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
-      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
-    )
+exons2 <- rtracklayer::import("data/all_the_ce_length_manual_filtered.bed")
 
-exons2 <- merge(exons2,
-                master_table %>%
-                  select(gene, paste_into_igv_junction, new_cate, cryptic),
-                by.x="gene_name",by.y = "gene", all.x=F) %>%
-  distinct(gene_name, symmetric, .keep_all = T)
-exons2 <- exons2[!duplicated(exons2$gene_name) & !duplicated(exons2$gene_name, fromLast = TRUE), ]
+master_table_gr <- master_table %>%
+    separate(paste_into_igv_junction,remove = FALSE,into = c("seqnames",'start','end')) %>% 
+    makeGRangesFromDataFrame(keep.extra.columns = TRUE)
 
-exons2 <- exons2 %>% select(gene_name, paste_into_igv_junction.x, new_cate, cryptic, symmetric)
-colnames(exons2) <- c("gene", "paste_into_igv_junction", "new_cate", "cryptic", "symmetric")
+exons2_gr = exons2 %>% 
+        makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+
+exons2_gr$exon_coords = paste0(as.character(seqnames(exons2_gr)),
+                                     ":",
+                                     as.character(start(exons2_gr)),
+                                     "-",
+                                     as.character(end(exons2_gr)),
+                                     ":",
+                                     as.character(strand(exons2_gr)))
+
+exons2_junced = build_all_potential_exon_table(master_table_gr,exons2_gr)
+exons2_junced = exons2_junced %>% 
+    separate(exon_coords,into = c("chr","start",'end','strand'),convert = TRUE,remove = FALSE) %>% 
+    mutate(symmetric = (end-start) %% 3==0)
+    
+
+exons2_junced = exons2_junced %>% 
+    left_join(master_table %>%
+                  select(gene, paste_into_igv_junction, new_cate, cryptic)) %>% 
+    select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric) %>% 
+    arrange(gene)
 
 result_mrg <- rbind(
   exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
   exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons2 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
+  exons2_junced %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
   na.omit() %>%
   distinct()
 
 junction_counts <- result_mrg %>%
   group_by(new_cate, cryptic, symmetric) %>%
-  summarise(count = n()) %>%
+  summarise(count = n_distinct(paste_into_igv_junction)) %>%
   ungroup()
 
 ggplot(junction_counts %>%
@@ -921,40 +997,6 @@ ggplot(counts_chx_symmetric %>%
   theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
-
-```{r de_late_early_be2}
-
-diff_plt_be2 = diff_expr_sk %>% 
-    left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_be2)]),by = c("symbol" = 'gene')) %>% 
-    filter(symbol != "RNA5-8SN2") %>% 
-    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
-    filter(!is.na(sig_de)) %>% 
-    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
-    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'non-splicing',tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) 
-    
-be2_d_gene = diff_plt_be2 %>% 
-    group_by(source,tdp43_sensitivity_be2) %>% 
-    summarize(denom = n_distinct(symbol))
-
-diff_plt_be2 %>% 
-    group_by(tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(be2_d_gene) %>% 
-    mutate(prop = n_genes/denom) %>% 
-    ggplot(aes(x = sig_de,
-               y = prop,
-               fill = tdp43_sensitivity_be2)) + 
-    geom_col(position = position_dodge(preserve = "single")) + 
-    facet_wrap(~source,scales = 'free_x')
-
-
-```
-
-
 
 
 

@@ -1,6 +1,6 @@
 ---
 title: "supplementary_fig"
-author: "MZ"
+author: "MZ; AM; ALB"
 date: "2024-05-22"
 output: html_document
 ---
@@ -135,6 +135,7 @@ master_table = as.data.table(master_table)
 
 diff_plt_sh = diff_expr_sh %>% 
     left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_sh)]),by = c("symbol" = 'gene')) %>% 
+    filter(cryptic == 'yes' | is.na(last_exon)) %>% 
     filter(symbol != "RNA5-8SN2") %>% 
     mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
     mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
@@ -166,7 +167,32 @@ diff_plt_sh %>%
     scale_fill_manual(values = c("#9DC7C8","#F25757","#13293D","#4F000B"),
                       labels = c("N.S.\nDownregulated", "N.S.\nUpregulated",
                                  "Downregulated", "Upregulated"))
+diff_plt_sh %>% 
+    group_by(tdp43_sensitivity_sh, fc_direction, sig_de, source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(sh_d_gene) %>% 
+    mutate(prop = n_genes / denom) %>% 
+    filter(!grepl("non_sig", sig_de)) %>% 
+    ggplot(aes(x = tdp43_sensitivity_sh, 
+               y = prop, 
+               fill = sig_de)) + 
+    geom_col(position = position_dodge(preserve = "single"), color = 'black') + 
+    geom_text(aes(label = n_genes), 
+              position = position_dodge(width = 0.9), 
+              vjust = -0.5, 
+              size = 4) + # Adding white text on top of the bars
+    facet_wrap(~source) + 
+    theme_classic() + 
+    ylab("Proportion of genes") + 
+    xlab(element_blank()) + 
+    theme(legend.position = 'bottom') + 
+    scale_fill_manual(values = c("#2B4162", "#721817"))
 
+diff_plt_sh %>% 
+    filter(tdp43_sensitivity_sh == 'Late') %>% 
+    filter(fc_direction == 'up') %>% 
+    filter(cryptic == 'yes')
 
 new_cate_nmd_sens %>% 
     pivot_wider(names_from = 'new_cate',values_from = 'n') %>% 
@@ -241,16 +267,11 @@ shsy5y_papa |>
 #### G. Spaghetti plot for APA events in BE(2)
 
 ```{r}
-shsy5y_papa = fread("data/sknbe2_papa_curve.csv")
-<<<<<<< Updated upstream
+sknbe2_papa = fread("data/sknbe2_papa_curve.csv")
 
-    select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |>
-    complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |>
-=======
-shsy5y_papa %>% 
+sknbe2_papa %>% 
     select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |> 
     complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |> 
->>>>>>> Stashed changes
     dplyr::group_by(le_id) %>%
     fill(timing, .direction = "downup") %>%
     ungroup() |>
