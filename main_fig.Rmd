@@ -199,7 +199,7 @@ e <- plot_de %>%
 avg_be2_qpcr = levels_dz_qpcr %>%
   filter(experiment == "new_new") %>% 
     group_by(sample) %>% 
-    summarize(m = mean(value)) %>% pull(m) %>% tail(7)
+    summarize(m = mean(value)) %>% pull(m) %>% tail(7) * 100
 
 plot_de_dz <- diff_expr_sk %>%
     filter(symbol != "RNA5-8SN2") %>% 
@@ -237,7 +237,9 @@ f <- plot_de_dz %>%
 
 e + f
 #ggsave("~/Desktop/de_curves.png", width = 10,height = 5)
+```
 
+```{late_early_spaghetti_plot r}
 print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
@@ -300,7 +302,9 @@ HH <- big_data_filtereds_early_late_be2 %>%
   facet_wrap(~tdp43_sensitivity_be2) + 
   theme_classic()
 GG + HH
+```
 
+```{alluvial_early_late_new r}
 print("1G - Alluvial plot")  
 summary <- master_table %>%
   filter(cryptic == "yes" & 
