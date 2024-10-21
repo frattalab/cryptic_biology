@@ -1,6 +1,6 @@
 ---
 title: "TDP-43 cryptic exon biology main figures"
-author: "MZ;ALB;AM"
+author: "MZ;AM;ALB"
 date: "2024-05-06"
 output: html_document
 ---
@@ -157,7 +157,9 @@ a+c
 
 
 ```{r de_by_levels}
-
+avg_tdp_level_sh = levels_sy5y_qpcr %>% 
+    group_by(Treatment) %>% 
+    summarize(m = mean(Value)) %>% pull(m) %>% tail(5)
 print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
     filter(symbol != "RNA5-8SN2") %>% 
@@ -188,10 +190,16 @@ e <- plot_de %>%
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
     ylab('TDP-43 KD level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(levels_sy5y_qpcr,2),rep(" %",5))) +
+    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,2),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
     ggtitle("SH-SY5Y")
+
+
+avg_be2_qpcr = levels_dz_qpcr %>%
+  filter(experiment == "new_new") %>% 
+    group_by(sample) %>% 
+    summarize(m = mean(value)) %>% pull(m) %>% tail(7)
 
 plot_de_dz <- diff_expr_sk %>%
     filter(symbol != "RNA5-8SN2") %>% 
@@ -222,7 +230,7 @@ f <- plot_de_dz %>%
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
     ylab('TDP-43 KD level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(be2_qpcr,2),rep(" %",7))) +
+    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,2),rep(" %",7))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
     ggtitle("SK-N-BE(2)")
