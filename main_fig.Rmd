@@ -239,9 +239,10 @@ e + f
 #ggsave("~/Desktop/de_curves.png", width = 10,height = 5)
 ```
 
-```{late_early_spaghetti_plot r}
+
+```{r late_early_spaghetti_plot}
 print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
-list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1")
+list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1","RANBP1",'PHF2')
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
     select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
@@ -304,7 +305,7 @@ HH <- big_data_filtereds_early_late_be2 %>%
 GG + HH
 ```
 
-```{alluvial_early_late_new r}
+```{r alluvial_early_late_new}
 print("1G - Alluvial plot")  
 summary <- master_table %>%
   filter(cryptic == "yes" & 
