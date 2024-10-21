@@ -6,6 +6,7 @@ output: html_document
 ---
 
 ```{r}
+source("scripts/splicejame_closestExonToJunctions.R")
 build_all_potential_exon_table = function(grange_object,exon_annotation){
 
     ##check that exon_coords exists as a metadata column
@@ -322,7 +323,7 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) 
 
 
-df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
+df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2","new_cate"))
 
 df_long = df_long %>% 
     mutate(axis = fct_relevel(axis, "tdp43_sensitivity_sh","new_cate"))
@@ -349,15 +350,19 @@ df_long %>%
     labs(fill = element_blank(),
          x = element_blank(),
          y = 'N junctions') + 
-    scale_x_discrete(labels=c("SH-SY5Y","SK-N-BE(2)"))
+    scale_x_discrete(labels=c("SH-SY5Y","Combined Category","SK-N-BE(2)"))
     
 ```
 
 
 ## Figure 2 - Features
-
-```{r phastCons CEs, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A and 2B - Conservation score for CE and non-ce in SH-SY5Y")
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+master_table <- master_table %>%
+  mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                            tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                            tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
 
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
@@ -370,7 +375,10 @@ get_signif_stars <- function(p_value) {
     return("NS")
   }
 }
-  
+
+```
+
+```{r splice_site_strength}
 get_significance <- function(df, value, group, category_col, category) {
   test_formula <- as.formula(paste(value, "~", group))
   p_test <- kruskal.test(test_formula, data = df %>% filter(!!sym(category_col) == category))
@@ -378,46 +386,83 @@ get_significance <- function(df, value, group, category_col, category) {
   return(get_signif_stars(p_test$p.value))
 }
 
-cons_score_df <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
-  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
-  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score") 
+print("2A - Splice site strength")
+df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_combined.csv'))
+df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_combined.csv'))
+df_ss_strength <- rbind(
+  df_5ss_strength  %>%
+    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon),
+  df_3ss_strength  %>%
+    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
+    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon)
+) %>%
+  filter(new_cate %in% c("Early", "Late"))
 
-cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes") 
-cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no") 
-a <- cons_score_df_cryptic %>% 
-  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+h <- df_ss_strength %>%
+  ggplot(aes(x=site, y = log2(ss_ratio), color = new_cate)) +
+  geom_boxplot() +
+  geom_abline(intercept = 0, slope = 0, color = "gray", linetype = "dashed") +
+  # geom_signif(
+  #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
+  #  annotation = c(get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "3' splice site"),
+  #                 get_significance(df_ss_strength,
+  #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
+  # ) +
+  scale_color_manual(values = plot_sensitivity_colors) +
+  #ylim(-4.1, 2.5) +
+  labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  guides(color = "none")
+h
+```
+
+
+```{r conservation_cell_only}
+print("2B - Conservation score for CE and non-ce in combined categories")
+cons_score_df <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  subset(!is.na(phastCons_alt) & !is.na(phastCons_unchanged)) %>%
+  pivot_longer(cols = c(phastCons_alt, phastCons_unchanged), names_to = "category", values_to = "cons_score")
+
+cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes")
+cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no")
+
+a <- cons_score_df_cryptic %>%
+  ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) + 
+  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"),
                    get_significance(cons_score_df_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged")) 
+                                    "cons_score", "new_cate", "category", "phastCons_unchanged"))
   ) +
   #facet_wrap(facets = vars(cryptic)) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
-b <- cons_score_df_not_cryptic %>% 
-  ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_sh)) +
+b <- cons_score_df_not_cryptic %>%
+  ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) + 
+  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
     annotation = c(get_significance(cons_score_df_not_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_alt"), 
+                                    "cons_score", "new_cate", "category", "phastCons_alt"),
                    get_significance(cons_score_df_not_cryptic,
-                                    "cons_score", "tdp43_sensitivity_sh", "category", "phastCons_unchanged"))
+                                    "cons_score", "new_cate", "category", "phastCons_unchanged"))
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
@@ -425,21 +470,175 @@ a + b
 ```
 
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+```{r create_exon_table}
+parse_coords <- function(coord_str) {
+  parts <- str_match(coord_str, "(chr\\w+):(\\d+)-(\\d+)")
+  list(chrom = parts[, 2], start = as.numeric(parts[, 3]), end = as.numeric(parts[, 4]))
+}
+
+merge_junctions <- function(df, distance_threshold = 2000) {
+  df <- df %>% arrange(paste_into_igv_junction)
+
+  result <- list()
+  i <- 1
+  while (i <= nrow(df)) {
+    current <- parse_coords(df$paste_into_igv_junction[i])
+
+    if (i < nrow(df)) {
+      next_junction <- parse_coords(df$paste_into_igv_junction[i + 1])
+
+      # Check if chromosomes are the same and distance is less than threshold
+      if (current$chrom == next_junction$chrom &&
+          (next_junction$start - current$end) < distance_threshold &&
+          (next_junction$start - current$end) > 0) {
+
+        # Merge the junctions
+        merged_coord <- sprintf("%s:%d-%d", current$chrom, current$end, next_junction$start)
+        result[[length(result) + 1]] <- c(
+          list(exon_coord = merged_coord),
+          new_cate = df$new_cate[i],
+          cryptic = df$cryptic[i],
+          gene = df$gene[i],
+          paste_into_igv_junction = df$paste_into_igv_junction[i]
+        )
+
+        i <- i + 2  # Skip the next row as it's been merged
+        next
+      }
+    }
+
+    # If not merged, don't add to the result
+    i <- i + 1
+  }
+
+  # Convert result to data frame
+  result_df <- do.call(rbind, lapply(result, data.frame))
+
+  # Remove rows with same start or end coordinates
+  result_df <- result_df %>%
+    mutate(
+      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
+      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
+    ) %>%
+    group_by(start, end) %>%
+    filter(n() == 1) %>%
+  ungroup()
+}
+
+exons_combine <- merge_junctions(master_table) %>%
+  mutate(
+    symmetric = (end-start+1) %% 3==0
+  )
+
+exons1 <- rtracklayer::import("data/noDox-dox0075.cryptic_exons.bed") %>% as.data.table()
+exons1 <- exons1 %>%
+    tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE) %>% 
+    mutate(exon_coord = paste0(seqnames,":",start,"-",end))
+
+
+exons1 <- merge(exons1,
+                master_table %>%
+                  select(paste_into_igv_junction, new_cate, cryptic),
+                by = "paste_into_igv_junction", all.x=T) %>%
+  distinct(paste_into_igv_junction, .keep_all = T) %>%
+  mutate(
+    symmetric = (end-start) %% 3==0
+  )
+
+exons2 <- rtracklayer::import("data/all_the_ce_length_manual_filtered.bed")
+
+master_table_gr <- master_table %>%
+    separate(paste_into_igv_junction,remove = FALSE,into = c("seqnames",'start','end')) %>% 
+    makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+
+exons2_gr = exons2 %>% 
+        makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+
+exons2_gr$exon_coords = paste0(as.character(seqnames(exons2_gr)),
+                                     ":",
+                                     as.character(start(exons2_gr)),
+                                     "-",
+                                     as.character(end(exons2_gr)),
+                                     ":",
+                                     as.character(strand(exons2_gr)))
+
+exons2_junced = build_all_potential_exon_table(master_table_gr,exons2_gr)
+exons2_junced = exons2_junced %>% 
+    separate(exon_coords,into = c("chr","start",'end','strand'),convert = TRUE,remove = FALSE) %>% 
+    mutate(symmetric = (end-start) %% 3==0)
+    
+
+exons2_junced = exons2_junced %>% 
+    left_join(master_table %>%
+                  select(gene, paste_into_igv_junction, new_cate, cryptic)) %>% 
+    select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric) %>% 
+    arrange(gene)
+
+result_mrg <- rbind(
+  exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons2_junced %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
+  na.omit() %>%
+  distinct()
+
+junction_counts <- result_mrg %>%
+  group_by(new_cate, cryptic, symmetric) %>%
+  summarise(count = n_distinct(paste_into_igv_junction)) %>%
+  ungroup()
+
+ggplot(junction_counts %>%
+         filter(new_cate != "Intermediate") %>%
+         filter(new_cate != ""), 
+       aes(x = new_cate, y = count, fill = symmetric)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_signif(data = data.frame(cryptic = c("no","yes"), symmetric=c(TRUE, FALSE)),
+              aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
+              annotations=c("*", "NS")), tip_length=0.02, manual = T) +
+    facet_wrap(~cryptic,
+               labeller = as_labeller(
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) + 
+  labs(
+    #title = "Number of Symmetric and Non-Symmetric Exons by Type",
+    x = "",
+    y = "Number of exons",
+    fill = "Symmetric"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "darkslategray", "FALSE" = "tan2")) +
+  guides(fill = "none") +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
+
+symmetry_signif <- junction_counts %>%
+  filter(cryptic!="yes") %>%
+   filter(new_cate!="Intermediate") %>%
+    pivot_wider(names_from = symmetric, values_from = count, values_fill = 0L) %>%
+  select(-new_cate, -cryptic) %>%
+    as.matrix() %>%
+    chisq.test()
+
+```
+
+
+
+
+```{r kmer sh-sy5y, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in SH-SY5Y
 print("2C - Kmers enrichment analysis in SH-SY5Y")
 
 kmer_size <- 6
-yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
-ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
-aa_motifs <- c('GTGTGA', 'AATGAA', 'GAATGA', 'TGAATG', 'ATGAAT', 'GTGAAT', 'GAATGT', 'TTGAAT')
+yg_motifs <- c('TGTGTG', 'GTGTGT', 'GTGTGC', 'CGTGTG', 'TGCGTG', 'TGTGCG')
+ya_motifs <- c('ATGTGT', 'TGTGTA', 'TGCATG', 'GTGTAT', 'TGTATG', 'GTATGT')
+aa_motifs <- c('AATGAA', 'TTGAAT', 'ATGAAT', 'GTGTGA', 'TGAATG', 'GAATGA', 'GTGAAT', 'GAATGT')
 all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
+categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
 
 count_hexamers <- function(row) {
   if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
     return(NULL)
   }
-  
+
   coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
   seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
   if (row[["strand"]] == "-") {
@@ -447,15 +646,18 @@ count_hexamers <- function(row) {
   }
   counts <- sapply(all_motifs, function(motif) countPattern(motif, seq, max.mismatch = 0))
   names(counts) <- all_motifs
-  
+
   return(counts)
 }
-master_table_filt <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% filter(junc_cat != "exon_skip")
+
+master_table_filt <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  filter(junc_cat != "exon_skip") %>%
+  distinct(paste_into_igv_junction_annotated, .keep_all = T)
 kmer_table <- apply(master_table_filt, 1, count_hexamers)
 all_counts_df <- as.data.frame(t(kmer_table))
 
-all_counts_df$type <- master_table_filt$tdp43_sensitivity_sh
+all_counts_df$type <- master_table_filt$new_cate
 all_counts_df$cryptic <- master_table_filt$cryptic
 
 summary_counts <- all_counts_df %>%
@@ -466,25 +668,23 @@ means <- apply(summary_counts[, -c(1,2)], 1, mean)
 sds <- apply(summary_counts[, -c(1,2)], 1, sd)
 z_scores <- sweep(summary_counts[, -c(1,2)], MARGIN = 1, STATS = means, FUN = "-") / sds
 heatmap_data <- as.matrix(z_scores)
+rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
 
 sort_kmers_by_zscore <- function(kmers, z_scores) {
   kmers[order(z_scores[kmers], decreasing = TRUE)]
 }
 
-sorted_yg <- sort_kmers_by_zscore(yg_motifs, heatmap_data[1,])
-sorted_ya <- sort_kmers_by_zscore(ya_motifs, heatmap_data[1,])
-sorted_aa <- sort_kmers_by_zscore(aa_motifs, heatmap_data[1,])
+sort_categories_by_zscore <- function(kmers, z_scores) {
+  categories[order(z_scores[kmers], decreasing = TRUE)]
+}
 
-sorted_all_kmers <- c(sorted_yg, sorted_ya, sorted_aa)
-categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+sorted_all_kmers <- sort_kmers_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
+sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
 
-annotation <- HeatmapAnnotation(Motif = factor(categories, levels = c("YG", "YA", "AA")),
+annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
                                 show_legend = c(F, F, F),
-                                col = list(Motif = c(YG = "purple", YA = "orange", AA = "darkgreen")),
+                                col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
                                 which = "col")
-
-heatmap_data <- as.matrix(z_scores)
-rownames(heatmap_data) <- paste(summary_counts$type, ifelse(summary_counts$cryptic == "yes", "Cryptic", "Not cryptic"))
 c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
@@ -492,12 +692,14 @@ c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","
         show_column_names = T,
         show_row_dend = F,
         bottom_annotation = annotation,
-        col = colorRampPalette(brewer.pal(3, "YlGnBu"))(100),
+        col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
         show_heatmap_legend = FALSE)
 c
+
 ```
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+```{r ug_dense sh-y5y, echo=FALSE, warning=FALSE, message=FALSE}
 #D. Density UG motifs by early-late in SH-SY5Y
 print("2D and 2E - Density UG motifs by early-late and top-bottom in SH-SY5Y")
 sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), function(i) {
@@ -509,13 +711,13 @@ sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), f
   if (master_table$strand[i] == "-") {
     seq <- reverseComplement(seq)
   }
-  
+
   return(seq)
 })
 
 master_table$longest_ug_region <- Biostrings::vcountPattern('TGTGTG', DNAStringSet(sequences), max.mismatch = 1)
 
-master_table <- master_table %>% 
+master_table <- master_table %>%
   mutate(
     start = as.numeric(sub(".*:(\\d+)-.*", "\\1", paste_into_igv_junction_annotated)),
     end = as.numeric(sub(".*-(\\d+)", "\\1", paste_into_igv_junction_annotated)),
@@ -524,82 +726,82 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-d <- master_table %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
-  ggplot(aes(x = cryptic, y = ug_density, fill = tdp43_sensitivity_sh)) +
+d <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('UG-repeat density') +
-  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
-    annotation = c(get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
-                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "no"), 
-                   get_significance(master_table %>% filter(tdp43_sensitivity_sh %in% c("Early", "Late")),
-                                    "ug_density", "tdp43_sensitivity_sh", "cryptic", "yes")), tip_length = 0.02
+    annotation = c(get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
+                                    "ug_density", "new_cate", "cryptic", "no"),
+                   get_significance(master_table %>% filter(new_cate %in% c("Early", "Late")),
+                                    "ug_density", "new_cate", "cryptic", "yes")), tip_length = 0.02
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
 #E. Density UG motifs by top-bottom in SH-SY5Y
 master_table$max_psi_sh <- factor(master_table$max_psi_sh, levels=c("Top", "Bottom"))
-e <- master_table %>% 
+e <- master_table %>%
   filter(max_psi_sh %in% c("Top", "Bottom")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_sh)) +
   geom_boxplot() +
   xlab("") +
   ylab('UG-repeat density') +
-  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) + 
+  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) +
   scale_fill_manual(values = plot_psi_colors) +
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
     annotation = c(get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
-                                    "ug_density", "max_psi_sh", "cryptic", "no"), 
+                                    "ug_density", "max_psi_sh", "cryptic", "no"),
                    get_significance(master_table %>% filter(max_psi_sh %in% c("Top", "Bottom")),
                                     "ug_density", "max_psi_sh", "cryptic", "yes")), tip_length = 0.02
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 d + e
+```
 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
-df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
+df_iclip$tdp_len <- abs(df_iclip$tdp_start - df_iclip$tdp_end + 1)
 
-f <- df_iclip %>% 
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+f <- df_iclip %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
   filter(abs(dist) <= 1000) %>%
-  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
-  geom_density(alpha = 0.5, adjust = 1) +  
-  facet_wrap(~cryptic, 
+  ggplot(aes(x = dist, fill = new_cate)) +
+  geom_density(alpha = 0.5, adjust = 1) +
+  facet_wrap(~cryptic,
              ncol = 2,
              labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
-  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
+  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
 f
-df_iclip %>%
-  filter(new_cate %in% c("Early", "Late")) %>%
-  filter(abs(dist) <= 1000) %>%
-  ggplot(aes(y = dist, x = new_cate,fill = junc_cat)) + 
-    geom_boxplot() +
-      facet_wrap(~cryptic,
-             ncol = 2,
-             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) 
+```
 
-print("2G - RNA maps based on figure F")
+
+```{r rna maps_figure}
 #G. RNA maps based on figure F
-early_donors <- readDNAStringSet("data/maxent/donors_early_sh.fa")
-late_donors <- readDNAStringSet("data/maxent/donors_late_sh.fa")
+early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
+late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
+#G. RNA maps based on figure F
+early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
+late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
-g1 <- ggplot() + 
+g1 <- ggplot() +
   geom_logo(data = as.character(early_donors), method = "probability")+
   scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
   labs( x = "Position", y = "Probability") +
@@ -610,7 +812,7 @@ g1 <- ggplot() +
     axis.ticks = element_blank(),
     plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
   )
-g2 <- ggplot() + 
+g2 <- ggplot() +
   geom_logo(data = as.character(late_donors), method = "probability")+
   scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
   labs( x = "Position", y = "Probability") +
@@ -624,6 +826,9 @@ g2 <- ggplot() +
 g <- g1 / g2
 g
 ```
+
+
+
 
 A. Conservation score for CE in SH-SY5Y
 B. Conservation score for non-CE in SH-SY5Y
@@ -640,6 +845,7 @@ B. Late/early is not driven by NMD sensitivity
 E. Differential expression of NMD sensitive/not 
 F. TDP-43 dependent loss of dark cryptics
 G. 4-SU
+
 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -800,134 +1006,9 @@ expre_table %>%
 ```
 
 
-```{r}
-parse_coords <- function(coord_str) {
-  parts <- str_match(coord_str, "(chr\\w+):(\\d+)-(\\d+)")
-  list(chrom = parts[, 2], start = as.numeric(parts[, 3]), end = as.numeric(parts[, 4]))
-}
-
-merge_junctions <- function(df, distance_threshold = 2000) {
-  df <- df %>% arrange(paste_into_igv_junction)
-
-  result <- list()
-  i <- 1
-  while (i <= nrow(df)) {
-    current <- parse_coords(df$paste_into_igv_junction[i])
-
-    if (i < nrow(df)) {
-      next_junction <- parse_coords(df$paste_into_igv_junction[i + 1])
-
-      # Check if chromosomes are the same and distance is less than threshold
-      if (current$chrom == next_junction$chrom &&
-          (next_junction$start - current$end) < distance_threshold &&
-          (next_junction$start - current$end) > 0) {
-
-        # Merge the junctions
-        merged_coord <- sprintf("%s:%d-%d", current$chrom, current$end, next_junction$start)
-        result[[length(result) + 1]] <- c(
-          list(exon_coord = merged_coord),
-          new_cate = df$new_cate[i],
-          cryptic = df$cryptic[i],
-          gene = df$gene[i],
-          paste_into_igv_junction = df$paste_into_igv_junction[i]
-        )
-
-        i <- i + 2  # Skip the next row as it's been merged
-        next
-      }
-    }
-
-    # If not merged, don't add to the result
-    i <- i + 1
-  }
-
-  # Convert result to data frame
-  result_df <- do.call(rbind, lapply(result, data.frame))
-
-  # Remove rows with same start or end coordinates
-  result_df <- result_df %>%
-    mutate(
-      start = sapply(paste_into_igv_junction, function(x) parse_coords(x)$start),
-      end = sapply(paste_into_igv_junction, function(x) parse_coords(x)$end)
-    ) %>%
-    group_by(start, end) %>%
-    filter(n() == 1) %>%
-  ungroup()
-}
-
-exons_combine <- merge_junctions(master_table) %>%
-  mutate(
-    symmetric = (end-start+1) %% 3==0
-  )
-
-exons1 <- rtracklayer::import("data/noDox-dox0075.cryptic_exons.bed") %>% as.data.table()
-exons1 <- exons1 %>%
-    tidyr::separate(name, into = c("gene", "paste_into_igv_junction"), sep = "\\|", remove = FALSE) %>% 
-    mutate(exon_coord = paste0(seqnames,":",start,"-",end))
 
 
-exons1 <- merge(exons1,
-                master_table %>%
-                  select(paste_into_igv_junction, new_cate, cryptic),
-                by = "paste_into_igv_junction", all.x=T) %>%
-  distinct(paste_into_igv_junction, .keep_all = T) %>%
-  mutate(
-    symmetric = (end-start) %% 3==0
-  )
-
-exons2 <- rtracklayer::import("data/all_the_ce_length_manual_filtered.bed")
-
-master_table_gr <- master_table %>%
-    separate(paste_into_igv_junction,remove = FALSE,into = c("seqnames",'start','end')) %>% 
-    makeGRangesFromDataFrame(keep.extra.columns = TRUE)
-
-exons2_gr = exons2 %>% 
-        makeGRangesFromDataFrame(keep.extra.columns = TRUE)
-
-exons2_gr$exon_coords = paste0(as.character(seqnames(exons2_gr)),
-                                     ":",
-                                     as.character(start(exons2_gr)),
-                                     "-",
-                                     as.character(end(exons2_gr)),
-                                     ":",
-                                     as.character(strand(exons2_gr)))
-
-exons2_junced = build_all_potential_exon_table(master_table_gr,exons2_gr)
-exons2_junced = exons2_junced %>% 
-    separate(exon_coords,into = c("chr","start",'end','strand'),convert = TRUE,remove = FALSE) %>% 
-    mutate(symmetric = (end-start) %% 3==0)
-    
-
-exons2_junced = exons2_junced %>% 
-    left_join(master_table %>%
-                  select(gene, paste_into_igv_junction, new_cate, cryptic)) %>% 
-    select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric) %>% 
-    arrange(gene)
-
-result_mrg <- rbind(
-  exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons2_junced %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
-  na.omit() %>%
-  distinct()
-
-junction_counts <- result_mrg %>%
-  group_by(new_cate, cryptic, symmetric) %>%
-  summarise(count = n_distinct(paste_into_igv_junction)) %>%
-  ungroup()
-
-ggplot(junction_counts %>%
-         filter(new_cate != ""), aes(x = new_cate, y = count, fill = symmetric)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~cryptic)+
-  labs(
-    #title = "Number of Symmetric and Non-Symmetric Exons by Type",
-    x = "",
-    y = "Number of exons",
-    fill = "Symmetric"
-  ) +
-  scale_fill_manual(values = c("TRUE" = "darkslategray", "FALSE" = "tan2")) +
-
+```{r }
 print("3D")
 
 print("3E")
