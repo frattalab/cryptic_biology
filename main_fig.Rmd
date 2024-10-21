@@ -105,7 +105,8 @@ source(here::here('trial_nmd_plots.R'))
 here::here()
 
 #plot parameters
-plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
+plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7",
+                             "Intermediate" = "steelblue","Not found" = 'darkgrey')
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
 plot_text_size <- 10
 ```
@@ -306,28 +307,56 @@ GG + HH
 ```
 
 ```{r alluvial_early_late_new}
-print("1G - Alluvial plot")  
-summary <- master_table %>%
-  filter(cryptic == "yes" & 
-             tdp43_sensitivity_sh != "" & tdp43_sensitivity_be2 != "") %>% 
-  group_by(tdp43_sensitivity_sh, tdp43_sensitivity_be2) %>%
-  summarise(count = n())%>%
-  ungroup()
-ggplot(summary,
-       aes(y = count, axis1 = tdp43_sensitivity_sh, axis2 = tdp43_sensitivity_be2)) +
-  geom_alluvium(aes(fill = tdp43_sensitivity_sh), width = 1/12, knot.pos = 0) +
-  guides(fill = "none") +
-  geom_stratum(alpha = .5, width = 1/8) +
-  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
-  scale_fill_manual(values = plot_sensitivity_colors) +
-  theme_void()
+# Create the alluvial plot
+master_table <- read.csv(here::here("data/master_table.csv"))
 
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
+                                tdp43_sensitivity_be2 == 'Early' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Early',
+                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) 
+
+
+df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
+
+df_long = df_long %>% 
+    mutate(axis = fct_relevel(axis, "tdp43_sensitivity_sh","new_cate"))
+
+df_long %>% 
+    filter(junction_for_clustering == 'yes') %>% 
+    ggplot(
+       aes(x = axis,
+           stratum = stratum, 
+           alluvium = alluvium,
+           fill = stratum, 
+           label = stratum)) +
+    scale_fill_manual(values = plot_sensitivity_colors) +
+    geom_flow(stat = "alluvium", 
+              lode.guidance = "frontback") +
+    geom_stratum() +
+    theme(legend.position = "bottom") +
+    facet_wrap(~cryptic,
+               labeller = as_labeller(
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) + 
+    theme_classic() +
+    geom_text(stat = "stratum",
+              aes(label = percent(after_stat(prop), accuracy = .1))) +
+    labs(fill = element_blank(),
+         x = element_blank(),
+         y = 'N junctions') + 
+    scale_x_discrete(labels=c("SH-SY5Y","SK-N-BE(2)"))
+    
 ```
 
 
 ## Figure 2 - Features
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+```{r phastCons CEs, echo=FALSE, warning=FALSE, message=FALSE}
 print("2A and 2B - Conservation score for CE and non-ce in SH-SY5Y")
 
 get_signif_stars <- function(p_value) {
