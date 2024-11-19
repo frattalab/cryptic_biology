@@ -99,7 +99,8 @@ library(Biostrings)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(ComplexHeatmap)
 library(RColorBrewer)
-
+library(scales)
+library(ggstats)
 source(here::here('trial_nmd_plots.R'))
 
 #check you're in right folder
@@ -134,10 +135,10 @@ master_table <- read.csv(here::here("data/master_table.csv"))
 
 #####
 print("1A and 1B - Dose-response curves for SH-SY5Y and SK-N-BE(2)")
-a <- levels_sy5y_qpcr %>%
+a = levels_sy5y_qpcr %>%
   ggplot(aes(x = as.character(Treatment), y = Value)) +
+    geom_violin() +
   geom_point() +
-  geom_boxplot() +
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   theme_classic() +
@@ -145,8 +146,8 @@ a <- levels_sy5y_qpcr %>%
 c <- levels_dz_qpcr %>%
   filter(experiment == "new_new") %>%
   ggplot(aes(x = as.character(sample), y = 100*value)) +
+    geom_violin() +
   geom_point() +
-  geom_boxplot() +
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   #facet_wrap(facets = vars(experiment)) +
@@ -159,9 +160,11 @@ a+c
 
 
 ```{r de_by_levels}
+
 avg_tdp_level_sh = levels_sy5y_qpcr %>% 
     group_by(Treatment) %>% 
     summarize(m = mean(Value)) %>% pull(m) %>% tail(5)
+
 print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
     filter(symbol != "RNA5-8SN2") %>% 
@@ -192,7 +195,7 @@ e <- plot_de %>%
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
     ylab('TDP-43 KD level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,2),rep(" %",5))) +
+    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,1),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
     ggtitle("SH-SY5Y")
@@ -232,7 +235,7 @@ f <- plot_de_dz %>%
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
     ylab('TDP-43 KD level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,2),rep(" %",7))) +
+    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,1),rep(" %",7))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
     ggtitle("SK-N-BE(2)")
@@ -247,7 +250,7 @@ print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1","RANBP1",'PHF2')
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
-    select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
+    dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox0125,dox0187,dox021,dox025,dox075,
              tdp43_sensitivity_sh,max_psi_sh)) %>% 
     group_by(gene) %>% 
@@ -276,7 +279,7 @@ GG <- big_data_filtereds_early_late_sh %>%
   theme_classic()
 big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_be2) %>% 
-    select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
+    dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox002,dox003,dox004,dox005,dox0075,dox01,dox1,
              #dox0,dox0125,dox0187,dox021,dox025,dox075,
              tdp43_sensitivity_be2,max_psi_be2)) %>% 
@@ -307,10 +310,10 @@ HH <- big_data_filtereds_early_late_be2 %>%
 GG + HH
 ```
 
+
 ```{r alluvial_early_late_new}
 # Create the alluvial plot
 master_table <- read.csv(here::here("data/master_table.csv"))
-
 master_table <- master_table %>%
     mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
     mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
@@ -318,10 +321,10 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
                                 tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                                tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
-                                tdp43_sensitivity_be2 == 'Early' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Early',
-                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) %>% 
-    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
+
 
 
 df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2","new_cate"))
@@ -568,19 +571,20 @@ exons2_gr$exon_coords = paste0(as.character(seqnames(exons2_gr)),
 exons2_junced = build_all_potential_exon_table(master_table_gr,exons2_gr)
 exons2_junced = exons2_junced %>% 
     separate(exon_coords,into = c("chr","start",'end','strand'),convert = TRUE,remove = FALSE) %>% 
-    mutate(symmetric = (end-start) %% 3==0)
+    mutate(symmetric = (end-start) %% 3==0) %>% 
+    dplyr::rename(exon_coord = exon_coords)
     
 
 exons2_junced = exons2_junced %>% 
     left_join(master_table %>%
                   select(gene, paste_into_igv_junction, new_cate, cryptic)) %>% 
-    select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric) %>% 
+    select(gene, exon_coord,paste_into_igv_junction, new_cate, cryptic, symmetric) %>% 
     arrange(gene)
 
 result_mrg <- rbind(
-  exons_combine %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons1 %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric),
-  exons2_junced %>% select(gene, paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
+  exons_combine %>% select(gene, exon_coord, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons1 %>% select(gene,exon_coord, paste_into_igv_junction, new_cate, cryptic, symmetric),
+  exons2_junced %>% select(gene, exon_coord,paste_into_igv_junction, new_cate, cryptic, symmetric)) %>%
   na.omit() %>%
   distinct()
 
@@ -859,15 +863,12 @@ a <- slope_plot_nmd(big_data_chx,
 # reading in the master table again for debug, can remove later
 master_table <- read.csv(here::here("data/master_table.csv"))
 master_table <- master_table %>%
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
-    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
-                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
                                 tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                                tdp43_sensitivity_be2 == 'Late' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Late',
-                                tdp43_sensitivity_be2 == 'Early' & tdp43_sensitivity_sh == 'Intermediate' ~ 'Early',
-                                tdp43_sensitivity_be2 == 'Intermediate' & tdp43_sensitivity_sh == 'Late' ~ 'Late')) %>% 
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
     mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
@@ -1081,6 +1082,7 @@ b
 #ggsave("~/Desktop/curves_nmd_dz.png", width = 6, height = 4)
 
 #library(patchwork)
+
 a+b
 
 #ggsave("~/Desktop/caio.png", caio, width = 8, height = 4)
@@ -1097,11 +1099,11 @@ B. Slope plot in SH-SY5Y
 C. Differential expression of NMD sensitive and not
 D. Differential expression of NMD sensitive/not but more detailed
 E. TDP-43 dependent loss of dark cryptics
-F. 4-SU
+F. 4-SU??
 
 ## Figure 4 - compendium / in vivo
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+```{r targeted_panel, echo=FALSE, warning=FALSE, message=FALSE}
 print("4A")
 ##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
 maxc <- read.csv(here::here('data',"count_table_of_aligned_remove_200bp_plus_product_reads.csv")) %>%
