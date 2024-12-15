@@ -23,15 +23,17 @@ library(ComplexHeatmap)
 library(RColorBrewer)
 library(scales)
 library(ggstats)
+library(data.table)
 source(here::here('trial_nmd_plots.R'))
 
 #check you're in right folder
 here::here()
 
 #plot parameters
-plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7",
+plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#173dd3",
                              "Intermediate" = "steelblue","Not found" = 'darkgrey',"Ambiguous" = 'darkred')
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
+plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
 plot_text_size <- 10
 ```
 
@@ -285,13 +287,6 @@ df_long %>%
 
 ## Figure 2 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-master_table <- master_table %>%
-  mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
-                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                            tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
-
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
     return("***")
@@ -328,9 +323,9 @@ df_ss_strength <- rbind(
   filter(new_cate %in% c("Early", "Late"))
 
 h <- df_ss_strength %>%
-  ggplot(aes(x=site, y = log2(ss_ratio), color = new_cate)) +
+  ggplot(aes(x=site, y = log2(ss_ratio), fill = new_cate)) +
   geom_boxplot() +
-  geom_abline(intercept = 0, slope = 0, color = "gray", linetype = "dashed") +
+  geom_abline(intercept = 0, slope = 0, color = "black", linetype = "dashed") +
   # geom_signif(
   #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
   #  annotation = c(get_significance(df_ss_strength,
@@ -338,7 +333,7 @@ h <- df_ss_strength %>%
   #                 get_significance(df_ss_strength,
   #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
   # ) +
-  scale_color_manual(values = plot_sensitivity_colors) +
+  scale_fill_manual(values = plot_sensitivity_colors) +
   #ylim(-4.1, 2.5) +
   labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
   theme_minimal() +
@@ -399,7 +394,6 @@ a + b
 
 
 
-
 ```{r exon_in_frame}
 result_mrg = fread('data/result_exon_table_merged.csv')
 tmp_gr = result_mrg %>% 
@@ -411,7 +405,7 @@ seq_tmp <- getSeq(BSgenome.Hsapiens.UCSC.hg38,tmp_gr)
 
 result_mrg = result_mrg %>% 
     mutate(width = seq_tmp %>% width()) %>% 
-    mutate(div_3 = ifelse(width %% 3==0,"in-frame","out-frame")) 
+    mutate(div_3 = ifelse(width %% 3==0,"In-frame","Out-frame")) 
 
 
 exon_counts <- result_mrg %>%
@@ -443,7 +437,7 @@ exon_counts %>%
         facet_wrap(~cryptic,
                labeller = as_labeller(
                c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
-  geom_signif(data = data.frame(cryptic = c("no","yes"), div_3=c('in-frame', 'out-frame')),
+  geom_signif(data = data.frame(cryptic = c("no","yes"), div_3=c('In-frame', 'Out-frame')),
               aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
               annotations=c("*", "NS")), tip_length=0.02, manual = T) +
 
@@ -454,14 +448,62 @@ exon_counts %>%
     fill = ""
   ) +
   scale_fill_manual(
-    values = c("in-frame" = "darkslategray", "out-frame" = "tan2"),
+    values = plot_inframe_colors,
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
+```{r}
+all_exons <- read.csv("data/inclusion_rates.csv")
+all_exons <- all_exons %>%
+  mutate(
+    div_3 = ifelse((exon_stop-exon_start) %% 3==0,"In-frame","Out-frame")
+  )
 
+all_exons <- all_exons %>%
+  filter(!is.na(incl_rate))%>%
+  mutate(incl_rate_group = cut(incl_rate, 
+                                breaks = c(0.01, 0.25, 0.85, 0.99, Inf), 
+                                labels = c("1-25%", "25-85%", "85-99%", ">99%")))
+                                #labels = c("<0.85", "0.85-0.995", ">0.995")))
+
+plot_cont_table <- na.omit(all_exons) %>%
+  group_by(incl_rate_group, div_3) %>%
+  summarise(count = n(), .groups = 'drop')
+
+cont_table <- plot_cont_table %>%
+    pivot_wider(names_from = div_3, values_from = count)
+
+group_pairs <- list(
+  c(1,2), 
+  c(1,3),  
+  c(1,4)   
+)
+
+p_values <- sapply(group_pairs, function(pair) {
+  chisq.test(as.matrix(cont_table %>% select(`In-frame`, `Out-frame`))[pair,])$p.value
+})
+
+ggplot(plot_cont_table, aes(x = incl_rate_group, y = count, fill = div_3)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "",
+       x = "Inclusion rate",
+       y = "Number of exons",
+       fill = "") +
+  theme_classic() +
+  scale_fill_manual(
+    values = plot_inframe_colors,
+  ) +
+  geom_signif(comparisons = list(c("1-25%", "25-85%"), 
+                                 c("1-25%", "85-99%"), 
+                                 c("1-25%", ">99%")),
+              annotations = sprintf("p = %.1e", p_values),
+              y_position = c(max(plot_cont_table$count)*1.1, 
+                             max(plot_cont_table$count)*1.2, 
+                             max(plot_cont_table$count)*1.3))
+```
 
 
 ```{r kmer sh-sy5y, echo=FALSE, warning=FALSE, message=FALSE}
@@ -523,7 +565,7 @@ sorted_all_kmers <- sort_kmers_by_zscore(all_motifs, heatmap_data["Early Cryptic
 sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
 
 annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
-                                show_legend = c(F, F, F),
+                                #show_legend = c(F, F, F),
                                 col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
                                 which = "col")
 c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
@@ -613,32 +655,80 @@ d + e
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
-df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
-df_iclip$tdp_len <- abs(df_iclip$tdp_start - df_iclip$tdp_end + 1)
+df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind3.bed'), sep="\t")
 
-f <- df_iclip %>%
-  filter(new_cate %in% c("Early", "Late")) %>%
+f1 <- df_iclip %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+  filter(junc_cat != "exon_skip") %>%
   filter(abs(dist) <= 1000) %>%
-  ggplot(aes(x = dist, fill = new_cate)) +
-  geom_density(alpha = 0.5, adjust = 1) +
-  facet_wrap(~cryptic,
-             ncol = 2,
-             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
+  filter(cryptic!="yes")%>%
+  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
+  geom_density(alpha = 0.5, adjust = 0.2) +
+  coord_cartesian(xlim=c(-250,250))+
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
-f
+f2 <- df_iclip %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+  filter(junc_cat != "exon_skip") %>%
+  filter(abs(dist) <=1000) %>%
+  filter(cryptic=="yes")%>%
+  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
+  geom_density(alpha = 0.5, adjust = 0.2) +
+  coord_cartesian(xlim=c(-250,250))+
+  scale_fill_manual(values = plot_sensitivity_colors) +
+  guides(fill = "none") +
+  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+f1+f2
+
 ```
 
+```{r binding_sites_heatmap}
+# Calculate total counts for each TDP43 sensitivity group
+total_counts <- df_iclip %>%
+  group_by(tdp43_sensitivity_sh, cryptic) %>%
+  summarize(total = n())
 
-```{r rna maps_figure}
-#G. RNA maps based on figure F
-early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
-late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
-#G. RNA maps based on figure F
+# Calculate percentages
+heatmap_data <- df_iclip %>%
+  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
+  filter(abs(dist) <= 250) %>%
+  group_by(tdp43_sensitivity_sh, cryptic) %>%
+  summarize(count = n(), .groups = "drop_last") %>%
+  left_join(total_counts, by = c("tdp43_sensitivity_sh", "cryptic")) %>%
+  mutate(percentage = round(count / total * 100, 0)) %>%
+  select(-count, -total) %>%
+  pivot_wider(
+    names_from = cryptic, 
+    values_from = percentage, 
+    values_fill = 0
+  ) %>%
+  column_to_rownames(var = "tdp43_sensitivity_sh")
+
+heatmap_plot <- heatmap_data %>%
+  rownames_to_column(var = "tdp43_sensitivity_sh") %>%
+  pivot_longer(cols = c("yes", "no"), names_to = "Cryptic", values_to = "Percentage")
+heatmap_plot$tdp43_sensitivity_sh <- factor(heatmap_plot$tdp43_sensitivity_sh, levels=c("Late","Early"))
+ggplot(heatmap_plot, aes(x = Cryptic, y = tdp43_sensitivity_sh, fill = Percentage)) +
+  geom_tile() +
+  geom_text(aes(label = paste0(Percentage, "%")), vjust = 0.5, hjust = 0.5) +
+  scale_fill_gradient(low="saddlebrown", high="palegreen1") +
+  labs(title = "", 
+       y = "TDP43 sensitivity", 
+       x = "Cryptic") +
+  scale_x_discrete(labels=c("Alternative splicing", "Cryptic splicing"))+
+  guides(fill="none") +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size))
+```
+
+```{r rnamaps_figure}
+#G. RNA maps 
 early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
 late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
