@@ -11,6 +11,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
 #BiocManager::install("ComplexHeatmap")
+library(data.table)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
@@ -663,7 +664,7 @@ d + e
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
-df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind3.bed'), sep="\t")
+df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 
 f1 <- df_iclip %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
