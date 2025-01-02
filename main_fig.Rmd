@@ -1153,16 +1153,18 @@ maxc_type <- maxc_al %>%
 maxc_type %>%
   filter(tdp43_sensitivity_sh != "") %>%
   filter(gene_name != "SETD5") %>%
+  #filter(n_cryptic>0) %>% 
   #filter(detected == "Yes") %>%
   filter(group != "H2O") %>%
-  ggplot(aes(x = tdp43_sensitivity_sh)) +
-  geom_bar(aes(fill = tdp43_sensitivity_sh)) +
+  ggplot(aes(x = tdp43_sensitivity_sh, y = n_cryptic)) +
+  geom_col(aes(fill = tdp43_sensitivity_sh)) +
   facet_wrap(facets = vars(group), ncol = 2) +
   scale_fill_brewer(palette = "Set1") +
   xlab("") +
   ylab("Count of cryptic exons detected by targeted panel") +
   labs(fill = "Category") +
   theme_bw()
+ggsave("~/Desktop/grouped_panel.png", width = 8, height = 4)
 
 maxc_earli <- maxc_type %>%
   filter(tdp43_sensitivity_sh == "Earli") %>%
