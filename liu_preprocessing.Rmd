@@ -1,0 +1,370 @@
+```{r echo=FALSE}
+library(dunn.test)
+library(tidyverse)
+library(ggpubr)
+plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7",
+                             "Intermediate" = "steelblue","Not found" = 'darkgrey')
+```
+
+
+Read in the early/late table and Liu junction counts
+
+```{r data_import echo=FALSE}
+master_table <- fread(here::here("data/master_table.csv"))
+compendium_events = fread('data/compendium_cryptics.csv')
+
+master_table <- master_table %>%
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+    filter(!is.na(new_cate))
+liu = fread("~/cluster/vyplab/alb_projects/data/liu_facs_neurons/leaf_clustered/liuFacs_perind.counts.gz")
+liu = liu %>% select(-matches('unsorted')) %>% 
+    melt(id.vars = c("chrom")) %>% 
+    separate(value, into =c("numerator","denominator"),convert = TRUE) %>% 
+    mutate(psi = numerator / denominator)
+
+liu = liu %>% 
+    separate(chrom,into = c("chr","start","end",'cluster'),sep = ":") %>% 
+    mutate(strand = str_sub(cluster,-1,-1))
+
+liu = liu  %>% 
+    mutate(paste_into_igv_junction = paste0(chr,":",start,"-",end))
+
+```
+
+
+
+Now explore expression of 
+
+# 1. Early/Late
+
+## How often is an early/late event more expressed in TDP-43 negative events than not?
+
+```{r early_late_sig_up}
+
+
+test_diff = liu %>% 
+    filter(paste_into_igv_junction %in% master_table$paste_into_igv_junction) %>% 
+    left_join(master_table %>% select(new_cate,paste_into_igv_junction,gene,cryptic)) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    filter(!is.na(new_cate)) %>% 
+    group_by(paste_into_igv_junction) %>% 
+    nest() |> 
+    mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
+           mean_positive = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 positive"], na.rm = TRUE)),
+           mean_negative = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 negative"], na.rm = TRUE)),
+           ratio = log2(mean_negative / mean_positive)) |> 
+    unnest() %>% 
+    distinct(paste_into_igv_junction,p.value,ratio,mean_positive,mean_negative) %>% 
+    mutate(adj_pvalue = p.adjust(p.value))
+
+these_ones = test_diff %>% filter(adj_pvalue < 0.01 & ratio > 0) %>% 
+    pull(paste_into_igv_junction)
+
+
+contingency_table <- master_table %>%
+    select(paste_into_igv_junction, new_cate) %>%
+    filter(!is.na(new_cate)) %>%
+    mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones) %>%
+    group_by(new_cate, sig_diff_pos_neg) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
+    column_to_rownames("new_cate") 
+
+contingency_table_cryptics <- master_table %>%
+    filter(cryptic == 'yes') %>% 
+    select(paste_into_igv_junction, new_cate) %>%
+    filter(!is.na(new_cate)) %>%
+    mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones) %>%
+    group_by(new_cate, sig_diff_pos_neg) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
+    column_to_rownames("new_cate") 
+
+
+pairwise_results = rstatix::pairwise_fisher_test(contingency_table) 
+pairwise_results_cryptics = rstatix::pairwise_fisher_test(contingency_table_cryptics) 
+
+comparisons <- list(
+    c("Early", "Intermediate"),
+    c("Early", "Late"),
+    c("Intermediate", "Late")
+)
+    
+
+contingency_table %>%
+    rownames_to_column('new_cate') %>%
+    melt() %>%
+    group_by(new_cate) %>%
+    mutate(prop = value / sum(value)) %>% 
+    ggplot(aes(x = new_cate, y = value, fill = variable)) +
+    geom_bar(stat = "identity", position = "stack") +
+    geom_text(
+        aes(label = scales::percent(prop, accuracy = 1)),
+        position = position_stack(0.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Sig. up in TDP-43 negative') +
+    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) + 
+    theme(legend.position = 'bottom') +
+    ggsignif::geom_signif(
+        comparisons = comparisons,
+        annotations = scales::pvalue(pairwise_results$p.adj, accuracy = 0.001),
+        y_position = c(340, 320, 300),  # Adjusted y-positions above the bars
+        textsize = 3,
+        tip_length = 0
+    )
+
+
+contingency_table_cryptics %>%
+    rownames_to_column('new_cate') %>%
+    melt() %>%
+    group_by(new_cate) %>%
+    mutate(prop = value / sum(value)) %>% 
+    ggplot(aes(x = new_cate, y = value, fill = variable)) +
+    geom_bar(stat = "identity", position = "stack") +
+    geom_text(
+        aes(label = scales::percent(prop, accuracy = 1)),
+        position = position_stack(0.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Sig. up in TDP-43 negative') +
+    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) + 
+    theme(legend.position = 'bottom') +
+    ggsignif::geom_signif(
+        comparisons = comparisons,
+        annotations = scales::pvalue(pairwise_results_cryptics$p.adj, accuracy = 0.001),
+        y_position = c(340, 320, 300),  # Adjusted y-positions above the bars
+        textsize = 3,
+        tip_length = 0
+    )
+```
+
+ Of those events which are, which are more highly expressed?
+
+```{r early_late_expression}
+
+plot_data = liu %>% 
+    mutate(selective = ifelse(paste_into_igv_junction %in% these_ones,'Upregulated in TDP-43 negative vs pos.', 
+                              'N.S.' )) %>% 
+    filter(paste_into_igv_junction %in% master_table$paste_into_igv_junction) %>% 
+    left_join(master_table %>% select(new_cate,paste_into_igv_junction,gene,cryptic)) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    unique() %>% 
+    filter(!is.na(new_cate)) %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi))
+
+plot_data %>% 
+    ggplot(aes(x = new_cate, y = psi,fill = new_cate)) + 
+    geom_boxplot() +
+    theme_classic() + 
+    scale_fill_manual(values = plot_sensitivity_colors) + 
+    stat_compare_means(hide.ns = TRUE,
+                       textsize = 3,
+                       tip.length = 0) +
+    theme(legend.position = "none") +
+    facet_wrap(~selective+condition) + 
+    ylab("PSI")
+
+dunn_results <- dunn.test(subset(plot_data,condition == "TDP-43 negative" & selective != "N.S.")$psi,
+                          subset(plot_data,condition == "TDP-43 negative" & selective != "N.S.")$new_cate,
+                          kw = TRUE, label = TRUE)
+
+plot_data %>% 
+    filter(selective != "N.S.") %>% 
+    ggplot(aes(x = new_cate, y = psi,fill = new_cate)) + 
+    geom_boxplot() +
+    theme_classic() + 
+    scale_fill_manual(values = plot_sensitivity_colors) + 
+    theme(legend.position = "none") +
+    facet_wrap(~condition) +
+    ggsignif::geom_signif(
+        data = subset(plot_data,condition == "TDP-43 negative"),
+        comparisons = comparisons,
+        annotations = scales::pvalue(dunn_results$P.adjusted, accuracy = 0.001),
+        y_position = c(1, 1.1, 1.2),  # Adjusted y-positions above the bars
+        textsize = 3,
+        tip_length = 0
+    ) + 
+    ylab("PSI")
+
+```
+
+Same but only the 'cryptic' events
+
+```{r}
+plot_data %>% 
+    filter(cryptic == 'yes') %>% 
+    ggplot(aes(x = new_cate, y = psi,fill = new_cate)) + 
+    geom_boxplot() +
+    theme_classic() + 
+    scale_fill_manual(values = plot_sensitivity_colors) + 
+    stat_compare_means(hide.ns = TRUE,
+                       textsize = 3,
+                       tip.length = 0) +
+    theme(legend.position = "none") +
+    facet_wrap(~selective+condition) + 
+    ylab("PSI")
+
+dunn_results_cryptic <- dunn.test(subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes')$psi,
+                          subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes')$new_cate,
+                          kw = TRUE, label = TRUE)
+
+plot_data %>% 
+    filter(cryptic == 'yes') %>% 
+    filter(selective != "N.S.") %>% 
+    ggplot(aes(x = new_cate, y = psi,fill = new_cate)) + 
+    geom_boxplot() +
+    theme_classic() + 
+    scale_fill_manual(values = plot_sensitivity_colors) + 
+    theme(legend.position = "none") +
+    facet_wrap(~condition) +
+    ggsignif::geom_signif(
+        data = subset(plot_data,condition == "TDP-43 negative"),
+        comparisons = comparisons,
+        annotations = scales::pvalue(dunn_results_cryptic$P.adjusted, accuracy = 0.001),
+        y_position = c(1, 1.1, 1.2),  # Adjusted y-positions above the bars
+        textsize = 3,
+        tip_length = 0
+    ) + 
+    ylab("PSI")
+
+```
+
+
+
+
+# 2. NMD sensitive vs Not
+
+Are NMD-sensitive vs not more or less likely to be significantly up in the TDP-43 negative samples? No - although we didn't expect them to be
+
+```{r chx_up}
+
+
+    
+wide_chx = fread("data/wide_chx.csv")
+
+
+test_diff_chx = liu %>% 
+    filter(paste_into_igv_junction %in% wide_chx$paste_into_igv_junction) %>% 
+    left_join(wide_chx %>% select(paste_into_igv_junction,chx_effect)) %>% 
+    unique() %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi)) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    group_by(paste_into_igv_junction) %>% 
+    nest() |> 
+    mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
+           mean_positive = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 positive"], na.rm = TRUE)),
+           mean_negative = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 negative"], na.rm = TRUE)),
+           ratio = log2(mean_negative / mean_positive)) |> 
+    unnest() %>% 
+    mutate(adj_pvalue = p.adjust(p.value))
+
+these_ones_chx = test_diff %>% filter(adj_pvalue < 0.1 & ratio > 0) %>% 
+    pull(paste_into_igv_junction)
+
+
+contingency_table_chx <- wide_chx %>%
+    distinct(paste_into_igv_junction, chx_effect) %>%
+    mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones_chx) %>%
+    group_by(chx_effect, sig_diff_pos_neg) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
+    column_to_rownames("chx_effect") 
+
+pairwise_results_chx = rstatix::pairwise_fisher_test(contingency_table_chx) 
+
+comparisons_nmd <- list(
+    c("NMD rescued", "non-NMD rescued"))
+    
+
+contingency_table_chx %>%
+    rownames_to_column('chx_effect') %>%
+    filter()
+    melt() %>%
+    group_by(chx_effect) %>%
+    mutate(prop = value / sum(value)) %>% 
+    ggplot(aes(x = chx_effect, y = value, fill = variable)) +
+    geom_bar(stat = "identity", position = "stack") +
+    geom_text(
+        aes(label = scales::percent(prop, accuracy = 1)),
+        position = position_stack(0.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Sig. up in TDP-43 negative') +
+    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) + 
+    theme(legend.position = 'bottom') +
+    ggsignif::geom_signif(
+        comparisons = comparisons_nmd,
+        annotations = scales::pvalue(pairwise_results_chx$p.adj, accuracy = 0.001),
+        y_position = c(450),  # Adjusted y-positions above the bars
+        textsize = 3,
+        tip_length = 0
+    )
+
+```
+
+
+
+## Are NMD-sensitive vs not more expressed? 
+
+```{r chx_expression, echo=FALSE}
+
+plot_data_chx = liu %>% 
+    filter(paste_into_igv_junction %in% big_data_chx$paste_into_igv_junction) %>% 
+    mutate(selective = ifelse(paste_into_igv_junction %in% these_ones_chx,'Upregulated in TDP-43 negative vs pos.', 
+                          'N.S.' )) %>% 
+    left_join(big_data_chx %>% select(paste_into_igv_junction,color_gene_name)) %>% 
+    unique() %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi)) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative"))
+
+plot_data_chx %>% 
+    ggplot(aes(x = color_gene_name, y = psi,fill = color_gene_name)) + 
+    geom_boxplot() +
+    theme_classic() + 
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    stat_compare_means(hide.ns = TRUE,
+                       textsize = 3,
+                       tip.length = 0) +
+    theme(legend.position = "none") +
+    facet_wrap(~selective+condition) + 
+    ylab("PSI") +
+    xlab(element_blank())
+
+```
+
+
+```{r PSI of NMD sensitive events}
+wide_chx = fread("data/wide_chx.csv")
+liu %>% 
+    filter(paste_into_igv_junction %in% wide_chx$paste_into_igv_junction) %>% 
+    mutate(selective = ifelse(paste_into_igv_junction %in% these_ones_chx,'Upregulated in TDP-43 negative vs pos.', 
+                          'N.S.' )) %>% 
+    left_join(wide_chx %>% select(paste_into_igv_junction,chx_effect)) %>% 
+    unique() %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi)) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    ggplot(aes(x = chx_effect, y = psi,fill = chx_effect)) + 
+    geom_violin() +
+    theme_classic() + 
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) + 
+    stat_compare_means(hide.ns = TRUE,
+                       textsize = 3,
+                       tip.length = 0) +
+    theme(legend.position = "none") +
+    facet_wrap(~selective+condition) + 
+    ylab("PSI") +
+    xlab(element_blank())
+```
+
