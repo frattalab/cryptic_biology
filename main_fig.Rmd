@@ -347,7 +347,7 @@ h <- df_ss_strength %>%
   labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
   theme_minimal() +
   theme(legend.position = "top") +
-  guides(color = "none")
+  guides(fill = "none")
 h
 ```
 
@@ -669,30 +669,17 @@ f1 <- df_iclip %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
   filter(junc_cat != "exon_skip") %>%
   filter(abs(dist) <= 1000) %>%
-  filter(cryptic!="yes")%>%
-  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
-  geom_density(alpha = 0.5, adjust = 0.2) +
-  coord_cartesian(xlim=c(-250,250))+
-  scale_fill_manual(values = plot_sensitivity_colors) +
+  #filter(cryptic!="yes")%>%
+  ggplot(aes(x = dist, fill = cryptic)) +
+  geom_density(alpha = 0.5, adjust = 0.1) +
+  coord_cartesian(xlim=c(-150,150))+
+  scale_fill_manual(values = c("seagreen2", "darkorchid")) +
   guides(fill = "none") +
   labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
-f2 <- df_iclip %>%
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
-  filter(junc_cat != "exon_skip") %>%
-  filter(abs(dist) <=1000) %>%
-  filter(cryptic=="yes")%>%
-  ggplot(aes(x = dist, fill = tdp43_sensitivity_sh)) +
-  geom_density(alpha = 0.5, adjust = 0.2) +
-  coord_cartesian(xlim=c(-250,250))+
-  scale_fill_manual(values = plot_sensitivity_colors) +
-  guides(fill = "none") +
-  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size))
-f1+f2
+f1
 
 ```
 
