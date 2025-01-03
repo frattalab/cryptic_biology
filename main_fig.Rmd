@@ -423,32 +423,30 @@ exon_counts <- result_mrg %>%
   summarise(count = n_distinct(exon_coord)) %>%
   ungroup()
 
-frame_cryptic <- exon_counts %>%
-  filter(cryptic=="yes") %>%
-    filter(new_cate %in% c("Early","Late")) %>%
+frame_early <- exon_counts %>%
+  #filter(cryptic=="yes") %>%
+    filter(new_cate == "Early") %>%
     pivot_wider(names_from = div_3, values_from = count, values_fill = 0L) %>%
-    select( -cryptic) %>%
-    column_to_rownames('new_cate') %>% 
+    select(-new_cate) %>%
+    column_to_rownames('cryptic') %>% 
     chisq.test() %>% broom::tidy()
 
-frame_alts <- exon_counts %>%
-  filter(cryptic=="no") %>%
-    filter(new_cate %in% c("Early","Late")) %>%
+frame_late <- exon_counts %>%
+    filter(new_cate == "Late") %>%
     pivot_wider(names_from = div_3, values_from = count, values_fill = 0L) %>%
-  select(-cryptic) %>%
-    column_to_rownames('new_cate') %>% 
+    select(-new_cate) %>%
+    column_to_rownames('cryptic') %>% 
     chisq.test() %>% broom::tidy()
 
 exon_counts %>% 
     filter(new_cate %in% c("Early","Late")) %>%
-    ggplot(aes(x = new_cate, y = count, fill = div_3)) +
+    ggplot(aes(x = cryptic, y = count, fill = div_3)) +
   geom_bar(stat = "identity", position = "dodge") +
-        facet_wrap(~cryptic,
-               labeller = as_labeller(
-               c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
-  geom_signif(data = data.frame(cryptic = c("no","yes"), div_3=c('In-frame', 'Out-frame')),
+        facet_wrap(~new_cate) +
+  geom_signif(data = data.frame(new_cate = c("Early","Late"), div_3=c('In-frame', 'Out-frame')),
               aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
-              annotations=c("*", "NS")), tip_length=0.02, manual = T) +
+              annotations=c(get_signif_stars(frame_early$p.value), 
+                            get_signif_stars(frame_late$p.value))), tip_length=0.02, manual = T) +
 
   labs(
     #title = "Number of Symmetric and Non-Symmetric Exons by Type",
@@ -456,6 +454,7 @@ exon_counts %>%
     y = "Number of exons",
     fill = ""
   ) +
+  scale_x_discrete(labels=c("Alternative splicing", "Cryptic splicing"))+
   scale_fill_manual(
     values = plot_inframe_colors,
   ) +
