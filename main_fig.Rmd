@@ -8,7 +8,7 @@ output: html_document
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ###load packages/libraries/scripts
 #BiocManager::install("ComplexHeatmap")
 library(data.table)
@@ -104,8 +104,8 @@ print("1C and 1D - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
     filter(symbol != "RNA5-8SN2") %>% 
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
-  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
-  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
+  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) 
+plot_de_stmn_unc = plot_de %>% filter(symbol %in% c("STMN2","UNC13A"))
 plot_de_meta <- as.data.frame(table(plot_de$color_gene_name, plot_de$alpha_gene_name, plot_de$source))
 e <- plot_de %>%
     ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
@@ -121,9 +121,8 @@ e <- plot_de %>%
               size = 5,
               show.legend = F) +
     geom_vline(xintercept = 0) +
-    geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
     coord_flip() +
-    scale_color_manual(values = c("#2B4162","#721817")) +
+    scale_color_manual(values = c(down = "#2B4162",up = "#721817",STMN2 = "#E31A1C",UNC13A ="#FB9A99"),breaks = c("STMN2","UNC13A")) +
     scale_alpha_manual(values = c(0.2, 1)) +
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
@@ -133,7 +132,12 @@ e <- plot_de %>%
     scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,0),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
-    ggtitle("SH-SY5Y")
+    ggtitle("SH-SY5Y") + 
+    geom_point(inherit.aes = FALSE,
+              aes(x = log2FoldChange, y = as.factor(source),color = symbol),
+              data = plot_de_stmn_unc) + 
+        labs(color = "") 
+
 
 
 avg_be2_qpcr = levels_dz_qpcr %>%
@@ -144,8 +148,10 @@ avg_be2_qpcr = levels_dz_qpcr %>%
 plot_de_dz <- diff_expr_sk %>%
     filter(symbol != "RNA5-8SN2") %>% 
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
-  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) %>%
-  mutate(gene_label = case_when(symbol %in% c("UNC13A", "STMN2") & alpha_gene_name == "sig" ~ symbol, T ~ ""))
+  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig"))
+
+plot_de_stmn_unc_dz = plot_de_dz %>% filter(symbol %in% c("STMN2","UNC13A"))
+
 plot_de_dz_meta <- as.data.frame(table(plot_de_dz$color_gene_name, plot_de_dz$alpha_gene_name, plot_de_dz$source))
 f <- plot_de_dz %>%
     ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
@@ -161,9 +167,8 @@ f <- plot_de_dz %>%
               size = 5,
               show.legend = F) +
     geom_vline(xintercept = 0) +
-    geom_text_repel(aes(label = gene_label), max.overlaps = Inf) +
     coord_flip() +
-    scale_color_manual(values = c("#2B4162","#721817")) +
+    scale_color_manual(values = c(down = "#2B4162",up = "#721817",STMN2 = "#E31A1C",UNC13A ="#FB9A99"),breaks = c("STMN2","UNC13A")) +
     scale_alpha_manual(values = c(0.2, 1)) +
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
@@ -173,9 +178,14 @@ f <- plot_de_dz %>%
     scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,0),rep(" %",7))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size)) +
-    ggtitle("SK-N-BE(2)")
+    ggtitle("SK-N-BE(2)") +
+    geom_point(inherit.aes = FALSE,
+          aes(x = log2FoldChange, y = as.factor(source),color = symbol),
+          data = plot_de_stmn_unc_dz) +
+    labs(color = "") 
+ggarrange(e, f, common.legend = TRUE,legend = 'bottom')
 
-e + f
+
 #ggsave("~/Desktop/de_curves.png", width = 10,height = 5)
 ```
 
@@ -1064,12 +1074,7 @@ print("3G")
 
 ```
 
-A. Categories - Overlap splicing changes?
-B. Slope plot in SH-SY5Y
-C. Differential expression of NMD sensitive and not
-D. Differential expression of NMD sensitive/not but more detailed
-E. TDP-43 dependent loss of dark cryptics
-F. 4-SU??
+
 
 ## Figure 4 - compendium / in vivo
 
@@ -1187,10 +1192,3 @@ maxc_early / maxc_intermediate / maxc_late #/ maxc_na
 
 ```
 
-A.
-
-B.
-
-C. Detection of CEs from in vivo samples - panel
-
-D.
