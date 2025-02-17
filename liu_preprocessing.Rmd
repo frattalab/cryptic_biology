@@ -1,4 +1,6 @@
 ```{r echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
 library(dunn.test)
 library(tidyverse)
 library(ggpubr)
@@ -9,7 +11,7 @@ plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7",
 
 Read in the early/late table and Liu junction counts
 
-```{r data_import echo=FALSE}
+```{r data_import}
 master_table <- fread(here::here("data/master_table.csv"))
 compendium_events = fread('data/compendium_cryptics.csv')
 
@@ -21,8 +23,12 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
                                 tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
     filter(!is.na(new_cate))
-liu = fread("~/cluster/vyplab/alb_projects/data/liu_facs_neurons/leaf_clustered/liuFacs_perind.counts.gz")
-liu = liu %>% select(-matches('unsorted')) %>% 
+# liu = fread("~/cluster/vyplab/alb_projects/data/liu_facs_neurons/leaf_clustered/liuFacs_perind.counts.gz")
+liu = fread("~/cluster/vyplab/alb_projects/data/liu_facs_neurons/leaf_clustered/liuLowered_perind.counts.gz")
+
+
+liu = liu %>% 
+    select(-matches('unsorted')) %>% 
     melt(id.vars = c("chrom")) %>% 
     separate(value, into =c("numerator","denominator"),convert = TRUE) %>% 
     mutate(psi = numerator / denominator)
@@ -45,13 +51,36 @@ Now explore expression of
 ## How often is an early/late event more expressed in TDP-43 negative events than not?
 
 ```{r early_late_sig_up}
+master_table <- master_table %>%
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
+
+compendium_events = fread('data/compendium_cryptics.csv')
+bind_table = master_table %>% 
+    distinct(paste_into_igv_junction,gene,strand) %>% 
+    dplyr::rename(gene_name = gene) %>% 
+    rbind((compendium_events %>% distinct(gene_name,paste_into_igv_junction,strand))) %>% 
+    dplyr::rename(junctions_coords = paste_into_igv_junction) %>% 
+    unique()  %>% 
+    left_join(annotables::grch38 %>% select(symbol,strand),by = c("gene_name" = "symbol")) %>% 
+    mutate(strand.y = ifelse(strand.y == 1, "+","-")) %>% 
+    mutate(strand_final = ifelse(is.na(strand.x),strand.y,strand.x)) %>% 
+    select(-strand.x,-strand.y) %>% 
+    dplyr::rename(strand = strand_final) %>% 
+    unique() %>% 
+    separate(junctions_coords,remove = FALSE, convert = TRUE, into = c("chr","start","end")) %>% 
+    mutate(paste_into_igv_junction = junctions_coords)
 
 
 test_diff = liu %>% 
-    filter(paste_into_igv_junction %in% master_table$paste_into_igv_junction) %>% 
-    left_join(master_table %>% select(new_cate,paste_into_igv_junction,gene,cryptic)) %>% 
+    filter(paste_into_igv_junction %in% bind_table$junctions_coords) %>% 
+    replace(is.na(.), 0) %>% 
     mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
-    filter(!is.na(new_cate)) %>% 
     group_by(paste_into_igv_junction) %>% 
     nest() |> 
     mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
@@ -70,8 +99,9 @@ contingency_table <- master_table %>%
     select(paste_into_igv_junction, new_cate) %>%
     filter(!is.na(new_cate)) %>%
     mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones) %>%
+    filter(new_cate != "Ambiguous") %>% 
     group_by(new_cate, sig_diff_pos_neg) %>%
-    summarise(n = n(), .groups = "drop") %>%
+    summarise(n = n_distinct(paste_into_igv_junction), .groups = "drop") %>%
     pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
     column_to_rownames("new_cate") 
 
@@ -80,8 +110,9 @@ contingency_table_cryptics <- master_table %>%
     select(paste_into_igv_junction, new_cate) %>%
     filter(!is.na(new_cate)) %>%
     mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones) %>%
+    filter(new_cate != "Ambiguous") %>% 
     group_by(new_cate, sig_diff_pos_neg) %>%
-    summarise(n = n(), .groups = "drop") %>%
+    summarise(n = n_distinct(paste_into_igv_junction), .groups = "drop") %>%
     pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
     column_to_rownames("new_cate") 
 
@@ -214,13 +245,14 @@ plot_data %>%
     facet_wrap(~selective+condition) + 
     ylab("PSI")
 
-dunn_results_cryptic <- dunn.test(subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes')$psi,
-                          subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes')$new_cate,
+dunn_results_cryptic <- dunn.test(subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes' & new_cate != "Ambiguous")$psi,
+                          subset(plot_data,condition == "TDP-43 negative" & selective != "N.S." & cryptic == 'yes' & new_cate != "Ambiguous")$new_cate,
                           kw = TRUE, label = TRUE)
 
 plot_data %>% 
     filter(cryptic == 'yes') %>% 
     filter(selective != "N.S.") %>% 
+    filter(new_cate != 'Ambiguous') %>% 
     ggplot(aes(x = new_cate, y = psi,fill = new_cate)) + 
     geom_boxplot() +
     theme_classic() + 
@@ -228,17 +260,58 @@ plot_data %>%
     theme(legend.position = "none") +
     facet_wrap(~condition) +
     ggsignif::geom_signif(
-        data = subset(plot_data,condition == "TDP-43 negative"),
+        data = subset(plot_data,condition == "TDP-43 negative" & new_cate != "Ambiguous"),
         comparisons = comparisons,
         annotations = scales::pvalue(dunn_results_cryptic$P.adjusted, accuracy = 0.001),
         y_position = c(1, 1.1, 1.2),  # Adjusted y-positions above the bars
         textsize = 3,
         tip_length = 0
     ) + 
-    ylab("PSI")
+    ylab("PSI") +
+    xlab(element_blank())
 
 ```
 
+```{r}
+
+heat_data = plot_data %>% 
+    filter(cryptic == 'yes') %>% 
+    filter(new_cate != "Ambiguous") %>% 
+    group_by(variable,cluster,gene) %>% 
+    summarise(psi = mean(psi),new_cate,cryptic,condition,paste_into_igv_junction) %>% 
+    unique() %>% 
+    mutate(gene = paste(gene,paste_into_igv_junction)) %>% 
+    ungroup()
+
+heatmap_matrix = heat_data %>% 
+    select(gene,variable,psi) %>% 
+    pivot_wider(names_from = 'variable',
+                values_from = 'psi') %>% 
+  column_to_rownames("gene") %>% 
+    as.matrix()
+row_ha <- rowAnnotation(
+  new_cate = heat_data$new_cate[match(rownames(heatmap_matrix), heat_data$gene)],
+  col = list(new_cate = c("Early" = "green", "Intermediate" = "orange", "Late" = "grey"))
+)
+# Column annotation (sample group)
+column_ha <- HeatmapAnnotation(
+  group = heat_data$condition[match(colnames(heatmap_matrix), heat_data$variable)], 
+  col = list(group = c("TDP-43 negative" = "red", "TDP-43 positive" = "blue"))
+)
+
+Heatmap(
+  heatmap_matrix,
+  name = "pc_cryptic",
+  top_annotation = column_ha,
+    right_annotation = row_ha,
+
+  cluster_columns = TRUE,  # Keep manual ordering of columns
+  cluster_rows = TRUE,  # Keep manual ordering of rows
+  show_column_names = TRUE,
+  show_row_names = FALSE
+)
+
+```
 
 
 
@@ -248,7 +321,7 @@ Are NMD-sensitive vs not more or less likely to be significantly up in the TDP-4
 
 ```{r chx_up}
 
-
+library(data.table)
     
 wide_chx = fread("data/wide_chx.csv")
 
@@ -288,7 +361,6 @@ comparisons_nmd <- list(
 
 contingency_table_chx %>%
     rownames_to_column('chx_effect') %>%
-    filter()
     melt() %>%
     group_by(chx_effect) %>%
     mutate(prop = value / sum(value)) %>% 
@@ -302,7 +374,7 @@ contingency_table_chx %>%
     labs(y = 'N junctions',
          x = element_blank(),
          fill = 'Sig. up in TDP-43 negative') +
-    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) + 
+    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) 
     theme(legend.position = 'bottom') +
     ggsignif::geom_signif(
         comparisons = comparisons_nmd,
