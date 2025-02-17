@@ -12,6 +12,7 @@ library(tidyverse)
 library(rstatix)
 library(ggpubr)
 library(dunn.test)
+library(tidy)
 knitr::opts_chunk$set(echo = FALSE)
 give.n <- function(x){
 return(c(y = median(x)*1.6, label = length(x)))
@@ -63,77 +64,72 @@ junction_plot = function(junction,title = "",metric = 'psi',table = rimod_cluste
 
 
 ```{r readData}
-master_table <- fread(here::here("data/master_table.csv"))
+master_table <- read.csv(here::here("data/master_table.csv"))
 master_table <- master_table %>%
-  mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
-                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                            tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late'))
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
 
 compendium_events = fread('data/compendium_cryptics.csv')
 meta_rimod = fread("data/metadata_rimod.csv")
-
+wide_chx = fread('data/wide_chx.csv')
+dark_chx = wide_chx %>% filter(chx_effect == 'Dark cryptic')
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue","SH-SY5Y only" = 'grey','SK-N-BE(2) only' = 'darkgrey')
 
-rimod_junction = arrow::read_parquet('/Users/annaleigh/Desktop/rimod_clustered.parquet')
-rimod_clustered = rimod_junction %>% 
-    melt(id.vars = c("chr","start","end","strand","cluster",'paste_into_igv_junction')) %>%
-    mutate(variable = gsub(".none.output","",variable)) %>% 
-    left_join(meta_rimod[,.(sample,disease,genotype)],by = c("variable" = "sample")) %>% 
-    as.data.table()
+rimod_clustered = fread("~/Desktop/RIMOD_Lowered_perind.counts.gz")
 ```
 
-## Filter spurious junctions
+## Rearrange RiMOD FTD
 
-Leafcutter's clustering script can be a bit aggressive, so we'll going to post-hoc filter out junctions without enough expression in the control brains
+```{r}
+rimod_clustered_long_psi = rimod_clustered %>% 
+    melt(id.vars = c("chrom")) %>% 
+    dt_separate(value,into =  c("junction_count", "cluster_count"), sep = '/') 
 
-```{r filterJunctions, echo=FALSE}
+rimod_clustered_long_psi = rimod_clustered_long_psi %>% 
+    mutate(variable = gsub(".none.output","",variable)) %>% 
+    rename(sample = variable) %>% 
+    mutate(junction_count = as.numeric(junction_count),cluster_count = as.numeric(cluster_count)) %>% 
+    dt_separate(chrom,into =  c("seqname", "start","end",'cluster'), sep = ':') %>% 
+    mutate(strand = stringr::str_sub(cluster,-1,-1))
+
+rimod_clustered_long_psi = rimod_clustered_long_psi %>% 
+    mutate(paste_into_igv_junction = paste0(seqname,":",start,"-",end))
 #keep just the cryptic clusters
-these_clusters = rimod_clustered %>% 
-    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction | 
-               paste_into_igv_junction %in% master_table$paste_into_igv_junction ) %>% 
+these_clusters = rimod_clustered_long_psi %>%
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction |
+               paste_into_igv_junction %in% master_table$paste_into_igv_junction |
+               paste_into_igv_junction %in% dark_chx$paste_into_igv_junction) %>%
     pull(cluster) %>% unique()
 
-length(these_clusters)
 
-expressed_junctions = rimod_clustered %>% 
+rimod_clustered_long_psi %>% 
     filter(cluster %in% these_clusters) %>% 
-    filter(disease == 'normal') %>% 
-    group_by(paste_into_igv_junction) %>% 
-    reframe(paste_into_igv_junction,cluster,chr,start,end,strand,avg_count = mean(value),med_count = median(value)) %>% 
-    filter(med_count > 5) %>% 
-    unique()  
-
+    mutate(psi = junction_count / cluster_count) %>% 
+    left_join(meta_rimod) 
+    
+#     filter(cluster %in% these_clusters)
 ```
 
-Ok now we keep one of either junctions with median expression > 5 in the controls - a cryptic event found in compendium or TDP-43 dosage curves
-
-```{r normalizeJunctions, echo = FALSE}
-
-rimod_clustered_long_psi = rimod_clustered %>% 
-    filter(cluster %in% these_clusters) %>% 
-    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction | 
-           paste_into_igv_junction %in% master_table$paste_into_igv_junction |
-           paste_into_igv_junction %in% expressed_junctions$paste_into_igv_junction) %>% 
-    group_by(cluster,variable) %>% 
-    mutate(cluster_count = sum(value)) %>% 
-    ungroup() %>% 
-    mutate(psi = value / cluster_count) %>% 
-    mutate(psi = ifelse(is.na(psi),0,psi)) %>% 
-    mutate(psi = ifelse(is.nan(psi),0,psi)) 
-```
 
 Now everything has been normalized to a psi metric let's find out if anything is predictive of TDP-43 path vs not path
 
 ```{r ROCanalysis}
 modeling_ftd_rpm = rimod_clustered_long_psi %>% 
+        left_join(meta_rimod) %>% 
         filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction | 
-           paste_into_igv_junction %in% master_table$paste_into_igv_junction ) %>% #just keeping the events found in compendium, curve, or cell type
+           paste_into_igv_junction %in% master_table$paste_into_igv_junction ) %>% 
+        mutate(psi = junction_count / cluster_count) %>% #just keeping the events found in compendium, curve, or cell type
     mutate(psi = ifelse(is.na(psi),0,psi)) %>% 
     mutate(psi = ifelse(is.nan(psi),0,psi)) %>% 
     mutate(numeric_prediction = ifelse(genotype %in% c("C9orf72","GRN"), 1, 0)) %>% 
-    distinct(variable,paste_into_igv_junction,numeric_prediction,psi,genotype) %>% 
+    distinct(sample,paste_into_igv_junction,numeric_prediction,psi,genotype) %>% 
     pivot_wider(values_from = 'psi',
                 names_from = 'paste_into_igv_junction',values_fill = 0) %>% 
     as.data.table() 
@@ -148,7 +144,7 @@ library(pROC)
 
 
 ROCvector = modeling_ftd_rpm_norm %>% colnames()
-ROCvector = ROCvector[!(ROCvector %in% c("variable", "numeric_prediction","genotype"))]
+ROCvector = ROCvector[!(ROCvector %in% c("sample", "numeric_prediction","genotype"))]
 
 
 my_df = data.table()
@@ -278,13 +274,9 @@ my_df %>%
 my_df %>%   
     left_join(master_table) %>% 
     filter(!is.na(new_cate)) %>% 
-    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
-                            tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
-                            tdp43_sensitivity_be2 == 'Early' | tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                            tdp43_sensitivity_be2 == 'Late' | tdp43_sensitivity_sh == 'Late' ~ 'Late'))  %>%
     arrange(avg_fpr) %>% 
     filter(fpr_value <= 0.1) %>% 
+    filter(new_cate != "Intermediate") %>% 
     # filter(new_cate != "Ambiguous") %>% 
     # filter(n_significant_data > 3 & FPR > 0.5)
     # mutate(dist_nearest_ug_region = ifelse(is.na(dist_nearest_ug_region),300,dist_nearest_ug_region)) %>% 
@@ -370,38 +362,41 @@ Let's try a similar approach with the RiMOD data that we did with Liu - wilcox t
 ```{r wilcox_test}
 wilcox_test_res = rimod_clustered_long_psi %>% 
     filter(paste_into_igv_junction %in% bind_table$junctions_coords) %>% 
-    mutate(condition = ifelse(genotype %in% c("C9orf72","GRN"),"TDP-43 negative","TDP-43 positive")) %>% 
+    mutate(condition = ifelse(genotype %in% c("C9orf72","GRN"),"TDP-43 proteinopathy","non-TDP-43-proteinopathy")) %>% 
     group_by(paste_into_igv_junction) %>% 
     nest() |> 
     mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
-           mean_positive = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 positive"], na.rm = TRUE)),
-           mean_negative = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 negative"], na.rm = TRUE)),
-           ratio = log2(mean_negative / mean_positive)) |> 
+           mean_path = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 proteinopathy"], na.rm = TRUE)),
+           mean_nonpath = map_dbl(data, ~ mean(.x$psi[.x$condition == "non-TDP-43-proteinopathy"], na.rm = TRUE)),
+           ratio = log2(mean_path / mean_nonpath)) |> 
     unnest() %>% 
-    distinct(paste_into_igv_junction,p.value,ratio,mean_positive,mean_negative,ratio) %>% 
+    distinct(paste_into_igv_junction,p.value,ratio,mean_path,mean_nonpath,ratio) %>% 
     left_join(bind_table,by = c("paste_into_igv_junction" = "junctions_coords")) %>% 
     arrange(ratio) %>% 
     mutate(adj_pvalue = p.adjust(p.value))
 
+fwrite(wilcox_test_res, 'data/wilcox_test_res_rimod.csv')
 ```
 
 
 ```{r rimod_contingency}
-these_ones_rimod = wilcox_test_res %>% 
-    arrange(-ratio) %>% 
-    left_join(master_table %>% select(paste_into_igv_junction,new_cate)) %>% 
-    filter(!is.na(new_cate)) %>% 
-    filter(adj_pvalue < 0.01 & ratio > 0) %>% 
-    pull(paste_into_igv_junction)
+# these_ones_rimod = wilcox_test_res %>% 
+#     arrange(-ratio) %>% 
+#     left_join(master_table %>% select(paste_into_igv_junction,new_cate,cryptic)) %>% 
+#     filter(!is.na(new_cate)) %>% 
+#     filter(cryptic == 'yes') %>% 
+#     filter(adj_pvalue < 0.01 & ratio > 0) %>% 
+#     pull(paste_into_igv_junction)
 
-
+these_ones_rimod = my_df %>% filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>% pull(paste_into_igv_junction)
 contingency_table_rimod <- master_table %>%
     filter(cryptic == 'yes') %>% 
+    filter(new_cate != "Ambiguous") %>% 
     select(paste_into_igv_junction, new_cate) %>%
     filter(!is.na(new_cate)) %>%
     mutate(sig_diff_pos_neg = paste_into_igv_junction %in% these_ones_rimod) %>%
     group_by(new_cate, sig_diff_pos_neg) %>%
-    summarise(n = n(), .groups = "drop") %>%
+    summarise(n = n_distinct(paste_into_igv_junction), .groups = "drop") %>%
     pivot_wider(names_from = sig_diff_pos_neg, values_from = n, values_fill = 0) %>% 
     column_to_rownames("new_cate") 
 
@@ -428,8 +423,8 @@ contingency_table_rimod %>%
     theme_classic() + 
     labs(y = 'N junctions',
          x = element_blank(),
-         fill = "Sig. up in C9orf72+GRN\nvs Control+MAPT") +
-    scale_fill_manual(values = c("#5BC0EB", "#FDE74C")) + 
+         fill = "FPR < 0.1 C9orf72+GRN\nvs Control+MAPT") +
+    scale_fill_manual(values = c("#4E6E58", "#FF5E5B")) + 
     theme(legend.position = 'bottom') +
     ggsignif::geom_signif(
         comparisons = comparisons,
@@ -444,6 +439,9 @@ contingency_table_rimod %>%
 
 ```{r rimod_psi_plot, fig.dim = c(8, 6)}
 plot_data_rimod = rimod_clustered_long_psi %>% 
+    mutate(psi = junction_count / cluster_count) %>% #just keeping the events found in compendium, curve, or cell type
+    mutate(psi = ifelse(is.na(psi),0,psi)) %>% 
+    mutate(psi = ifelse(is.nan(psi),0,psi)) %>% 
     filter(paste_into_igv_junction %in% master_table$paste_into_igv_junction) %>% 
     mutate(selective = ifelse(paste_into_igv_junction %in% these_ones_rimod,'Upregulated in C9orf72+GRN\nvs Control+MAPT', 
                               'N.S.' )) %>% 
@@ -453,9 +451,11 @@ plot_data_rimod = rimod_clustered_long_psi %>%
     mutate(psi = ifelse(is.nan(psi),0,psi))
 
 plot_data_rimod %>% 
+    left_join(meta_rimod) %>% 
+    filter(genotype %in% c("GRN","C9orf72")) %>% 
     filter(selective != "N.S." & cryptic == 'yes') %>% 
     ggplot(aes(x = genotype, y = psi,fill = new_cate)) + 
-    geom_boxplot() +
+    geom_boxplot(outliers = FALSE) +
     theme_classic() + 
     scale_fill_manual(values = plot_sensitivity_colors) + 
     stat_compare_means(hide.ns = TRUE,
@@ -464,6 +464,8 @@ plot_data_rimod %>%
     theme(legend.position = "none") +
     facet_wrap(~selective) + 
     ylab("PSI")
+
+
 
 # dunn_results <- dunn.test(subset(plot_data_rimod,condition == "TDP-43 negative" & selective != "N.S.")$psi,
 #                           subset(plot_data_rimod,condition == "TDP-43 negative" & selective != "N.S.")$new_cate,
