@@ -19,7 +19,7 @@ library(BSgenome.Hsapiens.UCSC.hg38)
 library(ComplexHeatmap)
 library(RColorBrewer)
 
-source(here::here('trial_nmd_plots.R'))
+source(here::here('scripts/trial_nmd_plots.R'))
 #check you're in right folder
 here::here()
 
@@ -82,16 +82,26 @@ master_table %>%
 print("S1C")
 
 print("S1D")
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
 
 print("S1C - UMAP clustering of events in SH and BE2 together")
 master_table %>% 
     filter(tdp43_sensitivity_sh != "") %>% 
-    ggplot(aes(x = UMAP_1_together, y = UMAP_2_together, color = as.character(cluster_together))) +
+    ggplot(aes(x = UMAP_1_together, y = UMAP_2_together, color = as.character(new_cate))) +
     geom_point(show.legend = F) +
     xlab("UMAP 1 together") +
     ylab("UMAP 2 together") +
     labs(color = "cluster") +
-    scale_color_brewer(palette = "Set1") +
+    scale_color_manual(values = plot_sensitivity_colors) +
     theme_bw()
 
 
@@ -137,8 +147,10 @@ G. Spaghetti plot for APA events in BE(2)
 ### Are late / early genes more likely to be DE?
 
 ```{r de_late_early_sh}
+diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
+diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
 master_table = as.data.table(master_table)
-
+fold_cut = 0
 diff_plt_sh = diff_expr_sh %>% 
     left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_sh)]),by = c("symbol" = 'gene')) %>% 
     filter(cryptic == 'yes' | is.na(last_exon)) %>% 
@@ -149,30 +161,15 @@ diff_plt_sh = diff_expr_sh %>%
     mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
     distinct(symbol,last_exon,cryptic,tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
     mutate(tdp43_sensitivity_sh = ifelse(is.na(tdp43_sensitivity_sh),'Non-splicing',tdp43_sensitivity_sh)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == 'Not found','Non-splicing',tdp43_sensitivity_sh)) 
+
     
 sh_d_gene = diff_plt_sh %>% 
     group_by(source,tdp43_sensitivity_sh) %>% 
     summarize(denom = n_distinct(symbol))
 
-diff_plt_sh %>% 
-    group_by(tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(sh_d_gene) %>% 
-    mutate(prop = n_genes/denom) %>% 
-    ggplot(aes(x = tdp43_sensitivity_sh,
-               y = prop,
-               fill = sig_de)) + 
-    geom_col(position = position_dodge(preserve = "single"),color = 'black') + 
-    facet_wrap(~source,scales = 'free_x') + 
-    theme_classic() + 
-    ylab("Proportion of genes") + 
-    xlab(element_blank()) +
-    theme(legend.position = 'bottom') + 
-    scale_fill_manual(values = c("#9DC7C8","#F25757","#13293D","#4F000B"),
-                      labels = c("N.S.\nDownregulated", "N.S.\nUpregulated",
-                                 "Downregulated", "Upregulated"))
+
 diff_plt_sh %>% 
     group_by(tdp43_sensitivity_sh, fc_direction, sig_de, source) %>% 
     summarize(n_genes = n_distinct(symbol)) %>% 
@@ -195,16 +192,6 @@ diff_plt_sh %>%
     theme(legend.position = 'bottom') + 
     scale_fill_manual(values = c("#2B4162", "#721817"))
 
-diff_plt_sh %>% 
-    filter(tdp43_sensitivity_sh == 'Late') %>% 
-    filter(fc_direction == 'up') %>% 
-    filter(cryptic == 'yes')
-
-new_cate_nmd_sens %>% 
-    pivot_wider(names_from = 'new_cate',values_from = 'n') %>% 
-    column_to_rownames("color_gene_name") %>% 
-    as.matrix() %>% 
-    rstatix::pairwise_fisher_test()
 ```
 
 ```{r de_late_early_be2}
@@ -218,26 +205,36 @@ diff_plt_be2 = diff_expr_sk %>%
     mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
     distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
     mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'non-splicing',tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == 'Not found','non-splicing',tdp43_sensitivity_be2)) 
+
     
 be2_d_gene = diff_plt_be2 %>% 
     group_by(source,tdp43_sensitivity_be2) %>% 
     summarize(denom = n_distinct(symbol))
 
 diff_plt_be2 %>% 
-    group_by(tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
+    group_by(tdp43_sensitivity_be2, fc_direction, sig_de, source) %>% 
     summarize(n_genes = n_distinct(symbol)) %>% 
     ungroup() %>% 
     left_join(be2_d_gene) %>% 
-    mutate(prop = n_genes/denom) %>% View()
-    ggplot(aes(x = tdp43_sensitivity_be2,
-               y = prop,
+    mutate(prop = n_genes / denom) %>% 
+    filter(!grepl("non_sig", sig_de)) %>% 
+    ggplot(aes(x = tdp43_sensitivity_be2, 
+               y = prop, 
                fill = sig_de)) + 
-    geom_col(position = position_dodge(preserve = "single") ) + 
-    facet_wrap(~source,scales = 'free_x') + 
+    geom_col(position = position_dodge(preserve = "single"), color = 'black') + 
+    geom_text(aes(label = n_genes), 
+              position = position_dodge(width = 0.9), 
+              vjust = -0.5, 
+              size = 4) + # Adding white text on top of the bars
+    facet_wrap(~source) + 
     theme_classic() + 
     ylab("Proportion of genes") + 
-    theme(legend.position = 'bottom')
+    xlab(element_blank()) + 
+    theme(legend.position = 'bottom') + 
+    scale_fill_manual(values = c("#2B4162", "#721817"))
+
 
 
 ```
@@ -265,7 +262,8 @@ shsy5y_papa |>
     theme_bw() +
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
-    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++"))
+    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++")) +
+    facet_wrap(~timing)
 
 
 ```
@@ -513,21 +511,21 @@ print("2F")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 
-f <- df_iclip %>% 
-  filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>%
-  filter(abs(dist) <= 1000) %>%
-  ggplot(aes(x = dist, fill = tdp43_sensitivity_be2)) +
-  geom_density(alpha = 0.5, adjust = 1) +  
-  facet_wrap(~cryptic, 
-             ncol = 2,
-             labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
-  scale_fill_manual(values = plot_sensitivity_colors) +
-  guides(fill = "none") +
-  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size))
-
-f
+# f <- df_iclip %>% 
+#   filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>%
+#   filter(abs(dist) <= 1000) %>%
+#   ggplot(aes(x = dist, fill = tdp43_sensitivity_be2)) +
+#   geom_density(alpha = 0.5, adjust = 1) +  
+#   facet_wrap(~cryptic, 
+#              ncol = 2,
+#              labeller = labeller(cryptic=c("yes" = "Cryptic", "no" = "Not cryptic"))) +
+#   scale_fill_manual(values = plot_sensitivity_colors) +
+#   guides(fill = "none") +
+#   labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
+#   theme_classic() +
+#   theme(text = element_text(size = plot_text_size))
+# 
+# f
 
 #G. RNA maps based on figure F
 early_donors <- readDNAStringSet("data/maxent/donors_early_be2.fa")
@@ -607,8 +605,154 @@ H. 5'ss CE vs normal
 I. 3'ss CE vs normal
 
 ### Supplementary figure 3 - NMD
+```{r makewidechx}
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+big_data_chx = big_data_chx %>% 
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+
+wide_chx = big_data_chx |> 
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    unique() %>% 
+    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |> 
+    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |> 
+    mutate(chx_effect = case_when((Cycloheximide_TDP43KD - Control_TDP43KD) > 0.05 ~ "NMD rescued",
+                                  Control_TDP43KD > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>% 
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+    mutate(ensgene =  gsub("\\..*","",gene_id))
+
+
+chx_dark = wide_chx |> 
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |> 
+    pull(paste_into_igv_junction) |> unique()
+
+wide_chx = wide_chx %>% 
+    mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
+```
+
+```{r makewideupf1}
+big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
+big_data_upf1 = big_data_upf1 %>% 
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+
+wide_upf1 = big_data_upf1 |> 
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    unique() %>% 
+    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
+    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
+    mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.05 ~ "NMD rescued",
+                                  TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>% 
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+    mutate(ensgene =  gsub("\\..*","",gene_id)) 
+
+
+upf1_dark = wide_upf1 |> 
+    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued") |> 
+    pull(paste_into_igv_junction) |> unique()
+
+wide_upf1 = wide_upf1 %>% 
+    mutate(upf1_effect = ifelse(paste_into_igv_junction %in% upf1_dark, "Dark cryptic",upf1_effect))
+```
+
+
+
+
+```{r LateEarlySushi, echo=FALSE, warning=FALSE, message=FALSE}
+# reading in the master table again for debug, can remove later
+master_table <- read.csv(here::here("data/master_table.csv"))
+master_table <- master_table %>%
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
+
+
+
+sh_nmd_sens = wide_chx %>% 
+    distinct(paste_into_igv_junction,chx_effect) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_sh)) %>% 
+    filter(tdp43_sensitivity_sh != "") %>% 
+    filter(junction_for_clustering == 'yes') %>% 
+    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>% 
+    group_by(chx_effect,tdp43_sensitivity_sh) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction))
+
+ggplot(sh_nmd_sens) +
+    aes(x = tdp43_sensitivity_sh, fill = chx_effect, weight = n,by = as.factor(tdp43_sensitivity_sh)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Cycloheximide treatment') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
+    theme(legend.position = 'bottom') 
+
+sh_nmd_sens %>% 
+    filter(chx_effect != "PSI > 95% at baseline") %>% 
+    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_sh") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+
+```
+
+```{r LateEarlyBE2}
+sk_nmd_sens = wide_chx %>% 
+    distinct(paste_into_igv_junction,chx_effect) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(tdp43_sensitivity_be2)) %>% 
+    filter(tdp43_sensitivity_be2 != "") %>% 
+    filter(junction_for_clustering == 'yes') %>% 
+    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>% 
+    group_by(chx_effect,tdp43_sensitivity_be2) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction))
+
+ggplot(sk_nmd_sens) +
+    aes(x = tdp43_sensitivity_be2, fill = chx_effect, weight = n,by = as.factor(tdp43_sensitivity_be2)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'Cycloheximide treatment') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
+    theme(legend.position = 'bottom') 
+
+
+sk_nmd_sens %>% 
+    filter(chx_effect != "PSI > 95% at baseline") %>% 
+    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>% 
+    column_to_rownames("tdp43_sensitivity_be2") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
+
+
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("S3A")
+
 gene_list_slope_upf1 <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
 input_list <- c("ctrl_ctrl",
                 "ctrl_UPF1", 
