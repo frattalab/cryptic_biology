@@ -39,7 +39,7 @@ plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#173dd3",
                              "Intermediate" = "steelblue","Not found" = 'darkgrey',"Ambiguous" = 'darkred')
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
 plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
-plot_text_size <- 10
+plot_text_size <- 18
 ```
 
 ## Figure 1 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
@@ -341,7 +341,7 @@ df_ss_strength <- rbind(
 ) %>%
   filter(new_cate %in% c("Early", "Late"))
 
-h <- df_ss_strength %>%
+ss_strength_plot <- df_ss_strength %>%
   ggplot(aes(x=site, y = log2(ss_ratio), fill = new_cate)) +
   geom_boxplot() +
   geom_abline(intercept = 0, slope = 0, color = "black", linetype = "dashed") +
@@ -355,10 +355,11 @@ h <- df_ss_strength %>%
   scale_fill_manual(values = plot_sensitivity_colors) +
   #ylim(-4.1, 2.5) +
   labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
-  theme_minimal() +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size)) +
   theme(legend.position = "top") +
   guides(fill = "none")
-h
+ss_strength_plot
 ```
 
 
@@ -391,11 +392,14 @@ a <- cons_score_df_cryptic %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 
-b <- cons_score_df_not_cryptic %>%
+cons_score_plot <- cons_score_df %>%
   ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
+        facet_wrap(~cryptic,
+               labeller = as_labeller(
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
   scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
@@ -408,7 +412,7 @@ b <- cons_score_df_not_cryptic %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-a + b
+cons_score_plot
 ```
 
 
@@ -448,7 +452,7 @@ frame_late <- exon_counts %>%
     column_to_rownames('cryptic') %>% 
     chisq.test() %>% broom::tidy()
 
-exon_counts %>% 
+symmetry <- exon_counts %>% 
     filter(new_cate %in% c("Early","Late")) %>%
     ggplot(aes(x = cryptic, y = count, fill = div_3)) +
   geom_bar(stat = "identity", position = "dodge") +
@@ -457,7 +461,6 @@ exon_counts %>%
               aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
               annotations=c(get_signif_stars(frame_early$p.value), 
                             get_signif_stars(frame_late$p.value))), tip_length=0.02, manual = T) +
-
   labs(
     #title = "Number of Symmetric and Non-Symmetric Exons by Type",
     x = "",
@@ -469,6 +472,8 @@ exon_counts %>%
     values = plot_inframe_colors,
   ) +
   theme_classic() +
+  guides(fill="none")+
+  #theme(legend.position = "top") +
   theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
@@ -586,7 +591,7 @@ annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG
                                 #show_legend = c(F, F, F),
                                 col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
                                 which = "col")
-c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
+kmer_heatmap <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
         show_row_names = T,
@@ -595,7 +600,7 @@ c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","
         bottom_annotation = annotation,
         col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
         show_heatmap_legend = FALSE)
-c
+kmer_heatmap
 
 ```
 
@@ -627,7 +632,7 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-d <- master_table %>%
+ug_repeats <- master_table %>%
   filter(new_cate %in% c("Early", "Late")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
@@ -648,7 +653,7 @@ d <- master_table %>%
 
 #E. Density UG motifs by top-bottom in SH-SY5Y
 master_table$max_psi_sh <- factor(master_table$max_psi_sh, levels=c("Top", "Bottom"))
-e <- master_table %>%
+master_table %>%
   filter(max_psi_sh %in% c("Top", "Bottom")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_sh)) +
   geom_boxplot() +
@@ -666,7 +671,7 @@ e <- master_table %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-d + e
+
 ```
 
 
@@ -675,11 +680,11 @@ d + e
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 
-f1 <- df_iclip %>%
+f1 <-df_iclip %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
   filter(junc_cat != "exon_skip") %>%
   filter(abs(dist) <= 1000) %>%
-  #filter(cryptic!="yes")%>%
+  #filter(tdp43_sensitivity_sh!="Early")%>%
   ggplot(aes(x = dist, fill = cryptic)) +
   geom_density(alpha = 0.5, adjust = 0.1) +
   coord_cartesian(xlim=c(-150,150))+
@@ -700,7 +705,7 @@ total_counts <- df_iclip %>%
   summarize(total = n())
 
 # Calculate percentages
-heatmap_data <- df_iclip %>%
+iclip_heatmap_data <- df_iclip %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
   filter(abs(dist) <= 250) %>%
   group_by(tdp43_sensitivity_sh, cryptic) %>%
@@ -715,11 +720,11 @@ heatmap_data <- df_iclip %>%
   ) %>%
   column_to_rownames(var = "tdp43_sensitivity_sh")
 
-heatmap_plot <- heatmap_data %>%
+heatmap_plot_df <- iclip_heatmap_data %>%
   rownames_to_column(var = "tdp43_sensitivity_sh") %>%
   pivot_longer(cols = c("yes", "no"), names_to = "Cryptic", values_to = "Percentage")
-heatmap_plot$tdp43_sensitivity_sh <- factor(heatmap_plot$tdp43_sensitivity_sh, levels=c("Late","Early"))
-ggplot(heatmap_plot, aes(x = Cryptic, y = tdp43_sensitivity_sh, fill = Percentage)) +
+heatmap_plot_df$tdp43_sensitivity_sh <- factor(heatmap_plot_df$tdp43_sensitivity_sh, levels=c("Late","Early"))
+sites_heatmap <- ggplot(heatmap_plot_df, aes(x = Cryptic, y = tdp43_sensitivity_sh, fill = Percentage)) +
   geom_tile() +
   geom_text(aes(label = paste0(Percentage, "%")), vjust = 0.5, hjust = 0.5) +
   scale_fill_gradient(low="saddlebrown", high="palegreen1") +
@@ -739,7 +744,7 @@ late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
 g1 <- ggplot() +
   geom_logo(data = as.character(early_donors), method = "probability")+
-  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
+  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "#772FFF", "T" = "#772FFF")) +
   labs( x = "Position", y = "Probability") +
   theme_minimal() +
   theme(
@@ -747,10 +752,11 @@ g1 <- ggplot() +
     panel.grid.minor = element_blank(),
     axis.ticks = element_blank(),
     plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
-  )
+  ) +
+  theme(text = element_text(size = plot_text_size))
 g2 <- ggplot() +
   geom_logo(data = as.character(late_donors), method = "probability")+
-  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "palegreen2", "T" = "palegreen2")) +
+  scale_fill_manual(values = c("A" = "black", "C" = "black", "G" = "#772FFF", "T" = "#772FFF")) +
   labs( x = "Position", y = "Probability") +
   theme_minimal() +
   theme(
@@ -758,11 +764,22 @@ g2 <- ggplot() +
     panel.grid.minor = element_blank(),
     axis.ticks = element_blank(),
     plot.margin = unit(c(1, 1, 1, 1), "lines")  # Adjust plot margins
-  )
+  ) +
+  theme(text = element_text(size = plot_text_size))
 g <- g1 / g2
 g
 ```
 
+```{r}
+# make figure
+row1 <- cowplot::plot_grid(ss_strength_plot, cons_score_plot, nrow=1,label_size = 16, labels=c("A","B"), rel_widths = c(1,2))
+row2 <- cowplot::plot_grid(symmetry, grid.grabExpr(draw(kmer_heatmap)), nrow=1,label_size = 16, labels=c("C","D"), rel_widths = c(1,2))
+donors_logo <- magick::image_read_pdf(here::here('main_fig_plus_files',"donors_logo.pdf"), density = 300)
+row3 <- cowplot::plot_grid(ug_repeats, g, nrow=1,label_size = 16, labels=c("E","F"), rel_widths = c(1,2))
+row4 <- cowplot::plot_grid(f1, sites_heatmap, nrow=1,label_size = 16, labels=c("G","H", "I"), rel_widths = c(2,1))
+
+fig2 <- cowplot::plot_grid( row1, row2, row3, row4, nrow=4,  label_size = 16, labels=c("","","",""))
+```
 
 
 
