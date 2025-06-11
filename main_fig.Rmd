@@ -24,6 +24,7 @@ library(ComplexHeatmap)
 library(RColorBrewer)
 library(scales)
 library(ggstats)
+library(ggpubr)
 
 source(here::here('scripts','trial_nmd_plots.R'))
 give.n <- function(x){
@@ -89,7 +90,7 @@ c <- levels_dz_qpcr %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 a+c
-#ggsave("~/Desktop/curves_qpcr.png", width = 6)
+#ggsave("~/Desktop/curves_qpcr.png", width = 10, height = 6, dpi = 300)
 
 ```
 
@@ -183,16 +184,23 @@ f <- plot_de_dz %>%
           aes(x = log2FoldChange, y = as.factor(source),color = symbol),
           data = plot_de_stmn_unc_dz) +
     labs(color = "") 
-ggarrange(e, f, common.legend = TRUE,legend = 'bottom')
 
+ggarrange(e, f, common.legend = TRUE, legend = 'bottom')
+#ggsave("~/Desktop/de_curves.png", width = 14, height = 7, dpi = 300)
 
-#ggsave("~/Desktop/de_curves.png", width = 10,height = 5)
 ```
 
 
 ```{r late_early_spaghetti_plot}
 print("1E and 1F - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1","RANBP1",'PHF2')
+
+avg_tdp_level_sh = levels_sy5y_qpcr %>% 
+    group_by(Treatment) %>% 
+    summarize(m = mean(Value)) %>% pull(m) %>% head(5)
+avg_tdp_level_sh = c(100,avg_tdp_level_sh)
+
+
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_sh) %>% 
     dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
@@ -218,10 +226,18 @@ GG <- big_data_filtereds_early_late_sh %>%
   #scale_alpha_manual(values = c(0.1,1)) +
   xlab("TDP-43 knockdown level") +
   ylab("PSI") +
-  scale_x_discrete(labels = c("-", "+", "++", "+++", "++++", "+++++")) +
+  scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++")
+                   paste0(round(avg_tdp_level_sh,0),rep("%",5))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_sh) + 
   theme_classic()
+
+avg_be2_qpcr = levels_dz_qpcr %>%
+  filter(experiment == "new_new") %>% 
+    group_by(sample) %>% 
+    summarize(m = mean(value)) %>% pull(m) %>% tail(7) * 100
+avg_be2_qpcr = c(100,avg_be2_qpcr)
+
 big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
     mutate(dox0 = dox0_be2) %>% 
     dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
@@ -248,11 +264,13 @@ HH <- big_data_filtereds_early_late_be2 %>%
   #scale_alpha_manual(values = c(0.1,1)) +
   xlab("TDP-43 knockdown level") +
   ylab("PSI") +
-  scale_x_discrete(labels = c("-", "+", "++", "+++", "++++", "+++++", "++++++", "+++++++")) +
+  scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++", "++++++", "+++++++")
+                   paste0(round(avg_be2_qpcr,0),rep("%",7))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_be2) + 
   theme_classic()
 GG + HH
+#ggsave("~/Desktop/earlylate.png", width = 18, height = 6, dpi = 300)
 ```
 
 
@@ -273,10 +291,8 @@ master_table <- master_table %>%
 
 
 
-df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
-
-
-df_long = df_long 
+df_long <- to_lodes_form(master_table, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2")) %>% 
+    mutate(axis = ifelse(axis == "tdp43_sensitivity_sh", "SH-SY5Y", "SK-N-BE(2)"))
 
 
 df_long %>% 
@@ -301,7 +317,13 @@ df_long %>%
     labs(fill = element_blank(),
          x = element_blank(),
          y = 'N junctions') 
+#ggsave("~/Desktop/alluvial.png", width = 6, height = 4, dpi = 300)
+
 ```
+
+
+
+
 
 
 ## Figure 2 - Features
