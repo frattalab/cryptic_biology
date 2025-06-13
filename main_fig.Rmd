@@ -5,8 +5,6 @@ date: "2024-05-06"
 output: html_document
 ---
 
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ###load packages/libraries/scripts
@@ -42,6 +40,10 @@ plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "
 plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
 plot_text_size <- 18
 ```
+
+## Figure 1 - tissue
+
+## Figure 2 - NMD
 
 ## Figure 3 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
 
@@ -317,7 +319,7 @@ df_long %>%
 #ggsave("~/Desktop/alluvial.png", width = 6, height = 4, dpi = 300)
 ```
 
-```{r}
+```{r scatterplot}
 master_table <- read.csv(here::here("data/master_table.csv"))
 print("1E - Concordance between SH and SK scatterplot")
 #scatterplot from upgrade
@@ -439,7 +441,7 @@ sh_nmd_sens %>%
 ```
 
 
-```{r }
+```{r curves nmd}
 print("3F - TDP-43 dependent loss of dark cryptics genes")
 ####read in data!!
 big_delta_de <- read.csv(here::here('data','big_delta_de.csv'))
@@ -473,8 +475,6 @@ a <- for_plot %>%
   theme(axis.text.x = element_text(angle = 90))
 a
 #ggsave("~/Desktop/curves_nmd.png", width = 6, height = 4)
-
-
 
 big_delta_de_dz <- read.csv(here::here('data','big_delta_de_dz.csv'))
 
@@ -519,7 +519,7 @@ a+b
 
 
 
-## Figure 2 - Features
+## Figure 4 - Features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
