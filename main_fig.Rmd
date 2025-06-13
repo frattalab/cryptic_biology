@@ -319,6 +319,20 @@ df_long %>%
          y = 'N junctions') 
 #ggsave("~/Desktop/alluvial.png", width = 6, height = 4, dpi = 300)
 
+
+master_table <- read.csv(here::here("data/master_table.csv"))
+print("S1B - Concordance between SH and SK scatterplot")
+#scatterplot from upgrade
+master_table %>% 
+    ggplot(aes(x = dox075, y = dox1)) +
+    geom_point() +
+    geom_smooth(method = 'lm', se = F) +
+    stat_cor() +
+    xlab("Max PSI in SH-SY5Y") +
+    ylab("Max PSI in SK-N-BE(2)") +
+    theme_classic()
+ggsave("~/Desktop/scatter.png", width = 6, height = 4, dpi = 300)
+
 ```
 
 

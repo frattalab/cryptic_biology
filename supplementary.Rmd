@@ -68,18 +68,6 @@ d <- normal_counts_sk[,c(2:25,27)] %>%
   theme(text = element_text(size = 10))
 b + d
 
-print("S1B - Concordance between SH and SK scatterplot")
-#scatterplot from upgrade
-master_table %>% 
-    ggplot(aes(x = dox075, y = dox1)) +
-    geom_point() +
-    geom_smooth(method = 'lm', se = F) +
-    stat_cor() +
-    xlab("Max PSI in SH-SY5Y") +
-    ylab("Max PSI in SK-N-BE(2)") +
-    theme_classic()
-
-print("S1C")
 
 print("S1D")
 master_table <- master_table %>%
@@ -662,9 +650,6 @@ upf1_dark = wide_upf1 |>
 wide_upf1 = wide_upf1 %>% 
     mutate(upf1_effect = ifelse(paste_into_igv_junction %in% upf1_dark, "Dark cryptic",upf1_effect))
 ```
-
-
-
 
 ```{r LateEarlySushi, echo=FALSE, warning=FALSE, message=FALSE}
 # reading in the master table again for debug, can remove later
