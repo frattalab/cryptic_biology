@@ -336,8 +336,6 @@ master_table %>%
 
 ```
 
-
-
 ```{r makewidechx}
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 big_data_chx = big_data_chx %>% 
