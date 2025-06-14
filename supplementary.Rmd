@@ -750,8 +750,6 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
   theme(axis.text.x = element_text(angle = 90))
 
 
-
-
 ```
 
 A. Slope plot UPF1
