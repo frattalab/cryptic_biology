@@ -28,6 +28,402 @@ plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "
 plot_text_size <- 10
 ```
 
+
+
+
+## Does baseline gene expression drive detection rate?
+
+```{r nygc_gene_expression_detection_rate}
+id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
+
+summary_post = fread("data/summary_metrics_post_mortem.csv")
+
+nygc_metadata = fread("/Users/annaleigh/Desktop/nygc_metadata_done.csv") %>% 
+    dplyr::rename(sample = V4) %>% 
+    select(-bam_path,-bam_name,-id) %>% 
+        mutate(group = case_when(grepl("Cord",rna_tissue_source_simplified) ~ 'Cord',
+                             grepl("Cortex_Motor",rna_tissue_source_simplified) & 
+                                 tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP") ~ "Motor Cortex",
+                             rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal") &
+                                 tdp_proteinopathy %in% c("Control","FTLD-TAU","FTLD-FUS","FTLD-TDP") ~ "FTD frontal/temporal")) %>% 
+    filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal","Cortex_Motor") |
+               grepl("Cord",rna_tissue_source_simplified)) 
+
+# deseq2_normalized_salmon = fread('/Volumes/JOBERT/untitled folder/Desktop/salmon_full_normalized_counts_deseq2.csv.gz')
+# 
+cryptic_genes = summary_post %>%
+    left_join(id_to_ens,by = c("gene_name")) 
+
+winst = fread("/Users/annaleigh/Desktop/cryptic_genes_winston_tpm.csv")
+tpm_cal = fread('~/cluster/vyplab/NYGC_ALSFTD/tpmcalculator/rna_selected_genes_tpm.csv')
+
+    
+
+norm_expresion = winst %>% 
+    filter(variable %in% nygc_metadata$sample_id_rna) %>% 
+    left_join(nygc_metadata %>% select(sample_id_rna,group,tdp_proteinopathy,
+                                       rna_tissue_source_simplified),by = c("variable" = 'sample_id_rna')) %>% 
+    filter(!is.na(group)) %>% 
+    # filter(tdp_proteinopathy != "Control") %>% 
+    group_by(V1,symbol,group,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(value))
+
+norm_expresion %>% 
+    ungroup() %>% 
+    unique() %>% 
+    group_by(group,tdp_proteinopathy) %>% 
+    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:5/5))) %>% 
+    left_join(summary_post,by = c('group', 'symbol' = 'gene_name')) %>% 
+    filter(fpr_value <= 0.1) %>%
+    filter(!is.na(exp_bin)) %>% 
+    filter(tdp_proteinopathy %in% c("ALS-TDP","FTLD-TDP")) %>% 
+    ungroup() %>% 
+    group_by(symbol,group,tdp_proteinopathy) %>% 
+    slice_max(frac_ob_tdp_path) %>% 
+    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path,color = tdp_proteinopathy)) + 
+    geom_violin() +
+    facet_wrap(~group,scales = 'free') +
+    stat_summary(fun.data = give.n, geom = "text",
+                 fun.y = median,
+                 position = position_dodge(width = 0.75)) +
+    stat_compare_means()
+
+
+
+norm_expresion_me = me %>% 
+    filter(variable %in% nygc_metadata$sample) %>% 
+    left_join(nygc_metadata %>% select(sample,group,tdp_proteinopathy,
+                                       rna_tissue_source_simplified),by = c("variable" = 'sample')) %>% 
+    filter(!is.na(group)) %>% 
+    # filter(tdp_proteinopathy != "Control") %>% 
+    group_by(V1,symbol,group,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(value))
+norm_expresion_me %>% 
+    ungroup() %>% 
+    unique() %>% 
+    group_by(group,tdp_proteinopathy) %>% 
+    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:5/5))) %>% 
+    left_join(summary_post,by = c('group', 'symbol' = 'gene_name')) %>% 
+    filter(fpr_value <= 0.1) %>%
+    filter(!is.na(exp_bin)) %>% 
+    filter(tdp_proteinopathy %in% c("ALS-TDP","FTLD-TDP")) %>% 
+    ungroup() %>% 
+    group_by(symbol,group,tdp_proteinopathy) %>% 
+    slice_max(frac_ob_tdp_path) %>% 
+    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path,color = tdp_proteinopathy)) + 
+    geom_violin() +
+    facet_wrap(~group,scales = 'free') +
+    stat_summary(fun.data = give.n, geom = "text",
+                 fun.y = median,
+                 position = position_dodge(width = 0.75)) +
+    stat_compare_means()
+
+
+norm_expresion_tpm = tpm_cal %>% 
+    filter(Sample %in% nygc_metadata$sample_id_rna) %>% 
+    left_join(nygc_metadata %>% select(sample_id_rna,group,tdp_proteinopathy,
+                                       rna_tissue_source_simplified),by = c("Sample" = 'sample_id_rna')) %>% 
+    filter(!is.na(group)) %>% 
+    # filter(tdp_proteinopathy != "Control") %>% 
+    group_by(Gene_Id,group,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(TPM))
+
+
+# First, prepare your data and perform tests
+plot_data <- norm_expresion_tpm %>% 
+    ungroup() %>% 
+    unique() %>% 
+    group_by(group, tdp_proteinopathy) %>% 
+    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
+    left_join(id_to_ens, by = c("Gene_Id" = 'gene_id')) %>% 
+    left_join(summary_post, by = c('group', 'gene_name')) %>% 
+    filter(fpr_value <= 0.1) %>%
+    filter(!is.na(exp_bin)) %>% 
+    filter(tdp_proteinopathy %in% c("ALS-TDP", "FTLD-TDP")) %>% 
+    ungroup() %>% 
+    group_by(gene_name, group, tdp_proteinopathy) %>% 
+    slice_max(frac_ob_tdp_path)
+
+# Option 3: More control - custom bracket positioning
+# If you have many comparisons, you might want to be more selective
+dunn_results_selective <- plot_data %>%
+    group_by(group) %>%
+    dunn_test(frac_ob_tdp_path ~ exp_bin, p.adjust.method = "bonferroni") %>%
+    filter(p.adj < 0.01) %>%  # Only highly significant
+    left_join(y_positions, by = "group") %>%
+    group_by(group) %>%
+    arrange(p.adj) %>%  # Show most significant first
+    slice_head(n = 3) %>%  # Limit to top 3 per facet to avoid crowding
+    mutate(
+        y.position = max_y * (1.1 + (row_number() - 1) * 0.15),
+        group1 = as.character(group1),
+        group2 = as.character(group2)
+    )
+
+plts <- list()
+groups <- unique(plot_data$group)
+
+for (i in seq_along(groups)) {
+  g <- groups[i]
+  
+  p <- plot_data %>%
+    filter(group == g) %>% 
+    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path)) + 
+    geom_boxplot() +
+    stat_summary(fun.data = give.n, geom = "text",
+                 fun.y = median,
+                 position = position_dodge(width = 0.75)) +
+    stat_pvalue_manual(dunn_results_selective %>% filter(group == g), 
+                       label = "p.adj.signif",
+                       y.position = "y.position",
+                       xmin = "group1",
+                       xmax = "group2") +
+    theme_bw() +
+    ylab('Fraction TDP-43 proteinopathy observed') +
+     theme(legend.position = element_blank()) +
+      ggtitle(g) +
+     xlab("Expression TPM Bin")
+  
+  plts[[i]] <- p
+}
+
+
+wrap_plots(plts, nrow = 1)
+
+
+
+plot_data %>% 
+    rbind(rimod_plot_data) %>% 
+    mutate(plot_name = ifelse(gene_name %in% genes_everywhere$gene_name,gene_name,NA_character_)) %>% 
+    ggplot(aes(x = mean_expr, y = tpr_value)) +
+    geom_point(alpha = 0.5) +
+    facet_wrap(~group,scales = 'free',ncol = 2) +
+    stat_cor() +
+    scale_x_continuous(trans=scales::pseudo_log_trans(base = 10)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme_classic() +
+    ylab('Fraction TDP-43 proteinopathy observed') +
+    geom_text_repel(aes(label = plot_name),bg.colour = 'white') +
+    xlab("Mean TPM in TDP-43 proteinopathy")
+
+
+
+```
+
+
+
+
+```{r rimod_gene}
+meta_rimod = fread("data/metadata_rimod.csv")
+
+rimod_vst = fread("/Users/annaleigh/Desktop/rimod_salmon/tpm_gene_abundance.csv")
+
+rimod_vst = rimod_vst[ensgene %in% cryptic_genes$ensgene]
+rimod_vst = rimod_vst %>% 
+    melt() 
+
+rimod_plot_data = rimod_vst %>% 
+    left_join(meta_rimod, by = c("variable" = "sample")) %>% 
+    mutate(group = "RiMOD") %>% 
+    mutate(tdp_proteinopathy = ifelse(genotype %in% c("C9orf72","GRN"), 'tdp_path', 'not_path')) %>% 
+    filter(!is.na(group)) %>% 
+    filter(tdp_proteinopathy != "not_path") %>% 
+    left_join(id_to_ens) %>% 
+    filter(!is.na(gene_name)) %>% 
+    group_by(ensgene,gene_name,group,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(value)) %>% 
+    group_by(group,tdp_proteinopathy) %>% 
+    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
+    left_join(summary_post,by = c('group', 'gene_name'))  %>% as.data.table() %>% 
+    filter(!is.na(paste_into_igv_junction)) %>% 
+    filter(fpr_value <= 0.1) %>% 
+    filter(!is.na(exp_bin)) %>% 
+    # ungroup() %>% 
+    # slice_max(tpr_value) %>% 
+    # filter(tpr_value > 0.75) %>% 
+    # arrange(mean_expr)
+    group_by(gene_name,group,tdp_proteinopathy) %>% 
+    slice_max(frac_ob_tdp_path)
+    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path)) + 
+    geom_boxplot() +
+    theme_bw() +
+    stat_compare_means() +
+    ylab('Fraction TDP-43 proteinopathy observed') +
+     theme(legend.position = element_blank()) +
+     xlab("Expression TPM Bin")
+
+
+
+rimod_vst %>% 
+    left_join(meta_rimod, by = c("variable" = "sample")) %>% 
+    mutate(group = "RiMOD") %>% 
+    mutate(tdp_proteinopathy = ifelse(genotype %in% c("C9orf72","GRN"), 'tdp_path', 'not_path')) %>% 
+    filter(!is.na(group)) %>% 
+    filter(tdp_proteinopathy != "not_path") %>% 
+    left_join(id_to_ens) %>% 
+    filter(!is.na(gene_name)) %>% 
+    group_by(ensgene,gene_name,group,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(value)) %>% 
+    group_by(group,tdp_proteinopathy) %>% 
+    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
+    left_join(summary_post,by = c('group', 'gene_name'))  %>% as.data.table() %>% 
+    filter(!is.na(paste_into_igv_junction)) %>% 
+    filter(fpr_value <= 0.1) %>% 
+    group_by(gene_name,group,tdp_proteinopathy) %>% 
+    slice_max(frac_ob_tdp_path) %>% 
+    ggplot(aes(x = mean_expr, y = frac_ob_tdp_path)) + 
+    geom_point() +
+    theme_bw() +
+    stat_cor(method = 'spearman',cor.coef.name = 'rho') +
+    stat_compare_means() +
+    ylab('Fraction TDP-43 proteinopathy observed') +
+     theme(legend.position = element_blank()) +
+     xlab("Expression TPM Bin")
+
+```
+
+
+
+
+
+
+
+## Do highly detected events have a cell-type bias?
+
+```{r cord}
+
+spec_l1 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_one_specificity.csv")
+spec_l2 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_two_specificity.csv")
+
+meanexp_l1 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_one_mean_express.csv")
+meanexp_l2 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_two_mean_express.csv")
+
+
+
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(forcats)
+library(pheatmap)
+
+# Prepare the data
+heatmap_data <- summary_post %>%
+  mutate(gene_name = ifelse(gene_name == 'AARS1', 'AARS', gene_name)) %>%
+  filter(fpr_value <= 0.1 & tpr_value >= 0.1 & value_tdp_path >= 5) %>%
+  unique() %>%
+  filter(group == 'Cord') %>%
+  group_by(gene_name) %>%
+  slice_max(value_tdp_path) %>% 
+    ungroup() %>% 
+    # slice_max(value_tdp_path, n = 30) %>% 
+  separate_rows(gene_name, sep = ',') %>%
+  left_join(spec_l1 %>% melt(), by = c("gene_name" = 'gene')) %>%
+  drop_na()
+
+# Wide format: genes (rows) x variables (columns)
+expr_matrix <- heatmap_data %>%
+  select(gene_name, variable, value) %>%
+  pivot_wider(names_from = variable, values_from = value, values_fill = 0) %>%
+  column_to_rownames("gene_name") %>%
+  as.matrix()
+# Remove genes with zero variance (or NA values after scaling)
+row_vars <- apply(expr_matrix, 1, var, na.rm = TRUE)
+expr_matrix_var_filtered <- expr_matrix[which(row_vars > 0), ]
+
+# Keep top 15 most variable genes
+top_genes <- names(sort(row_vars, decreasing = TRUE))[1:25]
+expr_matrix_top <- expr_matrix_var_filtered[top_genes, ]
+# Plot heatmap with clustering
+pheatmap(expr_matrix_var_filtered,
+         # scale = "row",              # or "row"/"column" if you want normalization
+         clustering_method = "complete",
+         cluster_cols = TRUE,
+         fontsize_row = 8,
+         fontsize_col = 9,
+         main = "Gene Cell-Type Specificity (Cord Group)",
+         cutree_rows = 7,
+        cutree_cols = 7
+
+        )
+
+
+
+heatmap_data %>% 
+    group_by(gene_name) %>% 
+    slice_max(value) %>% 
+    ungroup() %>% 
+    filter(value >0) %>% 
+    mutate(gene_name = fct_reorder(gene_name,frac_ob_tdp_path)) %>% 
+    ggplot(aes(x = gene_name, y = frac_ob_tdp_path)) + 
+   geom_col(aes(fill= variable)) +
+    coord_flip() +
+    scale_fill_manual(values = randomcoloR::distinctColorPalette(11))
+
+```
+
+```{r motor}
+
+spec_l1_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_one_specificity_motor.csv")
+spec_l2_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_two_specificity_motor.csv")
+
+
+spec_l1_m = spec_l1_m %>% left_join(annotables::grch38 %>% 
+                            select(ensgene,symbol), by = c("gene" = "ensgene"))
+
+spec_l2_m = spec_l2_m %>% left_join(annotables::grch38 %>% 
+                            select(ensgene,symbol), by = c("gene" = "ensgene"))
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(forcats)
+library(pheatmap)
+
+# Prepare the data
+heatmap_data <- summary_post %>%
+  filter(fpr_value <= 0.1 & tpr_value >= 0.1 & value_tdp_path >= 5) %>%
+  unique() %>%
+  filter(group == 'Motor Cortex') %>%
+  group_by(gene_name) %>%
+  slice_max(value_tdp_path) %>% 
+    ungroup() %>% 
+    slice_max(value_tdp_path, n = 50) %>% 
+  separate_rows(gene_name, sep = ',') %>%
+  left_join(spec_l2_m %>% melt(), by = c("gene_name" = 'symbol')) %>%
+  drop_na()
+
+# Wide format: genes (rows) x variables (columns)
+expr_matrix <- heatmap_data %>%
+  select(gene_name, variable, value) %>%
+  pivot_wider(names_from = variable, values_from = value, values_fill = 0) %>%
+  column_to_rownames("gene_name") %>%
+  as.matrix()
+# Remove genes with zero variance (or NA values after scaling)
+row_vars <- apply(expr_matrix, 1, var, na.rm = TRUE)
+expr_matrix_var_filtered <- expr_matrix[which(row_vars > 0), ]
+
+# Keep top 15 most variable genes
+top_genes <- names(sort(row_vars, decreasing = TRUE))[1:25]
+expr_matrix_top <- expr_matrix_var_filtered[top_genes, ]
+# Plot heatmap with clustering
+pheatmap(expr_matrix_var_filtered,
+         scale = "row",              # or "row"/"column" if you want normalization
+         clustering_method = "complete",
+         cluster_cols = TRUE,
+         fontsize_row = 8,
+         fontsize_col = 9,
+         main = "Gene Cell-Type Specificity (Motor Cortex Group)",
+        cutree_rows = 7,
+        cutree_cols = 7
+        )
+
+
+
+```
+
+
+
+
+
 ### Supplementary figure 1 - sensitivity of CEs to TDP43 LoF is driven by their cis features
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ### load data needed
