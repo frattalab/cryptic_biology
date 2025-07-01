@@ -1,3 +1,6 @@
+
+
+
 slope_plot_nmd <- function(big_data, gene_list, input_list = c("Control_Control",
                                                                              "Cycloheximide_Control", 
                                                                              "Control_TDP43KD", 
@@ -113,3 +116,44 @@ return(return_list)
   #scale_x_log10() +
 #  scale_y_log10() +
 #  theme_classic()
+
+
+
+amigoingmad = function (package = "dplyr", fix = TRUE, iteration = 0) 
+{
+    if (iteration > 1) {
+        stop("Can't fix.")
+    }
+    conf = unique(conflicts())
+    want_package = paste0("package:", package)
+    conflicts_desired_package = conf[conf %in% ls(want_package)]
+    conflict_envs = sapply(conflicts_desired_package, FUN = function(x) {
+        environmentName(pryr::where(x, globalenv()))
+    })
+    is_good = conflict_envs == want_package
+    potentially_bad_confs = conflicts_desired_package[!is_good]
+    potentially_bad_envs = conflict_envs[!is_good]
+    have_to_fix = rep(FALSE, length(potentially_bad_confs))
+    for (i in seq_along(potentially_bad_confs)) {
+        if (!identical(body(get(potentially_bad_confs[i], pos = want_package)), 
+                       body(get(potentially_bad_confs[i])))) {
+            have_to_fix[i] = TRUE
+        }
+    }
+    if (any(have_to_fix)) {
+        message("The following functions don't have the environment you want.")
+        print(data.frame(function. = potentially_bad_confs[have_to_fix], 
+                         environment = potentially_bad_envs[have_to_fix]), 
+              row.names = F)
+        if (fix) {
+            base::detach(name = want_package, character.only = TRUE)
+            base::library(package, character.only = TRUE)
+            message("Tried to fix this, calling myself again to make sure...")
+            amigoingmad(package, fix, iteration + 1)
+            message("Sanity restored!")
+        }
+    }
+    else if (iteration == 0) {
+        message("Everything looks normal. Maybe it's you.")
+    }
+}

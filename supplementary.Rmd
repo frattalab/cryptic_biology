@@ -22,8 +22,8 @@ library(data.table)
 library(ggstats)
 
 source(here::here('scripts/trial_nmd_plots.R'))
-#check you're in right folder
-here::here()
+source(here::here("scripts/odds_ratio_plots.R"))
+
 
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
@@ -669,25 +669,36 @@ sknbe2_papa %>%
 
 ```
 
-### slope plot nmd chx
+
+# UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-## Figure 3 - NMD
+summary_post = fread("data/summary_metrics_post_mortem.csv")
+pseudo_bulk_plot_slope_filtered_table = fread('data/pseudo_bulk_smg1_filtered_table.csv')
+upf1_filtered_table = fread('data/upf1_filtered_table.csv')
 
-#A. Overlap between UPF1 and CHX experiment
-#B. Late/early is not driven by NMD sensitivity
-#E. Differential expression of NMD sensitive/not 
-#F. TDP-43 dependent loss of dark cryptics
-#G. 4-SU
+smg1_d <- analyze_junction_detection_and_selectivity(
+    summary_post,
+    pseudo_bulk_plot_slope$filtered_table,
+    category_column = "color_gene_name",
+    baseline_category = "non-NMD rescued",
+    color_choices = c("#D53E4F","#3288BD")
+)
 
-print("3C - Slope plot in SH-SY5Y")
-gene_list_slope <- c("STMN2", "UNC13A", "AARS1", "HDGFL2", "CYFIP2", "SYNE1")
-input_list <- c("Control_Control",
-                "Cycloheximide_Control", 
-                "Control_TDP43KD", 
-                "Cycloheximide_TDP43KD")
-big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
-a <- slope_plot_nmd(big_data_chx, 
-               gene_list_slope) #### NMD rescued and unaffected
+upf1_result_d <- analyze_junction_detection_and_selectivity(
+    summary_post,
+    upf1_filtered_table,
+    category_column = "color_gene_name",
+    baseline_category = "non-NMD rescued",
+    color_choices = c("#D53E4F","#3288BD")
+)
+
+smg1_d$combined_rate_plot +
+    ggtitle('SMG1i')
+
+upf1_result_d$combined_rate_plot +
+    ggtitle('UPF1 KD')
+
 ```
 
 ### Supplementary figure 3 - NMD
