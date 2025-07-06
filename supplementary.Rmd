@@ -399,7 +399,38 @@ pheatmap(expr_matrix_var_filtered,
 
 ```
 
-## supplementary figure 2 - nmd
+
+## supplementary figure 2 - NMD
+# UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+summary_post = fread("data/summary_metrics_post_mortem.csv")
+pseudo_bulk_plot_slope_filtered_table = fread('data/pseudo_bulk_smg1_filtered_table.csv')
+upf1_filtered_table = fread('data/upf1_filtered_table.csv')
+
+smg1_d <- analyze_junction_detection_and_selectivity(
+    summary_post,
+    pseudo_bulk_plot_slope$filtered_table,
+    category_column = "color_gene_name",
+    baseline_category = "non-NMD rescued",
+    color_choices = c("#D53E4F","#3288BD")
+)
+
+upf1_result_d <- analyze_junction_detection_and_selectivity(
+    summary_post,
+    upf1_filtered_table,
+    category_column = "color_gene_name",
+    baseline_category = "non-NMD rescued",
+    color_choices = c("#D53E4F","#3288BD")
+)
+
+smg1_d$combined_rate_plot +
+    ggtitle('SMG1i')
+
+upf1_result_d$combined_rate_plot +
+    ggtitle('UPF1 KD')
+
+```
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ###top50_upf1 - load this table!!
 results_table_upf1vsctrl <- read.csv(here::here("data/results_table_upf1_vs_ctrl.csv"))
@@ -425,8 +456,6 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
 ```
 
 
-
-
 ### Supplementary figure 3? - sensitivity of CEs to TDP43 LoF
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ### load data needed
@@ -434,14 +463,9 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
 normal_counts_sh <- read.csv(here::here('data', 'normed_counts_sh.csv'))
 normal_counts_sk <- read.csv(here::here('data', 'normed_counts_sk.csv'))
 
-#S1?
 master_table <- read.csv(here::here("data/master_table.csv"))
 
-#S1F #S1G
-#apa_sh <- read.csv(here::here())
-#apa_sk <- read.csv(here::here())
-
-print("S1A - levels from DeSeq in SH and SK")
+print("S3A - levels from DeSeq in SH and SK")
 b <- normal_counts_sh[,c(2:19,21)] %>% 
   dplyr::filter(symbol == "TARDBP") %>%
   pivot_longer(c(1:18)) %>%
@@ -466,8 +490,6 @@ d <- normal_counts_sk[,c(2:25,27)] %>%
   theme_classic() +
   theme(text = element_text(size = 10))
 b + d
-
-
 ```
 
 ### Are late / early genes more likely to be DE?
@@ -489,11 +511,9 @@ diff_plt_sh = diff_expr_sh %>%
     mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) %>% 
     mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == 'Not found','Non-splicing',tdp43_sensitivity_sh)) 
 
-    
 sh_d_gene = diff_plt_sh %>% 
     group_by(source,tdp43_sensitivity_sh) %>% 
     summarize(denom = n_distinct(symbol))
-
 
 diff_plt_sh %>% 
     group_by(tdp43_sensitivity_sh, fc_direction, sig_de, source) %>% 
@@ -533,7 +553,6 @@ diff_plt_be2 = diff_expr_sk %>%
     mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) %>% 
     mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == 'Not found','non-splicing',tdp43_sensitivity_be2)) 
 
-    
 be2_d_gene = diff_plt_be2 %>% 
     group_by(source,tdp43_sensitivity_be2) %>% 
     summarize(denom = n_distinct(symbol))
@@ -559,8 +578,6 @@ diff_plt_be2 %>%
     xlab(element_blank()) + 
     theme(legend.position = 'bottom') + 
     scale_fill_manual(values = c("#2B4162", "#721817"))
-
-
 
 ```
 
@@ -617,38 +634,6 @@ sknbe2_papa %>%
 
 ```
 
-
-# UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-summary_post = fread("data/summary_metrics_post_mortem.csv")
-pseudo_bulk_plot_slope_filtered_table = fread('data/pseudo_bulk_smg1_filtered_table.csv')
-upf1_filtered_table = fread('data/upf1_filtered_table.csv')
-
-smg1_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
-    pseudo_bulk_plot_slope$filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
-)
-
-upf1_result_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
-    upf1_filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
-)
-
-smg1_d$combined_rate_plot +
-    ggtitle('SMG1i')
-
-upf1_result_d$combined_rate_plot +
-    ggtitle('UPF1 KD')
-
-```
-
-### Supplementary figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 # reading in the master table again for debug, can remove later
 master_table <- read.csv(here::here("data/master_table.csv"))
@@ -1057,190 +1042,3 @@ i <- df_3ss_strength %>%
   guides(color = "none")
 h + i
 ```
-
-
-
-### targeted panel
-```{r targeted_panel, echo=FALSE, warning=FALSE, message=FALSE}
-
-## Figure 4 - compendium / in vivo
-print("4A")
-##load targeted seq table and compute CE ratio / rename samples in agreement to UNC13A paper
-maxc <- read.csv(here::here('data',"count_table_of_aligned_remove_200bp_plus_product_reads.csv")) %>%
-  mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%
-  mutate(sample_name_ari = case_when(sample_name == "P64_11" ~ "HC1",
-                                     sample_name == "P17_07" ~ "HC2",
-                                     sample_name == "P47_11" ~ "HC3",
-                                     sample_name == "P35_07" ~ "HC4",
-                                     sample_name == "P56_13" ~ "FTD1",
-                                     sample_name == "P45_15" ~ "FTD2",
-                                     sample_name == "P63_05" ~ "FTD3",
-                                     sample_name == "P28_07" ~ "FTD4",
-                                     sample_name == "P40_04" ~ "FTD5",
-                                     sample_name == "P07_15" ~ "FTD6",
-                                     sample_name == "P16_09" ~ "FTD7",
-                                     sample_name == "P86_08" ~ "FTD8",
-                                     sample_name == "P13_13" ~ "FTD9",
-                                     sample_name == "P11_07" ~ "FTE10",
-                                     sample_name == "ddH2O" ~ "HO2O")) #%>%
-  #pivot_wider(names_from = sample_name_ari, values_from = ratio_cryptic)
-table(maxc$sample_name_ari)
-
-##use only TDP43path-specific genes (use list from AL) - this is exluding more than 2/3 of genes!!
-al <- read.csv(here::here('data',"expression_by_pathology_updated.csv")) %>%
-  dplyr::filter(fraction_path > 0.01 & fraction_not_path < 0.005) %>% ####need to carefully check this with AL
-  distinct(gene, .keep_all = T) ##check when binding with annotated validation table - should be ok since left_join
-names(al)[4] <- "gene_name"
-maxc_al <- maxc %>%
-  left_join(al, by = "gene_name") %>%
-  dplyr::filter(!is.na(paste_into_igv_junction))
-table(maxc_al$sample_name_ari)
-table(maxc_al$gene_name)
-
-##check igv files for these genes
-maxc_type <- maxc_al %>%
-  select(-type) %>%
-  mutate(gene = gene_name) %>%
-  filter(gene_name != "SETD5") %>%
-  left_join(master_table, by = "paste_into_igv_junction") %>%
-  filter(!is.na(tdp43_sensitivity_sh)) %>% 
-  mutate(group = ifelse(grepl("FT", sample_name_ari), "FTD",
-                        ifelse(grepl("HC", sample_name_ari), "HC",
-                               "H2O"))) %>% 
-  group_by(gene_name) %>%
-  filter(sum(n_cryptic) > 0) %>%
-  ungroup() %>% 
-    filter(group != "H2O")
-
-maxc_type %>%
-  filter(tdp43_sensitivity_sh != "") %>%
-  filter(gene_name != "SETD5") %>%
-  #filter(n_cryptic>0) %>% 
-  #filter(detected == "Yes") %>%
-  filter(group != "H2O") %>%
-  ggplot(aes(x = tdp43_sensitivity_sh, y = n_cryptic)) +
-  geom_col(aes(fill = tdp43_sensitivity_sh)) +
-  facet_wrap(facets = vars(group), ncol = 2) +
-  scale_fill_brewer(palette = "Set1") +
-  xlab("") +
-  ylab("Count of cryptic exons detected by targeted panel") +
-  labs(fill = "Category") +
-  theme_bw()
-#ggsave("~/Desktop/grouped_panel.png", width = 8, height = 4)
-
-maxc_earli <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Earli") %>%
-  filter(gene_name != "SETD5") %>% 
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") + #position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Reds") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Earli") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_early <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Early") %>%
-  filter(gene_name != "SETD5") %>% 
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Reds") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Early") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_intermediate <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Intermediate") %>%
-  filter(gene_name != "SETD5") %>%
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Greens") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Intermediate") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_late <- maxc_type %>%
-  filter(tdp43_sensitivity_sh == "Late") %>%
-  filter(gene_name != "SETD5") %>%
-  ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
-  geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
-  #facet_grid(facets = vars(gene_name)) +
-  scale_fill_brewer(palette = "Blues") +
-  scale_y_continuous(limits = c(0,0.3)) +
-  labs(x = "", y = "", fill = "Late") +
-  #scale_fill_manual(values = randomcoloR::distinctColorPalette(k = 30)) +
-  theme_bw()
-maxc_early / maxc_intermediate / maxc_late #/ maxc_na
-
-```
-### Supplementary figure 4 - in vivo
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("S4A")
-
-print("S4B")
-
-print("S4C")
-
-maxc <- read.csv(here::here('data',"count_table_of_aligned_remove_200bp_plus_product_reads.csv")) %>%
-  mutate(fraction_cryptic = n_cryptic / n_counts_for_gene) %>%
-  mutate(sample_name_ari = case_when(sample_name == "P64_11" ~ "HC1",
-                                     sample_name == "P17_07" ~ "HC2",
-                                     sample_name == "P47_11" ~ "HC3",
-                                     sample_name == "P35_07" ~ "HC4",
-                                     sample_name == "P56_13" ~ "FTD1",
-                                     sample_name == "P45_15" ~ "FTD2",
-                                     sample_name == "P63_05" ~ "FTD3",
-                                     sample_name == "P28_07" ~ "FTD4",
-                                     sample_name == "P40_04" ~ "FTD5",
-                                     sample_name == "P07_15" ~ "FTD6",
-                                     sample_name == "P16_09" ~ "FTD7",
-                                     sample_name == "P86_08" ~ "FTD8",
-                                     sample_name == "P13_13" ~ "FTD9",
-                                     sample_name == "P11_07" ~ "FTE10",
-                                     sample_name == "ddH2O" ~ "HO2O")) #%>%
-  #pivot_wider(names_from = sample_name_ari, values_from = ratio_cryptic)
-table(maxc$sample_name_ari)
-
-##use only TDP43path-specific genes (use list from AL) - this is exluding more than 2/3 of genes!!
-al <- read.csv(here::here('data',"expression_by_pathology_updated.csv")) %>%
-  dplyr::filter(fraction_path > 0.01 & fraction_not_path < 0.005) %>% ####need to carefully check this with AL
-  distinct(gene, .keep_all = T) ##check when binding with annotated validation table - should be ok since left_join
-names(al)[4] <- "gene_name"
-maxc_al <- maxc %>%
-  left_join(al, by = "gene_name") %>%
-  dplyr::filter(!is.na(paste_into_igv_junction))
-table(maxc_al$sample_name_ari)
-table(maxc_al$gene_name)
-
-##check igv files for these genes
-maxc_type <- maxc_al %>%
-  select(-type) %>%
-  mutate(gene = gene_name) %>%
-  filter(gene_name != "SETD5") %>%
-  left_join(master_table, by = "paste_into_igv_junction") %>%
-  filter(!is.na(tdp43_sensitivity_sh)) %>% 
-  mutate(group = ifelse(grepl("FT", sample_name_ari), "FTD",
-                        ifelse(grepl("HC", sample_name_ari), "HC",
-                               "H2O"))) %>% 
-  group_by(gene_name) %>%
-  filter(sum(n_cryptic) > 0) %>%
-  ungroup() %>% 
-    filter(group != "H2O")
-
-
-maxc_type %>%
-  filter(group != "H2O") %>%
-    filter(tdp43_sensitivity_sh != "") %>% 
-  ggplot(aes(x = sample_name_ari, y = gene_name, fill = fraction_cryptic)) +
-  geom_tile() +
-  #scale_fill_viridis_d() +
-  scale_fill_gradient(low = "white", high = "black") +
-  facet_grid(rows = vars(tdp43_sensitivity_sh), cols = vars(group), 
-             scales = "free", space = "free") +
-  ylab("") + xlab("Sample name") + labs(fill = "CE fraction") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
-```
-
