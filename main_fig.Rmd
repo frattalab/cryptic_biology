@@ -46,7 +46,6 @@ plot_text_size <- 10
 
 ## Cryptic compendium and recurrent cryptics
 
-
 ```{r overall dataset}
 compendium_events = fread('data/compendium_cryptics.csv')
 
@@ -1327,7 +1326,7 @@ cryptic_rpkm %>%
 ## Figure 2 - NMD
 
 ### Are NMD sensitive events up/downregulated?
-```{r nmd_up_down_sh_chx}
+```{r nmd_up_down_chx}
 
 chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
@@ -1686,7 +1685,7 @@ master_table %>%
 
 ```
 
-```{r makewidechx}
+```{r makewidechx_1}
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 big_data_chx = big_data_chx %>% 
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
@@ -1715,7 +1714,7 @@ wide_chx = wide_chx %>%
     mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
 ```
 
-```{r makewideupf1}
+```{r makewideupf1_1}
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 big_data_upf1 = big_data_upf1 %>% 
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
