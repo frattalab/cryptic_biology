@@ -1377,7 +1377,7 @@ chx_rna_full %>%
 
 
 
-## Figure 3 - Dose-response curves in SH-SY5Y and SK-N-BE(2) 
+## Figure 3 - Dose-response curves in SH-SY5Y and SK-N-BE(2)
 
 A. Dose-response curves for SH-SY5Y and SK-N-BE(2)
 B. Differential expression in SH-SY5Y and in SK-N-BE(2)
@@ -1424,7 +1424,7 @@ c <- levels_dz_qpcr %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
 a+c
-#ggsave("~/Desktop/curves_qpcr.png", width = 10, height = 6, dpi = 300)
+#ggsave("~/Desktop/curves_qpcr.svg", width = 10, height = 6, dpi = 300)
 
 ```
 
@@ -1462,7 +1462,7 @@ e <- plot_de %>%
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
-    ylab('TDP-43 KD level') +
+    ylab('TDP-43 knockdown level') +
     scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,0),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size), plot.title = element_text(hjust = 0.5)) +
@@ -1507,7 +1507,7 @@ f <- plot_de_dz %>%
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
     xlim(c(-10, 10)) +
     xlab('Gene expression Log2 FC compared to controls') +
-    ylab('TDP-43 KD level') +
+    ylab('TDP-43 knockdown level') +
     scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,0),rep(" %",7))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size), plot.title = element_text(hjust = 0.5)) +
@@ -1602,10 +1602,8 @@ HH = big_data_filtereds_early_late_be2 %>%
   facet_wrap(~tdp43_sensitivity_be2) + 
   theme_classic()
 GG + HH
-#ggsave("~/Desktop/earlylate.png", width = 18, height = 6, dpi = 300)
+#ggsave("~/Desktop/earlylate.svg", width = 18, height = 6, dpi = 300)
 ```
-
-## Cryptic sensitivity in neuroblastoma
 
 ```{r alluvial_early_late_new}
 # Create the alluvial plot
@@ -1622,19 +1620,14 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
         mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
 
-
-
 tmp = master_table %>% 
     filter(tdp43_sensitivity_be2 != "Not found") %>% 
     filter(tdp43_sensitivity_sh != "Not found")
 df_long <- to_lodes_form(tmp, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
 
-
-df_long = df_long 
-
-
 df_long %>% 
     filter(junction_for_clustering == 'yes') %>% 
+    mutate(axis = ifelse(axis == "tdp43_sensitivity_sh", "SH-SY5Y", "SK-N-BE(2)")) %>% 
     ggplot(
        aes(x = axis,
            stratum = stratum, 
@@ -1655,7 +1648,7 @@ df_long %>%
     labs(fill = element_blank(),
          x = element_blank(),
          y = 'N junctions') 
-#ggsave("~/Desktop/alluvial.png", width = 6, height = 4, dpi = 300)
+#ggsave("~/Desktop/alluvial.svg", width = 6, height = 4, dpi = 300)
 ```
 
 ```{r scatterplot}
@@ -1681,7 +1674,7 @@ master_table %>%
     xlab("Max PSI in SH-SY5Y") +
     ylab("Max PSI in SK-N-BE(2)") +
     theme_classic()
-#ggsave("~/Desktop/scatter.png", width = 6, height = 4, dpi = 300)
+#ggsave("~/Desktop/scatter.svg", width = 6, height = 4, dpi = 300)
 
 ```
 
@@ -1720,7 +1713,6 @@ big_data_upf1 = big_data_upf1 %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
-
 wide_upf1 = big_data_upf1 |> 
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
@@ -1733,7 +1725,6 @@ wide_upf1 = big_data_upf1 |>
                                   TRUE ~ "non-NMD rescued")) %>% 
     left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
     mutate(ensgene =  gsub("\\..*","",gene_id)) 
-
 
 upf1_dark = wide_upf1 |> 
     filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued") |> 
@@ -1768,7 +1759,7 @@ ggplot(sh_nmd_sens) +
          fill = 'CHX treatment') +
     scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
     theme(legend.position = 'bottom', legend.text.position = 'bottom') 
-ggsave("~/Desktop/sh_nmd_sens.png", width = 5, height = 4, dpi = 300)
+#ggsave("~/Desktop/sh_nmd_sens.svg", width = 5, height = 4, dpi = 300)
 
 sh_nmd_sens %>% 
     filter(chx_effect != "PSI > 95% at baseline") %>% 
@@ -1776,7 +1767,6 @@ sh_nmd_sens %>%
     column_to_rownames("tdp43_sensitivity_sh") %>% 
     as.matrix() %>% 
     rstatix::pairwise_fisher_test()
-
 ```
 
 ```{r curves nmd}
@@ -1808,14 +1798,12 @@ a <- for_plot %>%
   scale_fill_manual(values = "black") +
   scale_color_manual(values = c("#A6CEE3", "#1F78B4", "#FF7F00", "#FDBF6F", "#FB9A99", "#E31A1C"))+ # "#B2DF8A" "#33A02C" "#CAB2D6" "#6A3D9A")) +
   scale_y_continuous(limits = c(-6.2,0.6)) +
-  labs(x = "Doxycycline concentration", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
-
-#ggsave("~/Desktop/curves_nmd.png", width = 6, height = 4)
+  labs(x = "TDP-43 knockdown level", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
+  scale_x_discrete(labels = paste0(round(avg_tdp_level_sh,0),rep(" %",6))) +
+  theme_classic() #+
+# theme(axis.text.x = element_text(angle = 90))
 
 big_delta_de_dz <- read.csv(here::here('data','big_delta_de_dz.csv'))
-
 
 big_delta_de_dz_tdp <- big_delta_de_dz[,c(4,8,10,11)] %>% 
   dplyr::filter(symbol == "TARDBP")
@@ -1841,22 +1829,15 @@ b <- for_plot_dz %>%
   scale_fill_manual(values = "black") +
   scale_color_manual(values = c("#A6CEE3", "#1F78B4", "#FF7F00", "#FDBF6F", "#FB9A99", "#E31A1C"))+ # "#B2DF8A" "#33A02C" "#CAB2D6" "#6A3D9A")) +
   scale_y_continuous(limits = c(-5.2,0.5)) +
-  labs(x = "Doxycycline concentration", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
-
-#ggsave("~/Desktop/curves_nmd_dz.png", width = 6, height = 4)
-
-#library(patchwork)
+  labs(x = "TDP43 knockdown level", y = "Log2 Fold Change compared to control", color = "", fill = "Gene") +
+  scale_x_discrete(labels = paste0(round(avg_be2_qpcr,0),rep(" %",8))) +
+  theme_classic()
 
 a+b
-#ggsave("~/Desktop/caio.png", caio, width = 8, height = 4, dpi = 300)
-
+#ggsave("~/Desktop/caio.png", width = 8, height = 4, dpi = 300)
 ```
 
 ```{r new_cate_creation}
-
-
 master_table %>% 
     filter(new_cate != "Ambiguous") %>% 
     select(paste_into_igv_junction,cryptic,tdp43_sensitivity_sh,tdp43_sensitivity_be2,new_cate) %>% 
