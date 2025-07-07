@@ -25,7 +25,7 @@ library(ggstats)
 library(ggpubr)
 library(pheatmap)
 library(pdftools)
-
+library(cowplot)
 source(here::here('scripts','trial_nmd_plots.R'))
 give.n <- function(x){
 return(c(y = median(x)*1.05, label = length(x)))
@@ -289,7 +289,6 @@ gg_euler +
           plot.margin = margin(60, 20, 20, 60, "pt"))  # Add extra margin on left (60pt)
     
 ```
-
 
 
 
