@@ -20,9 +20,8 @@ library(ComplexHeatmap)
 library(RColorBrewer)
 library(data.table)
 library(ggstats)
-
-source(here::here('scripts/trial_nmd_plots.R'))
 source(here::here("scripts/odds_ratio_plots.R"))
+source(here::here('scripts/trial_nmd_plots.R'))
 
 
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
@@ -30,6 +29,80 @@ plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "
 plot_text_size <- 10
 ```
 
+
+## Sequencing features of post-mortem datasets
+
+```{r sequencing_features_rimod_vs_nygc}
+meta_rimod = fread("data/metadata_rimod.csv")
+meta_nygc = fread('data/metadta_nygc.csv')
+lib_r = fread("data/library_stats_rimod.csv")
+library_nygc = fread('data/nygc_library_depth.csv')
+
+rimod_stats = meta_rimod %>% 
+    mutate(post_mortem_interval_in_hours = dminutes(PMD) / dhours(1)) %>% 
+    mutate(tdp_proteinopathy = case_when(DiseaseCode == 'control' ~ "Control",
+                                         DiseaseCode == 'FTD-MAPT' ~ "FTLD-TAU",
+                                         DiseaseCode %in% c('FTD-C9','FTD-GRN') ~ "FTLD-TDP")) %>% 
+    dplyr::rename(rin = RIN,age_at_death = Age) %>% 
+    mutate(dataset = "RiMOD FTD") %>% 
+    left_join(lib_r %>% select(Sample,RNAseq_STAR_uniquely_mapped),by = c("sample" = "Sample")) %>% 
+    dplyr::rename(library_size = RNAseq_STAR_uniquely_mapped) %>% 
+    distinct(age_at_death,tdp_proteinopathy,post_mortem_interval_in_hours,rin,dataset,library_size) 
+
+
+
+nygc_stats_frontal = meta_nygc %>% 
+    filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal")) %>% 
+    filter(tdp_proteinopathy %in% c("Control","FTLD-TAU","FTLD-FUS","FTLD-TDP")) %>%  
+    distinct(sample,age_at_death,tdp_proteinopathy,post_mortem_interval_in_hours,rin) %>% 
+    mutate(post_mortem_interval_in_hours = as.numeric(post_mortem_interval_in_hours)) %>% 
+    mutate(age_at_death = ifelse(age_at_death == '90 or Older', 99,age_at_death)) %>% 
+    mutate(age_at_death = as.numeric(age_at_death)) %>% 
+    mutate(dataset = "NYGC Frontal") %>% 
+    mutate(sample = gsub(".final","",sample)) %>% 
+    left_join(library_nygc, by = c("sample" = "V1")) %>% 
+    dplyr::rename(library_size = V2)
+
+nygc_stats_als_motor = meta_nygc %>% 
+    filter(grepl("Cortex_Motor",rna_tissue_source_simplified)) %>% 
+    filter(tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP")) %>% 
+    distinct(sample,age_at_death,tdp_proteinopathy,post_mortem_interval_in_hours,rin) %>% 
+    mutate(post_mortem_interval_in_hours = as.numeric(post_mortem_interval_in_hours)) %>% 
+    mutate(age_at_death = ifelse(age_at_death == '90 or Older', 99,age_at_death)) %>% 
+    mutate(age_at_death = as.numeric(age_at_death)) %>% 
+    mutate(dataset = "NYGC Motor") %>% 
+    mutate(sample = gsub(".final","",sample)) %>% 
+    left_join(library_nygc, by = c("sample" = "V1")) %>% 
+    dplyr::rename(library_size = V2)
+
+
+nygc_stats_cord = meta_nygc %>% 
+    filter(grepl("Cord",rna_tissue_source_simplified)) %>% 
+    filter(tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP")) %>% 
+    distinct(sample,age_at_death,tdp_proteinopathy,post_mortem_interval_in_hours,rin) %>% 
+    mutate(post_mortem_interval_in_hours = as.numeric(post_mortem_interval_in_hours)) %>% 
+    mutate(age_at_death = ifelse(age_at_death == '90 or Older', 99,age_at_death)) %>% 
+    mutate(age_at_death = as.numeric(age_at_death)) %>% 
+    mutate(dataset = "NYGC Cord") %>% 
+    mutate(sample = gsub(".final","",sample)) %>% 
+    left_join(library_nygc, by = c("sample" = "V1")) %>% 
+    dplyr::rename(library_size = V2)
+
+
+nygc_stats_als_motor %>% 
+    select(-sample) %>% 
+    rbind(nygc_stats_cord %>% select(-sample)) %>% 
+    rbind(nygc_stats_frontal  %>% select(-sample)) %>% 
+    rbind(rimod_stats) %>% 
+    rowid_to_column() %>% 
+    reshape2::melt(id.vars = c('rowid',"dataset","tdp_proteinopathy")) %>% 
+    # filter(variable != 'library_size') %>% 
+    mutate(value = as.numeric(value)) %>% 
+    ggplot(aes(x = dataset, y =value)) + 
+    geom_boxplot(outlier.colour = NA) + 
+    facet_wrap(~variable,scales = 'free')
+
+```
 
 
 
@@ -367,7 +440,13 @@ heatmap_data %>%
 
 spec_l1_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_one_specificity_motor.csv")
 spec_l2_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_two_specificity_motor.csv")
+meanexp_l2_m = fread('~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_two_mean_exp_motor.csv')
 
+meanexp_l1_m = fread('~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_one_mean_exp_motor.csv')
+meanexp_l1_m = meanexp_l1_m %>% left_join(annotables::grch38 %>% 
+                            select(ensgene,symbol), by = c("gene" = "ensgene"))
+meanexp_l2_m = meanexp_l2_m %>% left_join(annotables::grch38 %>% 
+                            select(ensgene,symbol), by = c("gene" = "ensgene"))
 
 spec_l1_m = spec_l1_m %>% left_join(annotables::grch38 %>% 
                             select(ensgene,symbol), by = c("gene" = "ensgene"))
@@ -392,6 +471,9 @@ heatmap_data <- summary_post %>%
   separate_rows(gene_name, sep = ',') %>%
   left_join(spec_l2_m %>% melt(), by = c("gene_name" = 'symbol')) %>%
   drop_na()
+
+spec_l2_m %>% filter(symbol %in% c("AR", "ATN1. ATXN1", "ATXN2", "ATXN3", "ATXN7", "CACNA1A", "HTT")) %>% 
+    melt()
 
 # Wide format: genes (rows) x variables (columns)
 expr_matrix <- heatmap_data %>%
@@ -674,32 +756,61 @@ sknbe2_papa %>%
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 summary_post = fread("data/summary_metrics_post_mortem.csv")
-pseudo_bulk_plot_slope_filtered_table = fread('data/pseudo_bulk_smg1_filtered_table.csv')
-upf1_filtered_table = fread('data/upf1_filtered_table.csv')
 
-smg1_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
+smg1_summary_rest <- generate_summary_table(
+    summary_post, 
     pseudo_bulk_plot_slope$filtered_table,
     category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
+    baseline_category = "non-NMD rescued"
 )
 
-upf1_result_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
-    upf1_filtered_table,
+fisher_result_smg1 = run_fisher_test(smg1_summary_rest)
+smg1_plots = make_final_plot(smg1_summary_rest,fisher_result_smg1)
+smg1_plots$detection_plot + ggtitle('SMG1i junctions')
+smg1_plots$selectivity_plot + ggtitle('SMG1i junctions')
+
+upf1_summary_rest <- generate_summary_table(
+    summary_post, 
+    upf1_slope_plot_table$filtered_table,
     category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
+    baseline_category = "non-NMD rescued"
 )
 
-smg1_d$combined_rate_plot +
-    ggtitle('SMG1i')
+fisher_result_upf1 = run_fisher_test(upf1_summary_rest)
+upf1_plots = make_final_plot(upf1_summary_rest,fisher_result_upf1)
+upf1_plots$detection_plot + ggtitle('UPF1 junctions')
+upf1_plots$selectivity_plot + ggtitle('UPF1 junctions')
 
-upf1_result_d$combined_rate_plot +
-    ggtitle('UPF1 KD')
+
 
 ```
+
+# NMD association with detection frequency across KDs - UPF1 + SMG1i
+
+```{r}
+# Step 2: Get unique junctions with their category classification
+df = compendium_events %>%
+    distinct(n_significant_data,paste_into_igv_junction) %>% 
+    mutate(group = case_when(n_significant_data <= 3 ~ "1-3",
+                          n_significant_data >= 4 & n_significant_data <= 6 ~ "4-6",
+                          TRUE ~ "7-10")) %>% 
+    left_join(wide_upf1) %>% 
+    group_by(group) %>% 
+    filter(!is.na(color_gene_name)) %>% 
+    mutate(n_junc = n_distinct(paste_into_igv_junction)) %>% 
+    distinct(color_gene_name,group,paste_into_igv_junction,n_junc) %>% 
+    group_by(color_gene_name,group) %>% 
+    summarize(n_bucket = n_distinct(paste_into_igv_junction)) %>% 
+    ungroup() %>% 
+    unique()
+xtabs(n_bucket ~ color_gene_name + group,data = df) %>% 
+    prop.table(margin = 2)
+
+```
+
+
+```
+
 
 ### Supplementary figure 3 - NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
