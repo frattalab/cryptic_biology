@@ -121,7 +121,7 @@ make_final_plot = function(summary_table,
                            fisher_result, 
                            category_column = "color_gene_name",
                            color_choices = c("#3288BD","#D53E4F")){
-    
+
     category_col <- sym(category_column)
     
     det_fish = fisher_result$detection_fisher %>% 
@@ -161,7 +161,7 @@ make_final_plot = function(summary_table,
              x = "Group",
              y = "Detection Rate",
              fill = "") +
-        scale_y_continuous(limits = c(0, max(df$detection_rate) * 1.1)) +
+        scale_y_continuous(limits = c(0, max(det_plot_data$detection_rate) * 1.1)) +
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1),
               legend.position = "bottom",
@@ -208,7 +208,7 @@ make_final_plot = function(summary_table,
              x = "Group",
              y = "Selectivity Rate",
              fill = "") +
-        scale_y_continuous(limits = c(0, max(df$selectivity_rate) * 1.1)) +
+        scale_y_continuous(limits = c(0, max(sel_plot_data$selectivity_rate) * 1.1)) +
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1),
               legend.position = "bottom",

@@ -481,35 +481,31 @@ pheatmap(expr_matrix_var_filtered,
 
 
 ## supplementary figure 2 - NMD
-# UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
+# UPF1 KD NMD-insentive events are more likely to be detected in RiMOD, they are not more likely to be selective
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-summary_post = fread("data/summary_metrics_post_mortem.csv")
-pseudo_bulk_plot_slope_filtered_table = fread('data/pseudo_bulk_smg1_filtered_table.csv')
-upf1_filtered_table = fread('data/upf1_filtered_table.csv')
+upf1_summary_postmortem = generate_summary_table(summary_post,
+                       wide_upf1)
+fisher_upf1= run_fisher_test(upf1_summary_postmortem)
 
-smg1_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
-    pseudo_bulk_plot_slope$filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
-)
-
-upf1_result_d <- analyze_junction_detection_and_selectivity(
-    summary_post,
-    upf1_filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued",
-    color_choices = c("#D53E4F","#3288BD")
-)
-
-smg1_d$combined_rate_plot +
-    ggtitle('SMG1i')
-
-upf1_result_d$combined_rate_plot +
-    ggtitle('UPF1 KD')
+upf1_detection_plots = make_final_plot(upf1_summary_postmortem,fisher_upf1)
+print(upf1_detection_plots$detection_plot + ggtitle('UPF1 KD Detection Rate'))
+print(upf1_detection_plots$selectivity_plot + ggtitle('UPF1 KD Selectivity Rate'))
 
 ```
+
+# SMG1 inhibition NMD-insentive events are more likely to be detected, in RiMOD sensitive events are more likely to be selective
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+smg1_summary_postmortem = generate_summary_table(summary_post,
+                       wide_smg1)
+fisher_smg1= run_fisher_test(smg1_summary_postmortem)
+
+smg1_detection_plots = make_final_plot(smg1_summary_postmortem,fisher_smg1)
+print(smg1_detection_plots$detection_plot + ggtitle('SMG1i Detection Rate'))
+print(smg1_detection_plots$selectivity_plot  + ggtitle('SMG1i Selectivity Rate'))
+
+```
+
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ###top50_upf1 - load this table!!
