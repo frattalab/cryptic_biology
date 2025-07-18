@@ -26,6 +26,8 @@ library(ggpubr)
 library(pheatmap)
 library(pdftools)
 library(cowplot)
+library(ggplotify)
+source(here::here('scripts','odds_ratio_plots.R'))
 source(here::here('scripts','trial_nmd_plots.R'))
 give.n <- function(x){
 return(c(y = median(x)*1.05, label = length(x)))
@@ -202,7 +204,7 @@ custom_labels <- c("RiMOD\nFTLD\nFrontal Cortex",
                     "NYGC ALS\nMotor Cortex")
 
 colnames(marker_euler) = custom_labels
-marker_euler %>% 
+gg_euler = marker_euler %>% 
     eulerr::euler(shape = "ellipse") %>% 
     plot(
      fills = c("#EF7F7F", "#ACD7E5", "#4A5240", "#5F4BB6"),
@@ -425,20 +427,42 @@ input_list = c("Control_Control",
                 "Cycloheximide_TDP43KD")
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
+big_data_chx$alpha_gene_name = NULL
+big_data_chx$label_junction = NULL
+
+data_summary_full = fread('data/cryptic_detection_summary_long_version.csv')
+
+true_dark_selective = data_summary_full %>% 
+    filter(true_dark == TRUE) %>%
+    filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
+    pull(paste_into_igv_junction) %>% 
+    unique()
+
+
+true_dark_chx = data_summary_full %>% 
+    filter(chx_effect == 'Dark cryptic' & datasets_detected == 'UPF') %>% 
+    pull(paste_into_igv_junction) %>% 
+    unique()
 chx_slope_plot_table <- slope_plot_nmd(big_data_chx, 
                gene_list_slope,
                input_list = c("Control_Control",
                 "Cycloheximide_Control", 
                 "Control_TDP43KD", 
-                "Cycloheximide_TDP43KD"),nmd_label = 'CHX treatment') #### NMD rescued and unaffected
+                "Cycloheximide_TDP43KD"),
+               nmd_label = 'CHX treatment',
+                true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
 
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
+big_data_upf1$alpha_gene_name = NULL
+big_data_upf1$label_junction = NULL
+
 upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1, 
                gene_list_slope,
                input_list = c("ctrl_ctrl",
                 "ctrl_UPF1", 
                 "TDP43_ctrl", 
-                "TDP43_UPF1"),nmd_label = 'UPF1 KD') #### NMD rescued and unaffected
+                "TDP43_UPF1"),nmd_label = 'UPF1 KD',
+               true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
 
 
 psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups.parquet")
@@ -455,7 +479,8 @@ smg1_slope_plot_table_cyto <- slope_plot_nmd(psi_all_groups_cyto,
                                                                           "nt_nmd_cytosol",
                                                                           "dox_ctrl_cytosol",
                                                                           "dox_nmd_cytosol"),
-                                             nmd_label = 'SMG1i\ncytosolic fraction')
+                                             nmd_label = 'SMG1i\ncytosolic fraction',
+                                             true_dark_junctions = true_dark_selective)
 pseudo_psi = psi_all_groups %>% filter(.id %in% c("nt_ctrl","nt_nmd","dox_ctrl","dox_nmd"))
 
 pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
@@ -464,7 +489,8 @@ pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
                                                         "nt_nmd",
                                                         "dox_ctrl",
                                                         "dox_nmd"),
-                                        nmd_label = 'SMG1i')
+                                        nmd_label = 'SMG1i',
+                                        true_dark_junctions = true_dark_selective)
 
 
 ggarrange(chx_slope_plot_table$plot,upf1_slope_plot_table$plot,pseudo_bulk_plot_slope$plot,nrow = 1)
@@ -667,17 +693,19 @@ sj_star_counts %>%
     ggplot(aes(x = log2rpkm_baseline,colour = color_gene_name)) + 
     geom_rect(aes(xmin = -Inf, xmax = 0, ymin = -Inf, ymax = 1), fill = "lightblue", alpha = 0.2, inherit.aes = FALSE) +  # Bottom-left
     geom_rect(aes(xmin = 0, xmax = Inf, ymin = -Inf, ymax = 1), fill = "moccasin", alpha = 0.2, inherit.aes = FALSE)     +# Top-right
-    stat_ecdf() +
+    stat_ecdf(size = 2) +
     xlab('Nuclear / Cytoplasmic Ratio RPKM') +
     scale_color_manual(values = c("#3288BD","#D53E4F")) +
     theme_classic() +
     labs(color = "SMG1i pseudo-bulk") +
     theme(axis.text  = element_text(size = 18),
-          axis.title = element_text(size = 18)) +
+          axis.title = element_text(size = 18),
+          legend.text = element_text(size = 18)) +
     theme(legend.position = 'bottom')
 ```
 
 # localization of cryptic isoform compare to localization of parent gene - Expression in KD 
+
 
 ```{r}
 # deseq2_results_localization_kd <- read_csv("data/nuc_cyto/deseq2_results_localization_kd.csv") %>% 
@@ -795,46 +823,91 @@ ggarrange(baseline_rpkm_plot,nmdi_rpkm_plot)
 
 
 # Sensitivity/Detection rate of cryptics in tissue by NMD sensitivity -?
-```{r}
-postmortem_summary = fread("data/summary_metrics_post_mortem.csv")
-
-postmortem_summary %>% 
-    left_join(pseudo_bulk_plot_slope$filtered_table %>% ungroup() %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
-    dplyr::rename(pseudo_smgi1 = color_gene_name) %>% 
-    left_join(chx_slope_plot_table$filtered_table %>% ungroup() %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
-    dplyr::rename(chx_call = color_gene_name) %>% 
-    left_join(upf1_slope_plot_table$filtered_table %>% ungroup() %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
-    dplyr::rename(upf1_call = color_gene_name) %>% 
-    pivot_longer(cols = c("pseudo_smgi1",'chx_call','upf1_call')) %>% 
-    filter(fpr_value < 0.1) %>%
-    filter(!is.na(value)) %>% 
-    ggplot(aes(x = name,fill = value, y = frac_ob_tdp_path)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-    facet_wrap(~group,scales = 'free') +
-    theme_classic() +
-        scale_fill_manual(values = c("#3288BD","#D53E4F")) +
-        theme(text = element_text(size = 18)) +
-    ggtitle('FPR < 0.1')
-
-
-
-
-```
-
-# What's less likely to be detected in post-mortem? NMD-sensitive or not?
 
 ```{r}
+
+nygc = fread("~/Desktop/nygc_postmortem_summary.csv")
+rimod = fread("~/Desktop/rimod_post.csv")
+summary_post = rbind(nygc,rimod)
+
 chx_summary_postmortem = generate_summary_table(summary_post,
-                       wide_chx)
+                       wide_chx,
+                       category_column = 'color_gene_name')
 fisher_chx = run_fisher_test(chx_summary_postmortem)
 
 chx_detection_plots = make_final_plot(chx_summary_postmortem,fisher_chx)
-print(chx_detection_plots$detection_plot + ggtitle('CHX Detection Rate'))
-print(chx_detection_plots$selectivity_plot+ ggtitle('CHX Detection Rate'))
+
+upf1_summary_postmortem = generate_summary_table(summary_post,
+                       wide_upf1 )
+fisher_upf1= run_fisher_test(upf1_summary_postmortem)
+
+upf1_detection_plots = make_final_plot(upf1_summary_postmortem,fisher_upf1)
+
+
+smg1_summary_postmortem = generate_summary_table(summary_post,
+                       wide_smg1 %>% filter(smg1_cryptic != 'Dark cryptic'))
+fisher_smg1 = run_fisher_test(smg1_summary_postmortem)
+
+smg1_detection_plots = make_final_plot(smg1_summary_postmortem,fisher_smg1)
+
+
+
+# Create the individual plots with titles
+# Top row: remove x-axis labels and ticks, turn off legends
+chx_detection <- chx_detection_plots$detection_plot + 
+    ggtitle('CHX Detection Rate') + 
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+upf1_detection <- upf1_detection_plots$detection_plot + 
+    ggtitle('UPF1 KD Detection Rate') +
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+smg1_detection <- smg1_detection_plots$detection_plot + 
+    ggtitle('SMG1i Detection Rate') +
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# Bottom row: keep x-axis labels and ticks, use dodge position for overlapping labels
+chx_selectivity <- chx_detection_plots$selectivity_plot + 
+    ggtitle('CHX Selectivity Rate') +
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+upf1_selectivity <- upf1_detection_plots$selectivity_plot + 
+    ggtitle('UPF1 KD Selectivity Rate') +
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+
+smg1_selectivity <- smg1_detection_plots$selectivity_plot + 
+    ggtitle('SMG1i Selectivity Rate') +
+    theme(text = element_text(size = 18),
+          plot.title = element_text(size = 15)) +
+    guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+
+
+arranged_plots_detect <- grid.arrange(
+    chx_detection, upf1_detection, smg1_detection,
+    ncol = 3, nrow = 1
+)
+arranged_plots_sel <- grid.arrange(
+    chx_selectivity, upf1_selectivity, smg1_selectivity,
+    ncol = 3, nrow = 1
+)
 
 ```
 
@@ -844,7 +917,7 @@ print(chx_detection_plots$selectivity_plot+ ggtitle('CHX Detection Rate'))
 
 ```{r}
 
-cryptic_rpkm %>% 
+my_table = cryptic_rpkm %>% 
     left_join(annotated_rpkm) %>% 
     mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
     mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
@@ -854,186 +927,72 @@ cryptic_rpkm %>%
     mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
                                          log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
     mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    right_join(postmortem_summary) %>% 
-    filter(!is.na(nmd_localization)) %>% 
-    filter(fpr_value < 0.1) %>%
-    ggplot(aes(x = group,fill = baseline_localization, y = frac_ob_tdp_path)) + 
+                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) 
+
+
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'baseline_localization') 
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'baseline_localization')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'baseline_localization',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('Localization at baseline'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization at baseline'))
+
+#nmd localization
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'nmd_localization') 
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_localization')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'nmd_localization',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('Localization under NMDi'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization under NMDi'))
+
+#effective of NMD inhibition on localization
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'nmd_cytoshift') 
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_cytoshift')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'nmd_cytoshift',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('NMDi effect on localization'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on localization'))
+
+tmp = wide_smg1 %>% 
+    filter(color_gene_name == 'NMD rescued') %>% 
+    left_join(my_table %>% select(paste_into_igv_junction,baseline_localization))
+
+
+my_table %>% 
+    left_join(wide_chx %>% distinct(chx_effect,paste_into_igv_junction)) %>% 
+    left_join(wide_upf1 %>% distinct(upf1_effect,paste_into_igv_junction)) %>% 
+    left_join(wide_smg1 %>% distinct(smg1_effect,paste_into_igv_junction)) %>% 
+    distinct(paste_into_igv_junction,log2rpkm_baseline,chx_effect,upf1_effect,smg1_effect) %>% 
+    melt(id.vars = c("paste_into_igv_junction",'log2rpkm_baseline')) %>% 
+    filter(value != "PSI > 95% at baseline") %>%
+    filter(value != "Dark cryptic") %>% 
+    filter(!is.na(value)) %>% 
+    ggplot(aes(x = value, y= log2rpkm_baseline)) + 
     geom_boxplot() + 
+    stat_compare_means() + 
+    facet_wrap(~variable) +
     stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') +
-        ggtitle('FPR < 0.1')
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    right_join(postmortem_summary) %>% 
-    filter(!is.na(nmd_localization)) %>% 
-    filter(fpr_value < 0.1) %>%
-    ggplot(aes(x = group,fill = nmd_localization, y = frac_ob_tdp_path)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') +
-        ggtitle('FPR < 0.1')
-
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    right_join(postmortem_summary) %>% 
-    filter(!is.na(nmd_localization)) %>% 
-    # filter(fpr_value < 0.1) %>%
-    ggplot(aes(x = group,fill = baseline_localization, y = fpr_value)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') 
-
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_baseline_annotated = log2((annotated_nucleus_ctrl + 0.001)/ (annotated_cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
-        mutate(annotated_baseline_localization = case_when(log2rpkm_baseline_annotated >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline_annotated <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    
-    right_join(postmortem_summary) %>% 
-    filter(!is.na(annotated_baseline_localization)) %>% 
-    ggplot(aes(x = group,fill = annotated_baseline_localization, y = fpr_value)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') 
-
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_baseline_annotated = log2((annotated_nucleus_ctrl + 0.001)/ (annotated_cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
-        mutate(annotated_baseline_localization = case_when(log2rpkm_baseline_annotated >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline_annotated <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    
-    right_join(postmortem_summary) %>% 
-    filter(!is.na(annotated_baseline_localization)) %>% 
-    filter(fpr_value < 0.1 & value_tdp_path >=5) %>%
-    ggplot(aes(x = group,fill = annotated_baseline_localization, y = frac_ob_tdp_path)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') +
-        ggtitle('FPR < 0.1')
-
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
-    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) %>% 
-    right_join(postmortem_summary) %>% 
-    filter(fpr_value < 0.1) %>% 
-    filter(!is.na(nmd_localization)) %>% 
-    ggplot(aes(x = group,fill = nmd_cytoshift, y = frac_ob_tdp_path)) + 
-    geom_boxplot() + 
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-        theme_classic() +
-    scale_fill_manual(values = c("lightblue","moccasin")) +
-        theme(text = element_text(size = 18)) +
-    facet_wrap(~group,scales = 'free') 
-
-
-ps = postmortem_summary %>% 
-    group_by(paste_into_igv_junction) %>% 
-    filter(fpr_value < 0.1 & value_tdp_path >=5) %>% pull(paste_into_igv_junction)
-total_summ = postmortem_summary %>% 
-    group_by(paste_into_igv_junction) %>% 
-    summarize(total_samples_tdp_path = sum(n_samples_tdp_path),
-              total_ob = sum(value_tdp_path)) %>% 
-    mutate(frac_ob_path = total_ob/total_samples_tdp_path) %>% 
-    filter(paste_into_igv_junction %in% ps)
-
-cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2_annotated = log2((annotated_nucleus_ctrl)/ (annotated_cytosol_ctrl))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl)/ (cytosol_ctrl))) %>% 
-    mutate(log2_cryptic_nuclear_bias = log2rpkm_baseline - log2_annotated) %>% 
-    group_by(gene_name) %>% 
-    mutate(color_gene_name = ifelse(any(color_gene_name == 'NMD rescued'),'NMD rescued', color_gene_name)) %>% 
-    right_join(total_summ) %>% 
-    filter(!is.na(color_gene_name))%>% 
-    as.data.table() %>% 
-    group_by(color_gene_name) %>% 
-    mutate(gene_name = fct_reorder(gene_name, frac_ob_path)) %>% 
-    ggplot(aes(x = gene_name,
-               y = log2_cryptic_nuclear_bias)) + 
-    geom_col()+ 
-    facet_wrap(~color_gene_name,scales = 'free') +
-    coord_flip()
-        stat_compare_means()
-
-
+                 fun.y = median,
+                 position = position_dodge(width = 0.75)) +
+    ylab("Log2 baseline cryptic RPKM localization (positive means nuclear)")
 
 ``` 
 
@@ -1131,7 +1090,7 @@ a = levels_sy5y_qpcr %>%
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   theme_classic() +
-  theme(text = element_text(size = plot_text_size))
+  theme(text = element_text(size = 18))
 c <- levels_dz_qpcr %>%
   filter(experiment == "new_new") %>%
   ggplot(aes(x = as.character(sample), y = 100*value)) +
@@ -1141,7 +1100,7 @@ c <- levels_dz_qpcr %>%
   ylab('TDP-43 levels (% of untreated)') +
   #facet_wrap(facets = vars(experiment)) +
   theme_classic() +
-  theme(text = element_text(size = plot_text_size))
+  theme(text = element_text(size = 18))
 a+c
 #ggsave("~/Desktop/curves_qpcr.svg", width = 10, height = 6, dpi = 300)
 
@@ -2070,33 +2029,51 @@ g
 
 ```{r fpr_early_late_max_min}
 
+nygc = fread("~/Desktop/nygc_postmortem_summary.csv")
+rimod = fread("~/Desktop/rimod_post.csv")
+summary_post = rbind(nygc,rimod)
+cryptic_early_late = master_table %>% 
+    filter(cryptic == 'yes') %>% 
+    filter(new_cate %in% c("Early","Late"))
 
-master_table %>% 
-    mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
-                               max_psi_be2 == "" ~ max_psi_sh,
-                               max_psi_sh == "" ~ max_psi_be2,
-                               max_psi_be2 == 'Medium' ~ max_psi_sh,
-                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>% 
-    filter(!is.na(new_max)) %>% 
-    left_join(postmortem_summary) %>% 
-    filter(new_cate %in% c("Early","Late")) %>% 
-    filter(new_max %in% c("Top","Bottom")) %>% 
-    # filter(fpr_value < 0.1) %>% 
-    filter(!is.na(group)) %>% 
-    ggplot(aes(x = new_cate, y = fpr_value,fill = new_max)) + 
-    geom_boxplot() +
-    facet_wrap(~group,scales = 'free')  +
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75)) +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-    theme_classic() +
-        # scale_fill_manual(values = c("#de53b0","#173dd3")) +
-    scale_fill_manual(values = plot_psi_colors) +
+early_late_post = generate_summary_table(summary_post,
+                       cryptic_early_late,
+                            category_column = 'new_cate')
+fisher_timing = run_fisher_test(early_late_post,
+                                category_column = 'new_cate')
+
+early_late_plots = make_final_plot(early_late_post,
+                                      fisher_timing,
+                                      category_column = 'new_cate',
+                                      color_choices = c("#de53b0", "#173dd3"))
+early_late_plots$detection_plot + 
+          ggtitle('Early/Late Detection Rate') + 
     theme(text = element_text(size = 18)) +
-    ylab("False positive rate")
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+
+early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
+    theme(text = element_text(size = 18)) +
+        theme(text = element_text(size = 18)) +
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
 
 ```
+
+
+
+```{r}
+full_summary_table = fread("/Users/annaleigh/Desktop/long_version.csv")
+full_summary_table %>% 
+    filter(chx_effect == 'Dark cryptic') %>% 
+    filter(datasets_detected == 'CHX -SHY5Y') %>% 
+    filter(fpr_value < 0.1 & value_tdp_path >=5)
+
+```
+
+
 
 
 ```{r detection_rate_early_late_max_min}
@@ -2159,7 +2136,8 @@ ggplot(new_cate_nmd_sens) +
          x = element_blank(),
          fill = 'Cycloheximide treatment') +
     scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
-    theme(legend.position = 'bottom') 
+    theme(legend.position = 'bottom') +
+    theme(text = element_text(size = 18))
 
 new_cate_nmd_sens %>% 
     filter(chx_effect != "PSI > 95% at baseline") %>% 

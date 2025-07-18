@@ -488,8 +488,12 @@ upf1_summary_postmortem = generate_summary_table(summary_post,
 fisher_upf1= run_fisher_test(upf1_summary_postmortem)
 
 upf1_detection_plots = make_final_plot(upf1_summary_postmortem,fisher_upf1)
-print(upf1_detection_plots$detection_plot + ggtitle('UPF1 KD Detection Rate'))
-print(upf1_detection_plots$selectivity_plot + ggtitle('UPF1 KD Selectivity Rate'))
+upf1_detection_plots$detection_plot + ggtitle('UPF1 KD Detection Rate')) +
+        theme(text = element_text(size = 18))
+
+upf1_detection_plots$selectivity_plot + ggtitle('UPF1 KD Selectivity Rate')) +
+        theme(text = element_text(size = 18))
+
 
 ```
 
@@ -500,8 +504,12 @@ smg1_summary_postmortem = generate_summary_table(summary_post,
 fisher_smg1= run_fisher_test(smg1_summary_postmortem)
 
 smg1_detection_plots = make_final_plot(smg1_summary_postmortem,fisher_smg1)
-print(smg1_detection_plots$detection_plot + ggtitle('SMG1i Detection Rate'))
-print(smg1_detection_plots$selectivity_plot  + ggtitle('SMG1i Selectivity Rate'))
+print(smg1_detection_plots$detection_plot + ggtitle('SMG1i Detection Rate')) +
+            theme(text = element_text(size = 18))
+
+print(smg1_detection_plots$selectivity_plot  + ggtitle('SMG1i Selectivity Rate')) +
+            theme(text = element_text(size = 18))
+
 
 ```
 

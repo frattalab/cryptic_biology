@@ -5,7 +5,8 @@ slope_plot_nmd <- function(big_data, gene_list, input_list = c("Control_Control"
                                                                              "Cycloheximide_Control", 
                                                                              "Control_TDP43KD", 
                                                                              "Cycloheximide_TDP43KD"),
-                       nmd_label = "CHX treatment"){
+                       nmd_label = "CHX treatment",
+                       true_dark_junctions = c("chr7:1898390-1957629")){
 
 big_data_filtereds <- big_data %>%
     filter(.id %in% input_list) %>% 
@@ -19,8 +20,10 @@ big_data_filtereds <- big_data %>%
   dplyr::filter((mean_psi_per_lsv_junction[.id == input_list[3]] - mean_psi_per_lsv_junction[.id == input_list[1]] > 0.05 |
            mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[1]] > 0.05)) %>%
   #dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[3]] > 0) %>%# &
-  mutate(color_gene_name = as.character(ifelse(mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[3]] > 0.1, 
-                                               "NMD rescued", "non-NMD rescued")))
+    mutate(color_gene_name = as.character(ifelse(
+        mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[3]] > 0.1 |
+            (mean_psi_per_lsv_junction[.id == input_list[3]] < 0.09 & mean_psi_per_lsv_junction[.id == input_list[4]] > 0.1), 
+        "NMD rescued", "non-NMD rescued")))
   # mutate(alpha_gene_name = as.character(ifelse(mean_psi_per_lsv_junction[.id == input_list[4]] > 0.25 &
   #                                                gene_name %in% gene_list,
   #                                                # paste_into_igv_junction %in% c("chr19:17641556-17642414",
@@ -43,11 +46,30 @@ highlighting_table = big_data_filtereds %>%
     mutate(label_junction = gene_name) %>% 
     distinct(paste_into_igv_junction,gene_name,alpha_gene_name,label_junction)
 
-    
 
+higlight_dark = big_data_filtereds %>% 
+    filter(gene_name %in% gene_list) %>% 
+    filter(.id == c(input_list[4])) %>% 
+    group_by(gene_name) %>% 
+    slice_max(mean_psi_per_lsv_junction) %>% 
+    mutate(alpha_gene_name = 1) %>% 
+    mutate(label_junction = gene_name) %>% 
+    distinct(paste_into_igv_junction,gene_name,alpha_gene_name,label_junction) %>% 
+    filter(paste_into_igv_junction %in% true_dark_junctions)
 #big_data_filtereds_list <- big_data_filtereds %>% filter(color_gene_name == "Delta PSI > 0.05") %>% pull(gene_name) %>% unique()
 
 #rite.table(big_data_filtereds, "~/Desktop/nmd_or_not.csv", quote = F, row.names = F, sep = ",")
+true_dark_table = big_data_filtereds %>%
+    dplyr::filter(.id %in% c(input_list[3],input_list[4])) %>%
+    left_join(highlighting_table) %>% 
+    mutate(label_junction = ifelse(.id == input_list[3], NA_character_,label_junction)) %>% 
+    mutate(alpha_gene_name = ifelse(is.na(alpha_gene_name),0.4,alpha_gene_name)) %>% 
+    group_by(paste_into_igv_junction,.id) %>% 
+    mutate(label_junction = ifelse(mean_psi_per_lsv_junction == max(mean_psi_per_lsv_junction),label_junction, NA_character_)) %>% 
+    mutate(alpha_gene_name = ifelse(mean_psi_per_lsv_junction == max(mean_psi_per_lsv_junction),alpha_gene_name,0.4)) %>% 
+    ungroup() %>% 
+    mutate(with_dark_color = color_gene_name) %>% 
+    filter(paste_into_igv_junction %in% true_dark_junctions)
 
 ploss = big_data_filtereds %>%
   dplyr::filter(.id %in% c(input_list[3],input_list[4])) %>%
@@ -58,7 +80,6 @@ ploss = big_data_filtereds %>%
     mutate(label_junction = ifelse(mean_psi_per_lsv_junction == max(mean_psi_per_lsv_junction),label_junction, NA_character_)) %>% 
     mutate(alpha_gene_name = ifelse(mean_psi_per_lsv_junction == max(mean_psi_per_lsv_junction),alpha_gene_name,0.4)) %>% 
     ungroup() %>% 
-
   ggplot(mapping = aes(x = .id, y = mean_psi_per_lsv_junction)) +
   facet_wrap(facets = vars(color_gene_name)) +
   geom_point(aes(color = color_gene_name, alpha = alpha_gene_name, group = lsv_junc), show.legend = F) + 
@@ -78,6 +99,9 @@ ploss = big_data_filtereds %>%
   scale_y_continuous(limits = c(0,1), breaks = c(0,0.25,0.5,0.75,1), labels = c("0%", "25%", "50%", "75%", "100%")) +
   theme_classic() +
   theme(text = element_text(size = 18))
+ploss = ploss + 
+    geom_point(data = true_dark_table,color = 'black') + 
+    geom_line(data = true_dark_table, aes(group = lsv_junc), color = 'black',alpha = 0.3)
 plot(ploss)
 
 return_list = list(ploss,big_data_filtereds)
