@@ -438,11 +438,6 @@ true_dark_selective = data_summary_full %>%
     pull(paste_into_igv_junction) %>% 
     unique()
 
-
-true_dark_chx = data_summary_full %>% 
-    filter(chx_effect == 'Dark cryptic' & datasets_detected == 'UPF') %>% 
-    pull(paste_into_igv_junction) %>% 
-    unique()
 chx_slope_plot_table <- slope_plot_nmd(big_data_chx, 
                gene_list_slope,
                input_list = c("Control_Control",
@@ -558,23 +553,33 @@ cyto_kd = cyto_kd %>%
     mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
     mutate(fraction = 'cytoplasmic RNA')
 
-frac_nmd_effect = nuc_kd %>% 
+facet_labels <- c("Low expressed (PSI < 46%)", "High expressed (PSI > 46%)")
+names(facet_labels) <- unique(nuc_kd$bin_max)  
+
+nuc_kd %>% 
     rbind(cyto_kd) %>% 
-    ggplot(aes(x = fraction,
-               y = log2FoldChange,fill = smg1_effect)) + 
-    geom_hline(yintercept = 0,linetype = 'dotted') +
+    group_by(smg1_effect,bin_max) %>% 
+    mutate(n = n_distinct(paste_into_igv_junction)) %>% 
+    mutate(x = glue::glue('{smg1_effect}\nn = {n}')) %>% 
+    ggplot(aes(x = x,
+               y = log2FoldChange,
+               fill = fraction)) + 
+    geom_hline(yintercept = 0, linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
-    stat_summary(fun.data = give.n,
-                 geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75),color = 'white') +
     theme_classic() +
+    labs(fill = 'Subcellular fraction') +
     xlab(element_blank()) +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F")) + 
+    scale_fill_manual(values = c("lightblue", "moccasin")) + 
     ylab("Log2 Fold Change TDP-43 KD") +
-    facet_wrap(~bin_max) +
-        theme(text  = element_text(size = 18)) +
-    theme(legend.position = 'none')
+    facet_wrap(~bin_max, labeller = labeller(bin_max = facet_labels),scales = 'free_x') +
+    theme(text = element_text(size = 18)) +
+    stat_compare_means(hide.ns = TRUE, 
+                       method = "wilcox.test",
+                       label = "p.signif",  
+                       p.adjust.method = "BH",
+                       size = 10) + 
+    theme(legend.position = 'bottom')
+
 
 ```
 
@@ -640,27 +645,6 @@ upf1_nmd_effect = upf1_rna_full %>%
     theme(legend.position = 'none') +
     theme(text  = element_text(size = 18)) 
 
-# Extract legend from p1
-legend <- get_legend(chx_nmd_effect)
-if (is.null(legend) || inherits(legend, "zeroGrob")) {
-    cat("Warning: Legend extraction failed. Trying alternative approach...\n")
-    # Alternative approach: use gtable to extract the legend
-    library(gtable)
-    library(grid)
-    gt <- ggplotGrob(chx_nmd_effect)
-    legend <- gt$grobs[[which(sapply(gt$grobs, function(x) x$name) == "guide-box")]]
-}
-# Remove legend from p1 for placement in the layout
-chx_nmd_effect <- chx_nmd_effect + theme(legend.position = "none")
-# Top row with two plots
-top_row <- plot_grid(chx_nmd_effect, upf1_nmd_effect, ncol = 2, rel_widths = c(1, 1))
-
-# Combine everything
-combined <- plot_grid(top_row, frac_nmd_effect, ncol = 1, rel_heights = c(1, 1))
-
-# Add the legend to the right
-final_plot <- plot_grid(combined, legend, ncol = 1, rel_heights = c(1, 0.1))
-final_plot
 ```
 
 
@@ -819,6 +803,8 @@ nmdi_rpkm_plot = cryptic_rpkm %>%
     theme(text = element_text(size = 18))
 
 ggarrange(baseline_rpkm_plot,nmdi_rpkm_plot)  
+
+
 ```
 
 
@@ -1055,17 +1041,22 @@ chx_rna_full %>%
 
 
 
-## Figure 3 - Dose-response curves in SH-SY5Y and SK-N-BE(2)
+# Figure 3 - Dose-response curves in SH-SY5Y and SK-N-BE(2)
 
-A. Dose-response curves for SH-SY5Y and SK-N-BE(2)
-B. Differential expression in SH-SY5Y and in SK-N-BE(2)
-C. Spaghetti plot in SH-SY5Y and in SK-N-BE(2)
-D. Alluvial plot
-E. Concordance between SH and SK (scatterplot) 
-F. NMD early late
-G. expression nmd genes in curves
 
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
+master_table <- read.csv(here::here("data/master_table.csv"))
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
+
 #1A and 1B
 levels_sy5y_qpcr <- read.csv(here::here('data',"qPCR_RNA.csv"))
 levels_sy5y_qpcr = levels_sy5y_qpcr %>%
@@ -1148,7 +1139,8 @@ e <- plot_de %>%
     geom_point(inherit.aes = FALSE,
               aes(x = log2FoldChange, y = as.factor(source),color = symbol),
               data = plot_de_stmn_unc) + 
-        labs(color = "") 
+        labs(color = "") +
+      theme(text = element_text(size = 18))
 
 
 avg_be2_qpcr = levels_dz_qpcr %>%
@@ -1193,7 +1185,8 @@ f <- plot_de_dz %>%
     geom_point(inherit.aes = FALSE,
           aes(x = log2FoldChange, y = as.factor(source),color = symbol),
           data = plot_de_stmn_unc_dz) +
-    labs(color = "") 
+    labs(color = "") +
+      theme(text = element_text(size = 18))
 
 ggarrange(e, f, common.legend = TRUE, legend = 'bottom')
 #ggsave("~/Desktop/de_curves.png", width = 8, height = 4, dpi = 300)
@@ -1798,34 +1791,71 @@ ya_motifs <- c('ATGTGT', 'TGTGTA', 'TGCATG', 'GTGTAT', 'TGTATG', 'GTATGT')
 aa_motifs <- c('AATGAA', 'TTGAAT', 'ATGAAT', 'GTGTGA', 'TGAATG', 'GAATGA', 'GTGAAT', 'GAATGT')
 all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
 categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
+flank_size = 250
+flank_region = master_table %>% 
+      filter(new_cate %in% c("Early", "Late")) %>%
+    mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
+                               max_psi_be2 == "" ~ max_psi_sh,
+                               max_psi_sh == "" ~ max_psi_be2,
+                               max_psi_be2 == 'Medium' ~ max_psi_sh,
+                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>% 
+    filter(junc_cat != "exon_skip") %>% 
+    filter(cryptic == 'yes') %>% 
+    separate(paste_into_igv_junction,into = c("seqnames","og_start","og_end"),convert = TRUE,remove = FALSE) %>% 
+    mutate(start = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end - flank_size,
+                             junc_cat == "donor" & strand == "+" ~ og_start - flank_size,
+                             junc_cat == "acceptor" & strand == "-" ~ og_start - flank_size,
+                             junc_cat == "donor" & strand == "-" ~ og_end - flank_size)) %>% 
+    mutate(end = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end + flank_size,
+                           junc_cat == "donor" & strand == "+" ~ og_start + flank_size,
+                           junc_cat == "acceptor" & strand == "-" ~ og_start + flank_size,
+                           junc_cat == "donor" & strand == "-" ~ og_end + flank_size)) %>% 
+    mutate(name = snakecase::to_snake_case(paste(gene,junc_cat,paste_into_igv_junction,cryptic,new_cate,sep  = "_"))) %>% 
+    unique() %>% 
+    makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
 
-count_hexamers <- function(row) {
-  if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
-    return(NULL)
-  }
-
-  coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
-  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
-  if (row[["strand"]] == "-") {
-    seq <- reverseComplement(seq)
-  }
-  counts <- sapply(all_motifs, function(motif) countPattern(motif, seq, max.mismatch = 0))
-  names(counts) <- all_motifs
-
-  return(counts)
+count_hexamers_granges <- function(granges_obj, motifs = all_motifs, genome = BSgenome.Hsapiens.UCSC.hg38) {
+    # Input validation
+    if (!is(granges_obj, "GRanges")) {
+        stop("Input must be a GRanges object")
+    }
+    
+    if (length(granges_obj) == 0) {
+        warning("Empty GRanges object provided")
+        return(NULL)
+    }
+    
+    # Extract sequences for all ranges at once (vectorized operation)
+    sequences <- getSeq(genome, granges_obj)
+    
+    # Handle strand information if present
+    if ("strand" %in% names(mcols(granges_obj)) || any(strand(granges_obj) != "*")) {
+        # Use strand information from GRanges object
+        minus_strand <- as.logical(strand(granges_obj) == "-")
+        sequences[minus_strand] <- reverseComplement(sequences[minus_strand])
+    }
+    
+    # Count motifs for each sequence (vectorized)
+    count_matrix <- sapply(motifs, function(motif) {
+        vcountPattern(motif, sequences, max.mismatch = 0)
+    })
+    
+    # Set row names and column names
+    rownames(count_matrix) <- names(granges_obj)
+    colnames(count_matrix) <- motifs
+    
+    return(count_matrix)
 }
 
-master_table_filt <- master_table %>%
-  filter(new_cate %in% c("Early", "Late")) %>%
-  filter(junc_cat != "exon_skip") %>%
-  distinct(paste_into_igv_junction_annotated, .keep_all = T)
-kmer_table <- apply(master_table_filt, 1, count_hexamers)
-all_counts_df <- as.data.frame(t(kmer_table))
+kmer_counts <- count_hexamers_granges(flank_region)
 
-all_counts_df$type <- master_table_filt$new_cate
-all_counts_df$cryptic <- master_table_filt$cryptic
+# Convert back to data frame for existing analysis
+kmer_df <- as.data.frame(kmer_counts)
+kmer_df$type <- mcols(flank_region)$new_cate
+kmer_df$cryptic <- mcols(flank_region)$cryptic
 
-summary_counts <- all_counts_df %>%
+
+summary_counts <- kmer_df %>%
   group_by(type, cryptic) %>%
   summarise(across(all_motifs, sum))
 
@@ -1848,17 +1878,17 @@ sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early C
 
 annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
                                 #show_legend = c(F, F, F),
-                                col = list(Motif = c(YG = "palegreen3", YA = "turquoise3", AA = "tan1")),
+                                col = list(Motif = c(YG = "#35590F", YA = "#4E72F7", AA = "#B22724")),
                                 which = "col")
-c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
+c <- Heatmap(heatmap_data[c("Early Cryptic","Late Cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
         show_row_names = T,
         show_column_names = T,
         show_row_dend = F,
-        bottom_annotation = annotation,
-        col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
-        show_heatmap_legend = FALSE)
+        bottom_annotation = annotation)
+        # col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
+        # show_heatmap_legend = FALSE)
 c
 
 ```
