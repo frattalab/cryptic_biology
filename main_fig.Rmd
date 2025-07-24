@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE)
 ###load packages/libraries/scripts
 #BiocManager::install("ComplexHeatmap")
+library(zoo)
+library(gridExtra)
 library(data.table)
 library(tidyverse)
 library(ggrepel)
@@ -29,13 +31,12 @@ library(cowplot)
 library(ggplotify)
 source(here::here('scripts','odds_ratio_plots.R'))
 source(here::here('scripts','trial_nmd_plots.R'))
+source(here::here('scripts',"create_coverage_vectors.R"))
+
 give.n <- function(x){
 return(c(y = median(x)*1.05, label = length(x)))
 }
 
-
-#check you're in right folder
-here::here()
 
 #plot parameters
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#173dd3",
@@ -692,10 +693,7 @@ sj_star_counts %>%
 
 
 ```{r}
-# deseq2_results_localization_kd <- read_csv("data/nuc_cyto/deseq2_results_localization_kd.csv") %>% 
-#     mutate(gene_id = gsub("\\..*","",gene_id))
-# deseq2_results_localization_baseline <- read_csv("data/nuc_cyto/deseq2_results_localization_baseline.csv") %>% 
-#         mutate(gene_id = gsub("\\..*","",gene_id))
+
 
 cryptics =(pseudo_bulk_plot_slope$filtered_table %>% 
                                              ungroup() %>% 
@@ -901,7 +899,7 @@ arranged_plots_sel <- grid.arrange(
 
 # Sensitivity/Detection rate of cryptics in tissue by localization?
 
-```{r}
+```{r sensitivity_by_localization}
 
 my_table = cryptic_rpkm %>% 
     left_join(annotated_rpkm) %>% 
@@ -956,29 +954,6 @@ nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
                                         color_choices = c("lightblue","moccasin"))
 print(nmd_localization_effect_plots$detection_plot + ggtitle('NMDi effect on localization'))
 print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on localization'))
-
-tmp = wide_smg1 %>% 
-    filter(color_gene_name == 'NMD rescued') %>% 
-    left_join(my_table %>% select(paste_into_igv_junction,baseline_localization))
-
-
-my_table %>% 
-    left_join(wide_chx %>% distinct(chx_effect,paste_into_igv_junction)) %>% 
-    left_join(wide_upf1 %>% distinct(upf1_effect,paste_into_igv_junction)) %>% 
-    left_join(wide_smg1 %>% distinct(smg1_effect,paste_into_igv_junction)) %>% 
-    distinct(paste_into_igv_junction,log2rpkm_baseline,chx_effect,upf1_effect,smg1_effect) %>% 
-    melt(id.vars = c("paste_into_igv_junction",'log2rpkm_baseline')) %>% 
-    filter(value != "PSI > 95% at baseline") %>%
-    filter(value != "Dark cryptic") %>% 
-    filter(!is.na(value)) %>% 
-    ggplot(aes(x = value, y= log2rpkm_baseline)) + 
-    geom_boxplot() + 
-    stat_compare_means() + 
-    facet_wrap(~variable) +
-    stat_summary(fun.data = give.n, geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75)) +
-    ylab("Log2 baseline cryptic RPKM localization (positive means nuclear)")
 
 ``` 
 
@@ -1893,6 +1868,12 @@ c
 
 ```
 
+```{r kmer barplot}
+
+```
+
+
+
 ```{r ug_dense sh-y5y, echo=FALSE, warning=FALSE, message=FALSE}
 #D. Density UG motifs by early-late in SH-SY5Y
 print("2D and 2E - Density UG motifs by early-late and top-bottom in SH-SY5Y")
@@ -1961,6 +1942,56 @@ e <- master_table %>%
   theme(text = element_text(size = plot_text_size))
 d + e
 ```
+
+```{r postar3_coverage_fraction_early and late}
+tdp_3 = rtracklayer::import('data/postar3_tardbp_reduced.bed')
+
+coverage_numeric_tdp_flank <- create_coverage_vectors(flank_region, tdp_3)
+coverage_matrix_tdp<- do.call(rbind, coverage_numeric_tdp_flank) %>%
+    as_tibble() %>%
+    mutate(name = flank_region$name,
+           ID_exon = flank_region$ID_exon) %>%
+    dplyr::relocate(name,ID_exon)
+
+coverage_matrix_tdp %>%
+    mutate(cryptic = ifelse(grepl("_yes",name),"cryptic","alternative")) %>%
+    mutate(type = ifelse(grepl("acceptor",name),"acceptor","donor")) %>%
+    mutate(timing = gsub(".*_","",name)) %>%
+    reshape2::melt(id.vars = c("name","cryptic","timing","type","ID_exon")) %>%
+    mutate(pos = parse_number(as.character(variable))) %>%
+    left_join(data.frame(name = flank_region$name, strand = strand(flank_region))) %>%
+    mutate(pos = ifelse(strand == "-", max(pos) - pos + 1, pos)) %>%
+    group_by(pos,timing,type,cryptic) %>%
+    summarise(cov_val = mean(value)) %>%
+    mutate(pos = pos - (flank_size)) %>%
+    ungroup() %>%
+    group_by(timing,type,cryptic) %>%
+    filter(timing %in% c("early","late")) %>%
+    filter(cryptic == 'cryptic') %>%
+    mutate(
+        smoothed_weight = rollmean(
+            cov_val,
+            k = 5,
+            fill = NA,
+            align = "center"
+        )) %>%
+    ungroup() %>%
+    # mutate(type = fct_relevel(type,"donor")) %>%
+    ggplot(aes(x = pos, y = smoothed_weight,color = timing)) +
+    geom_line(size = 1.6) +
+    facet_wrap(~type) +
+    theme_bw() +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    ylab("Fraction covered TDP-43 Postar3") +
+    geom_vline(xintercept = 0,linetype = 'dotted') +
+    xlab("Distance from cryptic splice site (bp)") +
+    scale_color_manual(values = c("#de53b0" ,   "#173dd3")) +
+    theme(text = element_text(size = 18))
+
+```
+
+
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
