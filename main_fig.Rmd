@@ -1982,7 +1982,7 @@ coverage_matrix_tdp %>%
     facet_wrap(~type) +
     theme_bw() +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-    ylab("Fraction covered TDP-43 Postar3") +
+    ylab("Fraction of junctions bound by TDP-43 Postar3") +
     geom_vline(xintercept = 0,linetype = 'dotted') +
     xlab("Distance from cryptic splice site (bp)") +
     scale_color_manual(values = c("#de53b0" ,   "#173dd3")) +
@@ -1995,6 +1995,9 @@ coverage_matrix_tdp %>%
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #F. Distance iCLIP TDP43 binding site SH-SY5Y
+exact_splice_site <- resize(flank_region, width = 1, fix = "center")
+overlaps <- distanceToNearest(exact_splice_site, tdp_3)
+
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 
@@ -2014,6 +2017,16 @@ f1 <- df_iclip %>%
 
 f1
 
+overlaps_exact = overlaps %>% 
+    as.data.frame()
+
+overlaps_exact$gene = exact_splice_site$gene
+overlaps_exact$junc_cat = exact_splice_site$junc_cat
+overlaps_exact$new_cate = exact_splice_site$new_cate
+
+overlaps_exact %>% 
+    ggplot(aes(x = distance, color = new_cate)) + 
+    geom_density()
 ```
 
 ```{r binding_sites_heatmap}
