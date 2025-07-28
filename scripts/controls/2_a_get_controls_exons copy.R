@@ -138,4 +138,12 @@ for(g in 1:length(gr_master)){
 
 all_control_exons_seq = getSeq(BSgenome.Hsapiens.UCSC.hg38,all_control_exons)
 names(all_control_exons_seq) = all_control_exons$name
-writeXStringSet(all_control_exons_seq, file = "~/Desktop/all_control_exons.fasta")
+writeXStringSet(all_control_exons_seq, file = "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons.fa")
+
+meta_table = all_control_exons %>% 
+    as.data.table() %>% 
+    distinct(cryptic_name,junc_cat,name)
+
+meta_table %>% 
+    left_join(gr_master %>% as.data.frame() %>% distinct(name,paste_into_igv_junction,new_cate),by = c("cryptic_name" = 'name')) %>% 
+    fwrite('data/repeatmasker/metadata_mapping_exon_controls.txt')
