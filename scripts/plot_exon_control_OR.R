@@ -17,7 +17,7 @@ library(circlize)
 
 
 rm_cryptics <- "data/repeatmasker/junction_windows.fa_rm.bed"
-rm_ctrl <- "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/output/control_all_controls_as_exons.fa_rm.bed"
+rm_ctrl <- "data/repeatmasker/control_all_controls_as_exons.fa_rm.bed"
 
 dir_meta <- "data/repeatmasker/metadata_mapping_exon_controls.txt"
 sr_table <- "data/repeatmasker/simplerepeats_table.txt"
