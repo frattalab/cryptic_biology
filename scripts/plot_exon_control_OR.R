@@ -10,6 +10,8 @@ library(writexl)
 library(ggplot2)
 library(ComplexHeatmap)
 library(circlize)
+library(data.table)
+library(ggplotify)
 
 ################################################################################
 

@@ -5,19 +5,30 @@
 
 # LIBRARIES
 
-library(dplyr)
+library(tidyverse)
 library(plyranges)
 library(txdbmaker)
 library(GenomicFeatures)
 library(annotatr)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(Biostrings)
+library(data.table)
 
 ################################################################################
 
 # INPUT
 source("scripts/splicejame_closestExonToJunctions.R")
-
+master_table <- read.csv(here::here("data/master_table.csv"))
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+    mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
 
 gtf = txdbmaker::makeTxDbFromGFF('/Users/annaleigh/Downloads/gencode.v42.primary_assembly.annotation.gtf')
 gr_master = master_table %>% 
@@ -125,8 +136,10 @@ for(g in 1:length(gr_master)){
     
     #sample 5 random exons
     if(length(chosen_exons) >=5){
+        set.seed(420)
         rows_to_sample = sample(1:length(chosen_exons),size = 5,replace = FALSE)
     }else{
+        set.seed(420)
         rows_to_sample = sample(1:length(chosen_exons),size = length(chosen_exons),replace = FALSE)
     }
     
@@ -138,7 +151,7 @@ for(g in 1:length(gr_master)){
 
 all_control_exons_seq = getSeq(BSgenome.Hsapiens.UCSC.hg38,all_control_exons)
 names(all_control_exons_seq) = all_control_exons$name
-writeXStringSet(all_control_exons_seq, file = "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons.fa")
+writeXStringSet(all_control_exons_seq, file = "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons_420seed.fa")
 
 meta_table = all_control_exons %>% 
     as.data.table() %>% 
