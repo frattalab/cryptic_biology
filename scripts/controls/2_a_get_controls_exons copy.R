@@ -90,7 +90,9 @@ assigned_closest_exon = assigned_closest_exon %>%
 
 ## for each cryptic event, generate 5 control exons
 all_control_exons = GRanges()
+set.seed(69)
 for(g in 1:length(gr_master)){
+    print(g)
     this_event = gr_master[g]
 
     this_event_strand = as.data.frame(this_event) %>% pull(strand) %>% unique()
@@ -104,28 +106,36 @@ for(g in 1:length(gr_master)){
     these_possible_exons$exon_name = NULL
     these_possible_exons$exon_rank = NULL
     these_possible_exons = these_possible_exons %>% unique()
-   
+    
     if(length(these_possible_exons) > 2){
-        these_possible_exons = subsetByOverlaps(possible_control_exons,assigned_closest_exon,invert = TRUE)
+        these_possible_exons = subsetByOverlaps(these_possible_exons,assigned_closest_exon,invert = TRUE)
     }else{
         print(this_event)
+
     }
 
+    
     if(this_events_junc_cate == 'acceptor'){
-
+            
             chosen_exons = resize(these_possible_exons,fix = 'start',width = 1)
-            chosen_exons = unique(resize(chosen_exons,fix = 'center',width = 250))
+
+            chosen_exons = resize(chosen_exons,fix = 'center',width = 500)
+
   
     }else{
         chosen_exons = resize(these_possible_exons,fix = 'end',width = 1)
-        chosen_exons = unique(resize(chosen_exons,fix = 'center',width = 250))
+        chosen_exons = resize(chosen_exons,fix = 'center',width = 500)
         
 
     }
+
+    exon_ids = these_possible_exons %>% as.data.table() %>% mutate(exon_id = glue::glue("{seqnames}:{start}-{end}")) %>% pull(exon_id)
     
     chosen_exons$gene_name = this_event$gene
     chosen_exons$cryptic_name = this_event$name
     chosen_exons$junc_cat = this_events_junc_cate
+    chosen_exons$exon_ids = exon_ids
+    chosen_exons = chosen_exons %>% unique()
     
     chosen_exons = chosen_exons %>% 
         group_by(gene_name, junc_cat) %>%
@@ -133,27 +143,36 @@ for(g in 1:length(gr_master)){
             name = paste0(gene_name, "_", junc_cat, "_", row_number())
         ) %>%
         ungroup()
-    
     #sample 5 random exons
-    if(length(chosen_exons) >=5){
-        set.seed(420)
-        rows_to_sample = sample(1:length(chosen_exons),size = 5,replace = FALSE)
-    }else{
-        set.seed(420)
-        rows_to_sample = sample(1:length(chosen_exons),size = length(chosen_exons),replace = FALSE)
-    }
+    # if(length(chosen_exons) >=5){
+    # 
+    #     rows_to_sample = sample(1:length(chosen_exons),size = 5,replace = FALSE)
+    # }else{
+    # 
+    #     rows_to_sample = sample(1:length(chosen_exons),size = length(chosen_exons),replace = FALSE)
+    # }
     
-    chosen_exons = chosen_exons[rows_to_sample]
+    # chosen_exons = chosen_exons[rows_to_sample]
     
     all_control_exons = c(all_control_exons,chosen_exons)
 
 }
 
-all_control_exons_seq = getSeq(BSgenome.Hsapiens.UCSC.hg38,all_control_exons)
-names(all_control_exons_seq) = all_control_exons$name
-writeXStringSet(all_control_exons_seq, file = "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons_420seed.fa")
+sampled_controls = all_control_exons %>% 
+    as.data.table() %>% 
+    group_by(gene_name,junc_cat) %>% 
+    slice_sample(n = 5,replace = FALSE) %>% 
+    ungroup() %>% 
+    add_count(exon_ids) %>% 
+    makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
 
-meta_table = all_control_exons %>% 
+
+all_control_exons_seq = getSeq(BSgenome.Hsapiens.UCSC.hg38,sampled_controls)
+names(all_control_exons_seq) = sampled_controls$name
+writeXStringSet(all_control_exons_seq, file = "~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons_420seed2.fa")
+rtracklayer::export(sampled_controls,"~/cluster/vyplab/sbs_projects/SORRY_AL_MADE_THIS_WILL_DELETE/repeatmasker/control_all_controls_as_exons_420seed2.bed" )
+
+meta_table = sampled_controls %>% 
     as.data.table() %>% 
     distinct(cryptic_name,junc_cat,name)
 
