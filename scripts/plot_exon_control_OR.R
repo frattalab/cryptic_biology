@@ -203,10 +203,6 @@ for(i in 1:length(rep_classes)){
 
 
 
-# write.table(repeats_df, paste0(dir_plot, "repeats_class_table.txt"), col.names = T, row.names = F, sep = "\t", quote = F)
-
-
-
 repeats_df2 <- repeats_df
 repeats_df2$logOR <- log((repeats_df2$OR)+0.01)
 repeats_df2[repeats_df2$pv>0.05,]$logOR <- 0
@@ -236,4 +232,4 @@ col_fun = colorRamp2(c(-4,0, 4), c("blue", "gray95", "red"))
 p1 <- repeats_heatmap(acceptor, title = "Acceptor", col_fun=col_fun)
 p2 <- repeats_heatmap(donor, title = "Donor", col_fun=col_fun)
 
-cowplot::plot_grid(plotlist = list(as.grob(p1),as.grob(p2)))
+cowplot::plot_grid(plotlist = list(as.grob(p1),as.grob(p2)),labels = 'Exonic  - control')
