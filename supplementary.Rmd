@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
+library(UpSetR)
+
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
@@ -20,6 +22,7 @@ library(ComplexHeatmap)
 library(RColorBrewer)
 library(data.table)
 library(ggstats)
+library(ggrepel)
 source(here::here("scripts/odds_ratio_plots.R"))
 source(here::here('scripts/trial_nmd_plots.R'))
 
@@ -30,9 +33,83 @@ plot_text_size <- 10
 ```
 
 
+```{r upset_plot_compendium}
+compendium_events = fread('data/compendium_cryptics.csv')
+
+compendium_events = compendium_events %>% 
+    mutate(plot_comparison = case_when(comparison == "Ferguson-HeLA" ~ 'HeLa',
+                                       comparison == "Appocher-SKNBE2" ~ 'SK-N-BE(2) - 1',
+                                       comparison == 'Brown-i3Cortical' ~ "i3 Cortical - 1",
+                                       comparison == "Brown-SKNBE2" ~ 'SK-N-BE(2) - 2',
+                                       comparison == 'Brown-SHSY5Y' ~ "SH-SY5Y - 2",
+                                       comparison == 'Melamed-SHSY5Y'  ~ "SH-SY5Y - 1",
+                                       comparison == 'Seddighi-i3Cortical' ~ "i3 Cortical - 2",
+                                       comparison == 'Humphrey-i3Cortical' ~ "i3 Cortical - 3",
+                                       comparison == 'Vargas-i3LMN' ~ "i3 Lower motor neuron",
+                                       comparison == 'Klim-MotorNeuron' ~ "iPSC Motor neuron"))
+# Create a binary presence matrix
+binary_matrix <- compendium_events %>%
+    distinct(paste_into_igv_junction,comparison) %>% 
+    mutate(present = 1) %>%
+    pivot_wider(names_from = comparison, values_from = present, values_fill = 0) 
+
+# Set junctions as rownames
+binary_matrix = binary_matrix %>% 
+    column_to_rownames('paste_into_igv_junction') %>% 
+    as.data.frame()
+
+upset(binary_matrix, 
+      nsets = 10,
+      order.by = "freq", 
+      main.bar.color = "steelblue", 
+      sets.bar.color = "grey30")
+```
+
+
+
+```{r tdp_correlation_n_cryptics}
+library(openxlsx)
+library(dplyr)
+
+# Load all sheets
+xlsx_file <- "/Users/annaleigh/Desktop/deseq2_outputs_compendium.xlsx"
+sheet_names <- getSheetNames(xlsx_file)
+dfs <- purrr::map(sheet_names, ~read.xlsx(xlsx_file,.x))
+
+# Extract TARDBP rows and log2FoldChange values
+tardbp_results <- purrr::map2_dfr(dfs, sheet_names, ~{
+  filtered <- filter(.x, gene_name == "TARDBP")
+  if (nrow(filtered) > 0) {
+    data.frame(
+      comparison = .y,
+      log2FoldChange = filtered$log2FoldChange
+    )
+  } else {
+    NULL
+  }
+})
+
+# View result
+print(tardbp_results)
+compendium_events %>% 
+    group_by(comparison) %>% 
+    summarize(n_junction = n_distinct(paste_into_igv_junction)) %>% 
+    left_join(tardbp_results) %>% 
+    separate(comparison,into = c(NA,'celltype'),remove = FALSE) %>% 
+    ggplot(aes(x = log2FoldChange,y = n_junction)) + 
+    geom_point(size = 3,aes(color = celltype)) +
+    theme_bw() + 
+    ylab("N cryptic junctions") + 
+    xlab("TARDBP KD level") +
+    stat_cor()
+```
+
+
+
 ## Sequencing features of post-mortem datasets
 
 ```{r sequencing_features_rimod_vs_nygc}
+source("scripts/box_plot_helper.R")
 meta_rimod = fread("data/metadata_rimod.csv")
 meta_nygc = fread('data/metadta_nygc.csv')
 lib_r = fread("data/library_stats_rimod.csv")
@@ -100,7 +177,23 @@ nygc_stats_als_motor %>%
     mutate(value = as.numeric(value)) %>% 
     ggplot(aes(x = dataset, y =value)) + 
     geom_boxplot(outlier.colour = NA) + 
-    facet_wrap(~variable,scales = 'free')
+    facet_wrap(~variable,scales = 'free') +
+    theme_bw()
+
+
+combined_data <- nygc_stats_als_motor %>%
+    select(-sample) %>%
+    rbind(nygc_stats_cord %>% select(-sample)) %>%
+    rbind(nygc_stats_frontal %>% select(-sample)) %>%
+    rbind(rimod_stats)
+combined_data$rin = as.numeric(combined_data$rin)
+
+age = plot_significant_comparisons(combined_data,column_name =  "age_at_death", ylab_chosen =  "Age at death")
+rin = plot_significant_comparisons(combined_data,column_name =  "rin", ylab_chosen =  "RIN")
+pmi = plot_significant_comparisons(combined_data,column_name =  "post_mortem_interval_in_hours", ylab_chosen =  "Postmortem interval (h)")
+size_of_lib = plot_significant_comparisons(combined_data,column_name =  "library_size", ylab_chosen =  "Library depth")
+
+ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
 
 ```
 
@@ -111,7 +204,7 @@ nygc_stats_als_motor %>%
 ```{r nygc_gene_expression_detection_rate}
 id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
 
-summary_post = fread("data/summary_metrics_post_mortem.csv")
+summary_post <- fread("data/cryptic_detection_summary_long_version.csv")
 
 nygc_metadata = fread("/Users/annaleigh/Desktop/nygc_metadata_done.csv") %>% 
     dplyr::rename(sample = V4) %>% 
@@ -124,159 +217,42 @@ nygc_metadata = fread("/Users/annaleigh/Desktop/nygc_metadata_done.csv") %>%
     filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal","Cortex_Motor") |
                grepl("Cord",rna_tissue_source_simplified)) 
 
-# deseq2_normalized_salmon = fread('/Volumes/JOBERT/untitled folder/Desktop/salmon_full_normalized_counts_deseq2.csv.gz')
-# 
-cryptic_genes = summary_post %>%
+
+cryptic_genes = summary_post %>% 
     left_join(id_to_ens,by = c("gene_name")) 
 
-winst = fread("/Users/annaleigh/Desktop/cryptic_genes_winston_tpm.csv")
-tpm_cal = fread('~/cluster/vyplab/NYGC_ALSFTD/tpmcalculator/rna_selected_genes_tpm.csv')
+tpm_cal = fread('/Users/annaleigh/Desktop/all_matching_genes.csv.gz')
 
     
 
-norm_expresion = winst %>% 
-    filter(variable %in% nygc_metadata$sample_id_rna) %>% 
-    left_join(nygc_metadata %>% select(sample_id_rna,group,tdp_proteinopathy,
-                                       rna_tissue_source_simplified),by = c("variable" = 'sample_id_rna')) %>% 
-    filter(!is.na(group)) %>% 
-    # filter(tdp_proteinopathy != "Control") %>% 
-    group_by(V1,symbol,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(value))
-
-norm_expresion %>% 
-    ungroup() %>% 
-    unique() %>% 
-    group_by(group,tdp_proteinopathy) %>% 
-    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:5/5))) %>% 
-    left_join(summary_post,by = c('group', 'symbol' = 'gene_name')) %>% 
-    filter(fpr_value <= 0.1) %>%
-    filter(!is.na(exp_bin)) %>% 
-    filter(tdp_proteinopathy %in% c("ALS-TDP","FTLD-TDP")) %>% 
-    ungroup() %>% 
-    group_by(symbol,group,tdp_proteinopathy) %>% 
-    slice_max(frac_ob_tdp_path) %>% 
-    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path,color = tdp_proteinopathy)) + 
-    geom_violin() +
-    facet_wrap(~group,scales = 'free') +
-    stat_summary(fun.data = give.n, geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75)) +
-    stat_compare_means()
-
-
-
-norm_expresion_me = me %>% 
-    filter(variable %in% nygc_metadata$sample) %>% 
-    left_join(nygc_metadata %>% select(sample,group,tdp_proteinopathy,
-                                       rna_tissue_source_simplified),by = c("variable" = 'sample')) %>% 
-    filter(!is.na(group)) %>% 
-    # filter(tdp_proteinopathy != "Control") %>% 
-    group_by(V1,symbol,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(value))
-norm_expresion_me %>% 
-    ungroup() %>% 
-    unique() %>% 
-    group_by(group,tdp_proteinopathy) %>% 
-    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:5/5))) %>% 
-    left_join(summary_post,by = c('group', 'symbol' = 'gene_name')) %>% 
-    filter(fpr_value <= 0.1) %>%
-    filter(!is.na(exp_bin)) %>% 
-    filter(tdp_proteinopathy %in% c("ALS-TDP","FTLD-TDP")) %>% 
-    ungroup() %>% 
-    group_by(symbol,group,tdp_proteinopathy) %>% 
-    slice_max(frac_ob_tdp_path) %>% 
-    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path,color = tdp_proteinopathy)) + 
-    geom_violin() +
-    facet_wrap(~group,scales = 'free') +
-    stat_summary(fun.data = give.n, geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75)) +
-    stat_compare_means()
-
-
-norm_expresion_tpm = tpm_cal %>% 
+norm_expresion = tpm_cal %>% 
+    filter(Gene_Id %in% cryptic_genes$gene_id) %>% 
     filter(Sample %in% nygc_metadata$sample_id_rna) %>% 
     left_join(nygc_metadata %>% select(sample_id_rna,group,tdp_proteinopathy,
                                        rna_tissue_source_simplified),by = c("Sample" = 'sample_id_rna')) %>% 
     filter(!is.na(group)) %>% 
     # filter(tdp_proteinopathy != "Control") %>% 
     group_by(Gene_Id,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(TPM))
+    summarize(mean_expr = mean(UniqueTPM)) 
 
+    
 
-# First, prepare your data and perform tests
-plot_data <- norm_expresion_tpm %>% 
-    ungroup() %>% 
+norm_expresion %>% 
+    left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
+                  select(gene_id,gene_name,group,frac_ob_tdp_path),
+              by = c("Gene_Id" = "gene_id", "group")) %>% 
+    filter(!is.na(frac_ob_tdp_path)) %>% 
     unique() %>% 
-    group_by(group, tdp_proteinopathy) %>% 
-    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
-    left_join(id_to_ens, by = c("Gene_Id" = 'gene_id')) %>% 
-    left_join(summary_post, by = c('group', 'gene_name')) %>% 
-    filter(fpr_value <= 0.1) %>%
-    filter(!is.na(exp_bin)) %>% 
-    filter(tdp_proteinopathy %in% c("ALS-TDP", "FTLD-TDP")) %>% 
-    ungroup() %>% 
-    group_by(gene_name, group, tdp_proteinopathy) %>% 
-    slice_max(frac_ob_tdp_path)
+    filter(gene_name == 'STMN2' & group == 'Cord') %>% 
+    filter(tdp_proteinopathy == 'Control') %>% 
+    ggplot(aes(x = mean_expr,
+               y = frac_ob_tdp_path)) + 
+    geom_point() + 
+    facet_wrap(~group) + 
+    scale_x_continuous(trans = scales::pseudo_log_trans()) +
+    geom_text_repel(aes(label = gene_name)) +
+    stat_cor()
 
-# Option 3: More control - custom bracket positioning
-# If you have many comparisons, you might want to be more selective
-dunn_results_selective <- plot_data %>%
-    group_by(group) %>%
-    dunn_test(frac_ob_tdp_path ~ exp_bin, p.adjust.method = "bonferroni") %>%
-    filter(p.adj < 0.01) %>%  # Only highly significant
-    left_join(y_positions, by = "group") %>%
-    group_by(group) %>%
-    arrange(p.adj) %>%  # Show most significant first
-    slice_head(n = 3) %>%  # Limit to top 3 per facet to avoid crowding
-    mutate(
-        y.position = max_y * (1.1 + (row_number() - 1) * 0.15),
-        group1 = as.character(group1),
-        group2 = as.character(group2)
-    )
-
-plts <- list()
-groups <- unique(plot_data$group)
-
-for (i in seq_along(groups)) {
-  g <- groups[i]
-  
-  p <- plot_data %>%
-    filter(group == g) %>% 
-    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path)) + 
-    geom_boxplot() +
-    stat_summary(fun.data = give.n, geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75)) +
-    stat_pvalue_manual(dunn_results_selective %>% filter(group == g), 
-                       label = "p.adj.signif",
-                       y.position = "y.position",
-                       xmin = "group1",
-                       xmax = "group2") +
-    theme_bw() +
-    ylab('Fraction TDP-43 proteinopathy observed') +
-     theme(legend.position = element_blank()) +
-      ggtitle(g) +
-     xlab("Expression TPM Bin")
-  
-  plts[[i]] <- p
-}
-
-wrap_plots(plts, nrow = 1)
-
-plot_data %>% 
-    rbind(rimod_plot_data) %>% 
-    mutate(plot_name = ifelse(gene_name %in% genes_everywhere$gene_name,gene_name,NA_character_)) %>% 
-    ggplot(aes(x = mean_expr, y = tpr_value)) +
-    geom_point(alpha = 0.5) +
-    facet_wrap(~group,scales = 'free',ncol = 2) +
-    stat_cor() +
-    scale_x_continuous(trans=scales::pseudo_log_trans(base = 10)) +
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-    theme_classic() +
-    ylab('Fraction TDP-43 proteinopathy observed') +
-    geom_text_repel(aes(label = plot_name),bg.colour = 'white') +
-    xlab("Mean TPM in TDP-43 proteinopathy")
 
 ```
 
@@ -480,22 +456,6 @@ pheatmap(expr_matrix_var_filtered,
 ```
 
 
-## supplementary figure 2 - NMD
-# UPF1 KD NMD-insentive events are more likely to be detected in RiMOD, they are not more likely to be selective
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-upf1_summary_postmortem = generate_summary_table(summary_post,
-                       wide_upf1)
-fisher_upf1= run_fisher_test(upf1_summary_postmortem)
-
-upf1_detection_plots = make_final_plot(upf1_summary_postmortem,fisher_upf1)
-upf1_detection_plots$detection_plot + ggtitle('UPF1 KD Detection Rate')) +
-        theme(text = element_text(size = 18))
-
-upf1_detection_plots$selectivity_plot + ggtitle('UPF1 KD Selectivity Rate')) +
-        theme(text = element_text(size = 18))
-
-
-```
 
 # SMG1 inhibition NMD-insentive events are more likely to be detected, in RiMOD sensitive events are more likely to be selective
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -687,7 +647,8 @@ shsy5y_papa |>
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
     scale_x_discrete(labels=c("+", "++", "+++","++++","+++++")) +
-    facet_wrap(~timing)
+    facet_wrap(~timing) 
+    
 
 ```
 

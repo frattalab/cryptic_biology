@@ -122,8 +122,8 @@ om2 = ordered_matrix %>% as.data.frame() %>% rownames_to_column('plot_name') %>%
 # Create the heatmap with the ordered matrix
 pheatmap(om2 * 100,
          color = colorRampPalette(c("white", "orange", "red"))(100),
-         cluster_rows = FALSE,  # We've already clustered
-         cluster_cols = FALSE,  # We've already clustered
+         cluster_rows = FALSE,  
+         cluster_cols = FALSE,  
           display_numbers = ordered_display_mat,
          main = "Cryptic Splice Junction Overlap (%)",
          fontsize = 12,
@@ -2294,6 +2294,7 @@ c <- Heatmap(heatmap_data[c("Early Cryptic","Late Cryptic") , sorted_all_kmers],
 c
 
 ```
+
 
 ```{r kmer barplot}
 
