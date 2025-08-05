@@ -233,7 +233,7 @@ norm_expresion = tpm_cal %>%
     filter(!is.na(group)) %>% 
     # filter(tdp_proteinopathy != "Control") %>% 
     group_by(Gene_Id,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(UniqueTPM)) 
+    summarize(mean_expr = mean(TPM)) 
 
     
 
@@ -243,235 +243,110 @@ norm_expresion %>%
               by = c("Gene_Id" = "gene_id", "group")) %>% 
     filter(!is.na(frac_ob_tdp_path)) %>% 
     unique() %>% 
-    filter(gene_name == 'STMN2' & group == 'Cord') %>% 
     filter(tdp_proteinopathy == 'Control') %>% 
     ggplot(aes(x = mean_expr,
                y = frac_ob_tdp_path)) + 
     geom_point() + 
-    facet_wrap(~group) + 
+    facet_wrap(~group,nrow = 2,scales = 'free') + 
     scale_x_continuous(trans = scales::pseudo_log_trans()) +
     geom_text_repel(aes(label = gene_name)) +
-    stat_cor()
+    stat_cor() + 
+    ylab("Fraction TDP-43 proteinopathy samples detected") +
+    scale_y_continuous(labels = scales::percent_format()) +
+    xlab("Mean TPM in control tissue") + 
+    theme_bw()
 
+plot_nygc = norm_expresion %>% 
+    left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
+                  select(gene_id,gene_name,group,frac_ob_tdp_path),
+              by = c("Gene_Id" = "gene_id", "group")) %>% 
+    filter(!is.na(frac_ob_tdp_path)) %>% 
+    unique() %>% 
+    filter(tdp_proteinopathy == 'Control')
 
 ```
 
+
+
+```{r cord only vs cortex}
+
+cryptic_genes %>% 
+    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
+    filter(value_tdp_path >=5) %>% 
+    distinct(paste_into_igv_junction,group,gene_id)
+    agroup_by(paste_into_igv_junction) %>% 
+    add_count(group)
+```
 
 
 
 ```{r rimod_gene}
 meta_rimod = fread("data/metadata_rimod.csv")
 
-rimod_vst = fread("/Users/annaleigh/Desktop/rimod_salmon/tpm_gene_abundance.csv")
-
-rimod_vst = rimod_vst[ensgene %in% cryptic_genes$ensgene]
-rimod_vst = rimod_vst %>% 
-    melt() 
-
-rimod_plot_data = rimod_vst %>% 
-    left_join(meta_rimod, by = c("variable" = "sample")) %>% 
+rimod_vst = fread("data/rimod_ftd_tpm.csv")
+rimod_norm = rimod_vst %>% 
+    separate(Sample, into = 'sample') %>% 
+        left_join(meta_rimod) %>% 
+    mutate(tdp_proteinopathy = case_when(genotype %in% c("C9orf72","GRN") ~ 'RiMOD FTD TDP',
+                                         genotype == 'control' ~ "Control",
+                                         genotype == 'MAPT' ~ 'RiMOD FTD non-TDP')) %>% 
+    filter(Gene_Id %in% cryptic_genes$gene_id) %>% 
+    group_by(Gene_Id,tdp_proteinopathy) %>% 
+    summarize(mean_expr = mean(TPM)) %>% 
     mutate(group = "RiMOD") %>% 
-    mutate(tdp_proteinopathy = ifelse(genotype %in% c("C9orf72","GRN"), 'tdp_path', 'not_path')) %>% 
-    filter(!is.na(group)) %>% 
-    filter(tdp_proteinopathy != "not_path") %>% 
-    left_join(id_to_ens) %>% 
-    filter(!is.na(gene_name)) %>% 
-    group_by(ensgene,gene_name,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(value)) %>% 
-    group_by(group,tdp_proteinopathy) %>% 
-    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
-    left_join(summary_post,by = c('group', 'gene_name'))  %>% as.data.table() %>% 
-    filter(!is.na(paste_into_igv_junction)) %>% 
-    filter(fpr_value <= 0.1) %>% 
-    filter(!is.na(exp_bin)) %>% 
-    # ungroup() %>% 
-    # slice_max(tpr_value) %>% 
-    # filter(tpr_value > 0.75) %>% 
-    # arrange(mean_expr)
-    group_by(gene_name,group,tdp_proteinopathy) %>% 
-    slice_max(frac_ob_tdp_path)
-    ggplot(aes(x = exp_bin, y = frac_ob_tdp_path)) + 
-    geom_boxplot() +
-    theme_bw() +
-    stat_compare_means() +
-    ylab('Fraction TDP-43 proteinopathy observed') +
-     theme(legend.position = element_blank()) +
-     xlab("Expression TPM Bin")
+        left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
+                  select(gene_id,gene_name,group,frac_ob_tdp_path),
+              by = c("Gene_Id" = "gene_id", "group")) %>% 
+    filter(!is.na(frac_ob_tdp_path)) %>% 
+    unique() 
 
-rimod_vst %>% 
-    left_join(meta_rimod, by = c("variable" = "sample")) %>% 
-    mutate(group = "RiMOD") %>% 
-    mutate(tdp_proteinopathy = ifelse(genotype %in% c("C9orf72","GRN"), 'tdp_path', 'not_path')) %>% 
-    filter(!is.na(group)) %>% 
-    filter(tdp_proteinopathy != "not_path") %>% 
-    left_join(id_to_ens) %>% 
-    filter(!is.na(gene_name)) %>% 
-    group_by(ensgene,gene_name,group,tdp_proteinopathy) %>% 
-    summarize(mean_expr = mean(value)) %>% 
-    group_by(group,tdp_proteinopathy) %>% 
-    mutate(exp_bin = cut(mean_expr, quantile(mean_expr, 0:4/4))) %>% 
-    left_join(summary_post,by = c('group', 'gene_name'))  %>% as.data.table() %>% 
-    filter(!is.na(paste_into_igv_junction)) %>% 
-    filter(fpr_value <= 0.1) %>% 
-    group_by(gene_name,group,tdp_proteinopathy) %>% 
-    slice_max(frac_ob_tdp_path) %>% 
-    ggplot(aes(x = mean_expr, y = frac_ob_tdp_path)) + 
-    geom_point() +
-    theme_bw() +
-    stat_cor(method = 'spearman',cor.coef.name = 'rho') +
-    stat_compare_means() +
-    ylab('Fraction TDP-43 proteinopathy observed') +
-     theme(legend.position = element_blank()) +
-     xlab("Expression TPM Bin")
+
+rbind(rimod_norm,plot_nygc) %>% 
+    filter(tdp_proteinopathy == 'Control') %>% 
+    ggplot(aes(x = mean_expr,
+               y = frac_ob_tdp_path)) + 
+    geom_point() + 
+    facet_wrap(~group,nrow = 2,scales = 'free') + 
+    scale_x_continuous(trans = scales::pseudo_log_trans()) +
+    geom_text_repel(aes(label = gene_name)) +
+    stat_cor() + 
+    ylab("Fraction TDP-43 proteinopathy samples detected") +
+    scale_y_continuous(labels = scales::percent_format()) +
+    xlab("Mean TPM in control tissue") + 
+    theme_bw()
+
+
+```
+
+
+## Is library depth stable throughout the 2 dose-dependent curves
+
+```{r uniquely_mapped_compendium}
+two = readxl::read_excel('~/Desktop/compendium_library_depth.xlsx', sheet = 'Compendium')
+    
+compen = plot_significant_comparisons(two,column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
+
+compen +  geom_jitter(width = 0.2) +  scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))
 
 ```
 
 
+```{r uniquely_mapped_curves}
+one = readxl::read_excel('~/Desktop/compendium_library_depth.xlsx', sheet = 'Curves')
+    
+sushi_curve = plot_significant_comparisons(one %>% filter(comparison == 'SH-SY5Y curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
+sushi_curve = sushi_curve + geom_jitter(width = 0.2) + 
+    scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
+                       limits = c(30*10^6,80*10^6))  
 
-
-
-
-
-## Do highly detected events have a cell-type bias?
-
-```{r cord}
-
-spec_l1 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_one_specificity.csv")
-spec_l2 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_two_specificity.csv")
-
-meanexp_l1 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_one_mean_express.csv")
-meanexp_l2 = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/cord/level_two_mean_express.csv")
-
-# Prepare the data
-heatmap_data <- summary_post %>%
-  mutate(gene_name = ifelse(gene_name == 'AARS1', 'AARS', gene_name)) %>%
-  filter(fpr_value <= 0.1 & tpr_value >= 0.1 & value_tdp_path >= 5) %>%
-  unique() %>%
-  filter(group == 'Cord') %>%
-  group_by(gene_name) %>%
-  slice_max(value_tdp_path) %>% 
-    ungroup() %>% 
-    # slice_max(value_tdp_path, n = 30) %>% 
-  separate_rows(gene_name, sep = ',') %>%
-  left_join(spec_l1 %>% melt(), by = c("gene_name" = 'gene')) %>%
-  drop_na()
-
-# Wide format: genes (rows) x variables (columns)
-expr_matrix <- heatmap_data %>%
-  select(gene_name, variable, value) %>%
-  pivot_wider(names_from = variable, values_from = value, values_fill = 0) %>%
-  column_to_rownames("gene_name") %>%
-  as.matrix()
-# Remove genes with zero variance (or NA values after scaling)
-row_vars <- apply(expr_matrix, 1, var, na.rm = TRUE)
-expr_matrix_var_filtered <- expr_matrix[which(row_vars > 0), ]
-
-# Keep top 15 most variable genes
-top_genes <- names(sort(row_vars, decreasing = TRUE))[1:25]
-expr_matrix_top <- expr_matrix_var_filtered[top_genes, ]
-# Plot heatmap with clustering
-pheatmap(expr_matrix_var_filtered,
-         # scale = "row",              # or "row"/"column" if you want normalization
-         clustering_method = "complete",
-         cluster_cols = TRUE,
-         fontsize_row = 8,
-         fontsize_col = 9,
-         main = "Gene Cell-Type Specificity (Cord Group)",
-         cutree_rows = 7,
-        cutree_cols = 7
-        )
-
-heatmap_data %>% 
-    group_by(gene_name) %>% 
-    slice_max(value) %>% 
-    ungroup() %>% 
-    filter(value >0) %>% 
-    mutate(gene_name = fct_reorder(gene_name,frac_ob_tdp_path)) %>% 
-    ggplot(aes(x = gene_name, y = frac_ob_tdp_path)) + 
-   geom_col(aes(fill= variable)) +
-    coord_flip() +
-    scale_fill_manual(values = randomcoloR::distinctColorPalette(11))
-
-```
-
-```{r motor}
-
-spec_l1_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_one_specificity_motor.csv")
-spec_l2_m = fread("~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_two_specificity_motor.csv")
-meanexp_l2_m = fread('~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_two_mean_exp_motor.csv')
-
-meanexp_l1_m = fread('~/cluster/vyplab/alb_projects/data/single_cell_specificity_analyses/pinneda/level_one_mean_exp_motor.csv')
-meanexp_l1_m = meanexp_l1_m %>% left_join(annotables::grch38 %>% 
-                            select(ensgene,symbol), by = c("gene" = "ensgene"))
-meanexp_l2_m = meanexp_l2_m %>% left_join(annotables::grch38 %>% 
-                            select(ensgene,symbol), by = c("gene" = "ensgene"))
-
-spec_l1_m = spec_l1_m %>% left_join(annotables::grch38 %>% 
-                            select(ensgene,symbol), by = c("gene" = "ensgene"))
-
-spec_l2_m = spec_l2_m %>% left_join(annotables::grch38 %>% 
-                            select(ensgene,symbol), by = c("gene" = "ensgene"))
-
-# Prepare the data
-heatmap_data <- summary_post %>%
-  filter(fpr_value <= 0.1 & tpr_value >= 0.1 & value_tdp_path >= 5) %>%
-  unique() %>%
-  filter(group == 'Motor Cortex') %>%
-  group_by(gene_name) %>%
-  slice_max(value_tdp_path) %>% 
-    ungroup() %>% 
-    slice_max(value_tdp_path, n = 50) %>% 
-  separate_rows(gene_name, sep = ',') %>%
-  left_join(spec_l2_m %>% melt(), by = c("gene_name" = 'symbol')) %>%
-  drop_na()
-
-spec_l2_m %>% filter(symbol %in% c("AR", "ATN1. ATXN1", "ATXN2", "ATXN3", "ATXN7", "CACNA1A", "HTT")) %>% 
-    melt()
-
-# Wide format: genes (rows) x variables (columns)
-expr_matrix <- heatmap_data %>%
-  select(gene_name, variable, value) %>%
-  pivot_wider(names_from = variable, values_from = value, values_fill = 0) %>%
-  column_to_rownames("gene_name") %>%
-  as.matrix()
-# Remove genes with zero variance (or NA values after scaling)
-row_vars <- apply(expr_matrix, 1, var, na.rm = TRUE)
-expr_matrix_var_filtered <- expr_matrix[which(row_vars > 0), ]
-
-# Keep top 15 most variable genes
-top_genes <- names(sort(row_vars, decreasing = TRUE))[1:25]
-expr_matrix_top <- expr_matrix_var_filtered[top_genes, ]
-# Plot heatmap with clustering
-pheatmap(expr_matrix_var_filtered,
-         scale = "row",              # or "row"/"column" if you want normalization
-         clustering_method = "complete",
-         cluster_cols = TRUE,
-         fontsize_row = 8,
-         fontsize_col = 9,
-         main = "Gene Cell-Type Specificity (Motor Cortex Group)",
-        cutree_rows = 7,
-        cutree_cols = 7
-        )
-
+sk_curvecurve = plot_significant_comparisons(one %>% filter(comparison == 'SK-N-BE(2) curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads")
+sk_curvecurve = sk_curvecurve + geom_jitter(width = 0.2) + 
+        scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
+                       limits = c(30*10^6,80*10^6))  
+ggarrange(plotlist = list(sushi_curve,sk_curvecurve))
 ```
 
 
-
-# SMG1 inhibition NMD-insentive events are more likely to be detected, in RiMOD sensitive events are more likely to be selective
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-smg1_summary_postmortem = generate_summary_table(summary_post,
-                       wide_smg1)
-fisher_smg1= run_fisher_test(smg1_summary_postmortem)
-
-smg1_detection_plots = make_final_plot(smg1_summary_postmortem,fisher_smg1)
-print(smg1_detection_plots$detection_plot + ggtitle('SMG1i Detection Rate')) +
-            theme(text = element_text(size = 18))
-
-print(smg1_detection_plots$selectivity_plot  + ggtitle('SMG1i Selectivity Rate')) +
-            theme(text = element_text(size = 18))
-
-
-```
 
 
 
