@@ -261,8 +261,7 @@ plot_nygc = norm_expresion %>%
                   select(gene_id,gene_name,group,frac_ob_tdp_path),
               by = c("Gene_Id" = "gene_id", "group")) %>% 
     filter(!is.na(frac_ob_tdp_path)) %>% 
-    unique() %>% 
-    filter(tdp_proteinopathy == 'Control')
+    unique()
 
 ```
 
@@ -313,10 +312,29 @@ rbind(rimod_norm,plot_nygc) %>%
     ylab("Fraction TDP-43 proteinopathy samples detected") +
     scale_y_continuous(labels = scales::percent_format()) +
     xlab("Mean TPM in control tissue") + 
-    theme_bw()
+    theme_bw() +
+    theme(text = element_text(size = 18))
+
+
+
+rbind(rimod_norm,plot_nygc) %>% 
+    filter(tdp_proteinopathy %in% c("RiMOD FTD TDP","FTLD-TDP","ALS-TDP")) %>% 
+    ggplot(aes(x = mean_expr,
+               y = frac_ob_tdp_path)) + 
+    geom_point(alpha = 0.7) + 
+    facet_wrap(~group,nrow = 2,scales = 'free') + 
+    scale_x_continuous(trans = scales::pseudo_log_trans()) +
+    geom_text_repel(aes(label = gene_name)) +
+    stat_cor() + 
+    ylab("Fraction TDP-43 proteinopathy samples detected") +
+    scale_y_continuous(labels = scales::percent_format()) +
+    xlab("Mean TPM in TDP-43 path tissue") + 
+    theme_bw() +
+    theme(text = element_text(size = 18))
 
 
 ```
+
 
 
 ## Is library depth stable throughout the 2 dose-dependent curves
@@ -332,17 +350,20 @@ compen +  geom_jitter(width = 0.2) +  scale_y_continuous(labels = unit_format(un
 
 
 ```{r uniquely_mapped_curves}
-one = readxl::read_excel('~/Desktop/compendium_library_depth.xlsx', sheet = 'Curves')
+one = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Curves')
     
 sushi_curve = plot_significant_comparisons(one %>% filter(comparison == 'SH-SY5Y curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
 sushi_curve = sushi_curve + geom_jitter(width = 0.2) + 
     scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
-                       limits = c(30*10^6,80*10^6))  
+                       limits = c(30*10^6,80*10^6))  +
+        theme(text = element_text(size = 18))
+
 
 sk_curvecurve = plot_significant_comparisons(one %>% filter(comparison == 'SK-N-BE(2) curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads")
 sk_curvecurve = sk_curvecurve + geom_jitter(width = 0.2) + 
         scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
-                       limits = c(30*10^6,80*10^6))  
+                       limits = c(30*10^6,80*10^6))  +
+    theme(text = element_text(size = 18))
 ggarrange(plotlist = list(sushi_curve,sk_curvecurve))
 ```
 

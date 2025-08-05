@@ -30,9 +30,11 @@ library(pdftools)
 library(cowplot)
 library(ggplotify)
 library(circlize)
+library(openxlsx)
 source(here::here('scripts','odds_ratio_plots.R'))
 source(here::here('scripts','trial_nmd_plots.R'))
 source(here::here('scripts',"create_coverage_vectors.R"))
+source(here::here('scripts',"box_plot_helper.R"))
 
 give.n <- function(x){
 return(c(y = median(x)*1.05, label = length(x)))
@@ -107,7 +109,6 @@ for(i in 1:ncol(c_tbl)) {
 }
 
 
-rownames(annotation_df) <- colnames(overlap_matrix)
 
 # Create annotation colors (optional)
 # Scale the colors based on the values in level of KD
@@ -826,9 +827,9 @@ ggarrange(baseline_rpkm_plot,nmdi_rpkm_plot)
 
 ```{r}
 
-nygc = fread("~/Desktop/nygc_postmortem_summary.csv")
-rimod = fread("~/Desktop/rimod_post.csv")
-summary_post = rbind(nygc,rimod)
+
+summary_post = fread('data/cryptic_detection_summary_long_version.csv')
+
 
 chx_summary_postmortem = generate_summary_table(summary_post,
                        wide_chx,
@@ -2546,9 +2547,7 @@ g
 
 ```{r fpr_early_late_max_min}
 
-nygc = fread("~/Desktop/nygc_postmortem_summary.csv")
-rimod = fread("~/Desktop/rimod_post.csv")
-summary_post = rbind(nygc,rimod)
+summary_post =fread('data/cryptic_detection_summary_long_version.csv')
 cryptic_early_late = master_table %>% 
     filter(cryptic == 'yes') %>% 
     filter(new_cate %in% c("Early","Late"))
@@ -2581,20 +2580,9 @@ early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
 
 
 
-```{r}
-full_summary_table = fread("/Users/annaleigh/Desktop/long_version.csv")
-full_summary_table %>% 
-    filter(chx_effect == 'Dark cryptic') %>% 
-    filter(datasets_detected == 'CHX -SHY5Y') %>% 
-    filter(fpr_value < 0.1 & value_tdp_path >=5)
-
-```
-
-
-
-
 ```{r detection_rate_early_late_max_min}
 
+summary_post =fread('data/cryptic_detection_summary_long_version.csv')
 
 master_table %>% 
     mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
@@ -2603,7 +2591,7 @@ master_table %>%
                                max_psi_be2 == 'Medium' ~ max_psi_sh,
                                max_psi_sh == 'Medium' ~ max_psi_be2)) %>% 
     filter(!is.na(new_max)) %>% 
-    left_join(postmortem_summary) %>% 
+    left_join(summary_post) %>% 
     filter(new_cate %in% c("Early","Late")) %>% 
     filter(new_max %in% c("Top","Bottom")) %>% 
     filter(fpr_value <= 0.1) %>% 
