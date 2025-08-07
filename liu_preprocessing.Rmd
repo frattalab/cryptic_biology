@@ -1,6 +1,6 @@
 ```{r echo=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-
+library(data.table)
 library(dunn.test)
 library(tidyverse)
 library(ggpubr)
@@ -45,6 +45,117 @@ liu = liu  %>%
 
 
 Now explore expression of 
+
+# 1. Compendium events
+
+```{r}
+compendium_events = fread('data/compendium_cryptics.csv')
+
+test_diff = liu %>% 
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>% 
+    replace(is.na(.), 0) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    group_by(paste_into_igv_junction) %>% 
+    nest() |> 
+    mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
+           mean_positive = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 positive"], na.rm = TRUE)),
+           mean_negative = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 negative"], na.rm = TRUE)),
+           ratio = log2(mean_negative / mean_positive)) |> 
+    unnest() %>% 
+    distinct(paste_into_igv_junction,p.value,ratio,mean_positive,mean_negative) %>% 
+    mutate(adj_pvalue = p.adjust(p.value))
+
+```
+
+
+```{r}
+
+
+test_diff %>% 
+    left_join(compendium_events %>% distinct(paste_into_igv_junction,gene_name,n_significant_data)) %>% 
+    mutate(bind_n = case_when(n_significant_data <= 3 ~ "1-3",
+                              n_significant_data >= 4 & n_significant_data <= 6 ~ "4-6",
+                              TRUE ~ "7-10")) %>% 
+    filter(!is.na(n_significant_data)) %>% 
+    filter(adj_pvalue < 0.01)
+
+liu %>% 
+    filter(paste_into_igv_junction == 'chr1:21598502-21598723') %>% 
+    separate(variable,sep = '43_', into = c(NA,'cond')) %>% 
+    ggplot(aes(y = psi, x = cond)) + 
+    geom_boxplot()
+
+```
+
+
+# Are cryptics in NYGC, RiMOD also upregulated in FACs?
+
+```{r}
+summary_post = fread('data/cryptic_detection_summary_long_version.csv')
+selective_bulk = summary_post %>% 
+    filter(fpr_value <=0.1 & value_tdp_path>=5) %>% 
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>% 
+    distinct(group,paste_into_igv_junction,gene_name)
+
+
+selective_bulk_liu = liu %>% 
+    filter(paste_into_igv_junction %in% selective_bulk$paste_into_igv_junction) %>% 
+    replace(is.na(.), 0) %>% 
+    mutate(condition = ifelse(grepl('positive',variable),"TDP-43 positive","TDP-43 negative")) %>% 
+    group_by(paste_into_igv_junction) %>% 
+    nest() |> 
+    mutate(wicox_test_result = map(data, ~ broom::tidy(wilcox.test(psi ~ condition, data = .x))),
+           mean_positive = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 positive"], na.rm = TRUE)),
+           mean_negative = map_dbl(data, ~ mean(.x$psi[.x$condition == "TDP-43 negative"], na.rm = TRUE)),
+           ratio = log2(mean_negative / mean_positive)) |> 
+    unnest() %>% 
+    distinct(paste_into_igv_junction,p.value,ratio,mean_positive,mean_negative) %>% 
+    mutate(adj_pvalue = p.adjust(p.value))
+
+overlap = selective_bulk_liu %>% 
+    filter(adj_pvalue < 0.05) %>% 
+    full_join(selective_bulk) %>% 
+    mutate(direction = case_when(is.na(ratio) ~ "N.S.",
+                                 ratio > 0 ~ "upregulated",
+                                 ratio < 0 ~ "downregulated")) %>% 
+    ungroup() %>% 
+    group_by(group,direction) %>%
+    summarise(count = n_distinct(paste_into_igv_junction))
+
+data_summary = overlap %>%
+        mutate(group = case_match(group,
+                                "Cord" ~ "ALS\nNYGC\nSpinal\ncord",
+                                "FTD frontal/temporal" ~ "FTLD\nNYGC\nFrontal/temporal\ncortex",
+                                "Motor Cortex" ~ "ALS\nNYGC\nMotor\ncortex",
+                                "RiMOD" ~ "FTLD\nRiMOD\nFrontal\ncortex")) %>% 
+  group_by(group) %>%
+  mutate(
+    total = sum(count),
+    proportion = count / total,
+    percentage = proportion * 100
+  ) %>%
+  ungroup()
+
+ggplot(data_summary, aes(x = group, y = proportion, fill = direction)) +
+  geom_bar(stat = "identity") +
+      geom_text(aes(label = count), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", fontweight = "bold",size = 8) +
+  # geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+  #           position = position_stack(vjust = 0.5), 
+  #           color = "white", fontweight = "bold",size = 8) +
+  labs(title = str_wrap("Cryptic junctions in bulk RNA-seq upregulated in FTLD TDP-43-negative neuronal nuclei",width = 55),
+       x = element_blank(), y = "Proportion", fill = "Direction") +
+  theme_minimal() +
+scale_fill_manual(values = c("#BF5B17","#386CB0")) + 
+  scale_y_continuous(labels = scales::percent) + 
+    theme(legend.position = 'bottom') +
+    theme(text = element_text(size = 18),plot.title = element_text(size = 15))
+
+
+overlap
+```
+
 
 # 1. Early/Late
 

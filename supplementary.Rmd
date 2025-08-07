@@ -301,7 +301,7 @@ rbind(rimod_norm,plot_nygc) %>%
 ```
 
 
-
+# Are cryptics which are selective only in cortex/cord due to gene expression?
 
 ```{r cord only vs cortex}
 source('scripts/rank_plot.R')
