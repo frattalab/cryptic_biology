@@ -387,9 +387,31 @@ cord_only_motor_expression +
 
 ```
 
+# Are the bulk identified junctions also present in FACs sorted nuclei?
+
+```{r}
+data_summary = fread('data/liu_overlap.csv')
+ggplot(data_summary, aes(x = group, y = proportion, fill = direction)) +
+  geom_bar(stat = "identity") +
+      geom_text(aes(label = count), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", fontweight = "bold",size = 8) +
+  # geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+  #           position = position_stack(vjust = 0.5), 
+  #           color = "white", fontweight = "bold",size = 8) +
+  labs(title = str_wrap("Cryptic junctions in bulk RNA-seq upregulated in FTLD TDP-43-negative neuronal nuclei",width = 55),
+       x = element_blank(), y = "Proportion", fill = "Direction") +
+  theme_minimal() +
+scale_fill_manual(values = c("#BF5B17","#386CB0")) + 
+  scale_y_continuous(labels = scales::percent) + 
+    theme(legend.position = 'bottom') +
+    theme(text = element_text(size = 18),plot.title = element_text(size = 15))
 
 
-## How does library depth vary in compendium datasets?
+```
+
+
+# How does library depth vary in compendium datasets?
 
 ```{r uniquely_mapped_compendium}
 two = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Compendium')

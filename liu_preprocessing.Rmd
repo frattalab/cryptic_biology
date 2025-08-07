@@ -136,24 +136,7 @@ data_summary = overlap %>%
   ) %>%
   ungroup()
 
-ggplot(data_summary, aes(x = group, y = proportion, fill = direction)) +
-  geom_bar(stat = "identity") +
-      geom_text(aes(label = count), 
-            position = position_stack(vjust = 0.5), 
-            color = "white", fontweight = "bold",size = 8) +
-  # geom_text(aes(label = paste0(round(percentage, 1), "%")), 
-  #           position = position_stack(vjust = 0.5), 
-  #           color = "white", fontweight = "bold",size = 8) +
-  labs(title = str_wrap("Cryptic junctions in bulk RNA-seq upregulated in FTLD TDP-43-negative neuronal nuclei",width = 55),
-       x = element_blank(), y = "Proportion", fill = "Direction") +
-  theme_minimal() +
-scale_fill_manual(values = c("#BF5B17","#386CB0")) + 
-  scale_y_continuous(labels = scales::percent) + 
-    theme(legend.position = 'bottom') +
-    theme(text = element_text(size = 18),plot.title = element_text(size = 15))
 
-
-overlap
 ```
 
 
