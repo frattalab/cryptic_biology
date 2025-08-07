@@ -5,21 +5,7 @@ library(ggpubr)
 library(ggplot2)
 #lil function that will read in the counts or tpm table, select the samples given
 #as a list and then remove it out
-gene_count_reader = function(samples, type = "tpm", genes = ""){
-    if(type == "counts"){
-        full_count_file = fread(file.path(here::here(),"data/rsem_counts_nygc.csv"))
-    }else if(type == "tpm"){
-        full_count_file = fread(file.path("/Users/annaleigh/Documents/GitHub/tdp_43_psi_rankings/","data/rsem_tpm_nygc.csv"))
-        full_count_file = full_count_file |> mutate(gene = gsub("\\..*", "", gene))
-    }
-    return_me = full_count_file |> 
-        dplyr::select(gene,samples) 
-    if(genes != ""){
-        return_me = return_me |> 
-            filter(gene %in% genes)
-    }
-    return(return_me)
-}
+
 
 plot_junction = function(junc,plotin_table = spliced_counts){
 

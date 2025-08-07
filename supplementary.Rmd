@@ -166,33 +166,30 @@ nygc_stats_cord = meta_nygc %>%
     dplyr::rename(library_size = V2)
 
 
-nygc_stats_als_motor %>% 
-    select(-sample) %>% 
-    rbind(nygc_stats_cord %>% select(-sample)) %>% 
-    rbind(nygc_stats_frontal  %>% select(-sample)) %>% 
-    rbind(rimod_stats) %>% 
-    rowid_to_column() %>% 
-    reshape2::melt(id.vars = c('rowid',"dataset","tdp_proteinopathy")) %>% 
-    # filter(variable != 'library_size') %>% 
-    mutate(value = as.numeric(value)) %>% 
-    ggplot(aes(x = dataset, y =value)) + 
-    geom_boxplot(outlier.colour = NA) + 
-    facet_wrap(~variable,scales = 'free') +
-    theme_bw()
-
 
 combined_data <- nygc_stats_als_motor %>%
     select(-sample) %>%
     rbind(nygc_stats_cord %>% select(-sample)) %>%
     rbind(nygc_stats_frontal %>% select(-sample)) %>%
-    rbind(rimod_stats)
+    rbind(rimod_stats) %>% 
+    mutate(dataset = case_match(dataset,
+                                "NYGC Cord" ~ "ALS\nNYGC\nSpinal\ncord",
+                                "NYGC Frontal" ~ "FTLD\nNYGC\nFrontal/temporal\ncortex",
+                                "NYGC Motor" ~ "ALS\nNYGC\nMotor\ncortex",
+                                "RiMOD FTD" ~ "FTLD\nRiMOD\nFrontal\ncortex"))
 combined_data$rin = as.numeric(combined_data$rin)
 
 age = plot_significant_comparisons(combined_data,column_name =  "age_at_death", ylab_chosen =  "Age at death")
+age = age +     theme(text = element_text(size = 18),axis.text.x = element_text(size = 10),plot.subtitle  = element_text(size = 10))
 rin = plot_significant_comparisons(combined_data,column_name =  "rin", ylab_chosen =  "RIN")
-pmi = plot_significant_comparisons(combined_data,column_name =  "post_mortem_interval_in_hours", ylab_chosen =  "Postmortem interval (h)")
-size_of_lib = plot_significant_comparisons(combined_data,column_name =  "library_size", ylab_chosen =  "Library depth")
+rin = rin +   theme(text = element_text(size = 18),axis.text.x = element_text(size = 10),plot.subtitle  = element_text(size = 10))
 
+pmi = plot_significant_comparisons(combined_data,column_name =  "post_mortem_interval_in_hours", ylab_chosen =  "Postmortem interval (h)")
+pmi = pmi +     theme(text = element_text(size = 18),axis.text.x = element_text(size = 10),plot.subtitle  = element_text(size = 10))
+size_of_lib = plot_significant_comparisons(combined_data,column_name =  "library_size", ylab_chosen =  "Library depth")
+size_of_lib = size_of_lib  +  theme(text = element_text(size = 18),
+                                    axis.text.x = element_text(size = 10),plot.subtitle  = element_text(size = 10)) +
+        scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))  
 ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
 
 ```
@@ -221,7 +218,8 @@ nygc_metadata = fread("/Users/annaleigh/Desktop/nygc_metadata_done.csv") %>%
 cryptic_genes = summary_post %>% 
     left_join(id_to_ens,by = c("gene_name")) 
 
-tpm_cal = fread('/Users/annaleigh/Desktop/all_matching_genes.csv.gz')
+tpm_cal = fread('data/cryptic_genes_nygc_tpm.csv.gz')
+
 
     
 
@@ -235,26 +233,6 @@ norm_expresion = tpm_cal %>%
     group_by(Gene_Id,group,tdp_proteinopathy) %>% 
     summarize(mean_expr = mean(TPM)) 
 
-    
-
-norm_expresion %>% 
-    left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
-                  select(gene_id,gene_name,group,frac_ob_tdp_path),
-              by = c("Gene_Id" = "gene_id", "group")) %>% 
-    filter(!is.na(frac_ob_tdp_path)) %>% 
-    unique() %>% 
-    filter(tdp_proteinopathy == 'Control') %>% 
-    ggplot(aes(x = mean_expr,
-               y = frac_ob_tdp_path)) + 
-    geom_point() + 
-    facet_wrap(~group,nrow = 2,scales = 'free') + 
-    scale_x_continuous(trans = scales::pseudo_log_trans()) +
-    geom_text_repel(aes(label = gene_name)) +
-    stat_cor() + 
-    ylab("Fraction TDP-43 proteinopathy samples detected") +
-    scale_y_continuous(labels = scales::percent_format()) +
-    xlab("Mean TPM in control tissue") + 
-    theme_bw()
 
 plot_nygc = norm_expresion %>% 
     left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
@@ -264,19 +242,6 @@ plot_nygc = norm_expresion %>%
     unique()
 
 ```
-
-
-
-```{r cord only vs cortex}
-
-cryptic_genes %>% 
-    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
-    filter(value_tdp_path >=5) %>% 
-    distinct(paste_into_igv_junction,group,gene_id)
-    agroup_by(paste_into_igv_junction) %>% 
-    add_count(group)
-```
-
 
 
 ```{r rimod_gene}
@@ -337,17 +302,118 @@ rbind(rimod_norm,plot_nygc) %>%
 
 
 
-## Is library depth stable throughout the 2 dose-dependent curves
 
-```{r uniquely_mapped_compendium}
-two = readxl::read_excel('~/Desktop/compendium_library_depth.xlsx', sheet = 'Compendium')
+```{r cord only vs cortex}
+source('scripts/rank_plot.R')
+
+not_in_the_cord = cryptic_genes %>%
+  filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%
+  filter(value_tdp_path >= 5) %>%
+  filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+  distinct(group, gene_name) %>%
+  mutate(observed = TRUE) %>%
+  pivot_wider(
+    names_from = 'group',
+    values_from = 'observed',
+    values_fill = FALSE
+  ) %>%
+  unique() %>%
+  mutate(total_count = rowSums(across(where(is.logical)))) %>% 
+    filter(Cord == FALSE & total_count == 3) %>% 
+    left_join(cryptic_genes %>% distinct(gene_name,gene_id)) 
+
+
+only_in_the_cord = cryptic_genes %>%
+  filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%
+  filter(value_tdp_path >= 5) %>%
+  filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+  distinct(group, gene_name) %>%
+  mutate(observed = TRUE) %>%
+  pivot_wider(
+    names_from = 'group',
+    values_from = 'observed',
+    values_fill = FALSE
+  ) %>%
+  unique() %>%
+  mutate(total_count = rowSums(across(where(is.logical)))) %>% 
+    filter(Cord == TRUE & total_count == 1) %>% 
+    left_join(cryptic_genes %>% distinct(gene_name,gene_id)) 
     
-compen = plot_significant_comparisons(two,column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
+only_in_the_motor_cortex = cryptic_genes %>%
+  filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%
+  filter(value_tdp_path >= 5) %>%
+  filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+  distinct(group, gene_name) %>%
+  mutate(observed = TRUE) %>%
+  pivot_wider(
+    names_from = 'group',
+    values_from = 'observed',
+    values_fill = FALSE
+  ) %>%
+  unique() %>%
+  mutate(total_count = rowSums(across(where(is.logical)))) %>% 
+    filter(`Motor Cortex` == TRUE & total_count == 1) %>% 
+    left_join(cryptic_genes %>% distinct(gene_name,gene_id)) 
 
-compen +  geom_jitter(width = 0.2) +  scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))
+my_df = norm_expresion %>% 
+    filter(tdp_proteinopathy == 'Control' & group %in% c("Cord","Motor Cortex")) %>% 
+    mutate(only_in_cord = Gene_Id %in% only_in_the_cord$gene_id) %>% 
+    mutate(only_in_motr = Gene_Id %in% only_in_the_motor_cortex$gene_id) %>% 
+    left_join(cryptic_genes %>% distinct(gene_name,gene_id),by = c("Gene_Id" = 'gene_id')) %>% 
+    mutate(log10_mean = log10(mean_expr)) %>% 
+    select(-mean_expr) %>% 
+    pivot_wider(names_from = 'group',
+                values_from = 'log10_mean')
+    
+
+motor_only_cord_expression = create_rank_plot(
+  data = my_df,
+  expression_col = "Cord",
+  gene_name_col = "gene_name",
+  cord_only_col = "only_in_motr"
+)
+motor_only_cord_expression + 
+    ggtitle('Gene expression of motor cortex specific cryptic in spinal cord') + 
+    theme(plot.title = element_text(size = 15))
+cord_only_motor_expression = create_rank_plot(
+  data = my_df,
+  expression_col = "Motor Cortex",
+  gene_name_col = "gene_name",
+  cord_only_col = "only_in_cord"
+)
+cord_only_motor_expression + 
+    ggtitle('Gene expression of spinal cord specific cryptic in motor cortex') +
+    theme(plot.title = element_text(size = 15))
 
 ```
 
+
+
+## How does library depth vary in compendium datasets?
+
+```{r uniquely_mapped_compendium}
+two = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Compendium')
+tardbp_results = fread('data/tardbp_kd_level_compendium.csv')
+compendium_events = fread('data/compendium_cryptics.csv')
+n_junc_per = compendium_events %>% 
+    group_by(comparison) %>% 
+    summarise(n_cryptic_junc = n_distinct(paste_into_igv_junction))
+
+
+
+for_lm = two %>% 
+    group_by(dataset) %>% 
+    summarize(avg_depth = mean(uniquely_mapped)) %>% 
+    left_join(n_junc_per, by = c("dataset" = 'comparison')) %>% 
+    left_join(tardbp_results,by = c("dataset" = 'comparison')) %>% 
+    separate(dataset,remove = FALSE, into = c(NA,"cell_type"))
+
+
+lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>% 
+    broom::tidy()
+```
+
+## Is library depth stable throughout the 2 dose-dependent curves
 
 ```{r uniquely_mapped_curves}
 one = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Curves')

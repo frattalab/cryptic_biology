@@ -1,0 +1,11 @@
+comparison,log2FoldChange,plot_comparison
+Appocher-SKNBE2,-1.98856641438748,SK-N-BE(2) - 1
+Brown-i3Cortical,-1.63985779808015,i3 Cortical - 1
+Brown-SHSY5Y,-1.29629953548976,SH-SY5Y - 2
+Brown-SKNBE2,-2.58817831184976,SK-N-BE(2) - 2
+Ferguson-HeLA,-3.62866820953246,HeLa
+Humphrey-i3Cortical,-3.27526787559934,i3 Cortical - 3
+Klim-MotorNeuron,-1.34018050218364,iPSC Motor neuron
+Melamed-SHSY5Y,-1.93123682150496,SH-SY5Y - 1
+Seddighi-i3Cortical,-2.0387365698329,i3 Cortical - 2
+Vargas-i3LMN,-3.40923121222566,i3 Lower motor neuron
