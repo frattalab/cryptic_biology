@@ -683,80 +683,60 @@ diff_plt_be2 %>%
 ```{r}
 chx_control = fread('data/chx_control.csv')
 upf1_control = fread('data/upf1_control.csv')
-smg1_control_cyto = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/NT_ctrl_cytosol-NT_NMD_cytosol_annotated_junctions.csv")
-smg1_control_nuc = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/NT_ctrl_nucleus-NT_NMD_nucleus_annotated_junctions.csv")
-smg1_control_bulk = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/baseline_Control-NMDi_Control_annotated_junctions.csv")
+smg1_control_cyto = fread("data/smg1_control_cyto.csv")
+smg1_control_nuc = fread("data/smg1_control_nuc.csv")
+smg1_control_bulk = fread("data/smg1_control_bulk.csv")
 
 # https://github.com/HudsonAlpha/poison_exon_variant_analysis
-
-psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
-cyto_nmd = psi_all_groups %>% 
-    filter(.id %in% c("nt_ctrl_cytosol","nt_nmd_cytosol")) %>% 
-    distinct(paste_into_igv_junction,gene_id,gene_name,.id,mean_psi_per_lsv_junction) %>% 
-    pivot_wider(names_from = '.id',
-                values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    separate(paste_into_igv_junction,remove = FALSE, into = c("seqnames","start","end"),convert = TRUE)
 
 poison_intron = rtracklayer::import('data/poison_exon_containing_introns.bed')
 poison_casette = rtracklayer::import('data/poison_exon_cassettes.bed')
 
 library(GenomicRanges)
-poison_intron
+
 result <- subtract(poison_intron, poison_casette)
 result = unlist(result)
 
 
 
-result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(chx_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
-    geom_point() + 
-    theme_bw()
-    
-    
-result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(upf1_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
-    geom_point() + 
-    theme_bw()
 
-result %>% 
+all_data_sets_nmdi = rbind(result %>% 
     mutate(end = end +1) %>% 
     as.data.table() %>% 
     select(-strand) %>% 
     left_join(smg1_control_cyto %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
     filter(!is.na(gene_name)) %>% 
-    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
-    geom_point() + 
-    theme_bw()
-    
-result %>% 
+    mutate(dataset = "smg1_control_cyto"),result %>% 
     mutate(end = end +1) %>% 
     as.data.table() %>% 
     select(-strand) %>% 
     left_join(smg1_control_nuc %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
     filter(!is.na(gene_name)) %>% 
-    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
-    geom_point() + 
-    theme_bw()
-result %>% 
+    mutate(dataset = "smg1_control_nuc"),
+    result %>% 
     mutate(end = end +1) %>% 
     as.data.table() %>% 
     select(-strand) %>% 
     left_join(smg1_control_bulk %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
     filter(!is.na(gene_name)) %>% 
-    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
-    geom_point() + 
-    theme_bw()
+    mutate(dataset = "smg1_control_bulk")) %>% 
+    rbind(result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(upf1_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    mutate(dataset = "upf1_control")) %>% 
+    rbind(result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(chx_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    mutate(dataset = "chx_control"))
+
+
+
 ```
 
 
