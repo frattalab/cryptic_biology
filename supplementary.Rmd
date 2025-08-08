@@ -104,9 +104,79 @@ compendium_events %>%
     stat_cor()
 ```
 
+# Sample numbers of the post-mortem datasets
+
+```{r}
+meta_rimod = fread("data/metadata_rimod.csv")
+meta_nygc = fread('data/metadta_nygc.csv')
+library(dplyr)
+library(knitr)
+
+# Create the three tables
+table1 <- meta_nygc %>%  
+    filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal")) %>% 
+    filter(tdp_proteinopathy %in% c("Control","FTLD-TAU","FTLD-FUS","FTLD-TDP")) %>%
+    distinct(sample_id_rna, external_subject_id, tdp_proteinopathy, rna_tissue_source_simplified) %>%
+    group_by(tdp_proteinopathy, rna_tissue_source_simplified) %>% 
+    summarize(n_sample = n_distinct(sample_id_rna), 
+              n_patients = n_distinct(external_subject_id),
+              .groups = 'drop')
+
+table2 <- meta_nygc %>% 
+    filter(grepl("Cortex_Motor", rna_tissue_source_simplified)) %>% 
+    filter(tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP")) %>% 
+    distinct(sample_id_rna, external_subject_id, tdp_proteinopathy, rna_tissue_source_simplified) %>%
+    group_by(tdp_proteinopathy, rna_tissue_source_simplified) %>% 
+    summarize(n_sample = n_distinct(sample_id_rna), 
+              n_patients = n_distinct(external_subject_id),
+              .groups = 'drop')
+
+table3 <- meta_nygc %>% 
+    filter(grepl("Cord", rna_tissue_source_simplified)) %>% 
+    distinct(sample_id_rna, external_subject_id, tdp_proteinopathy) %>%
+    group_by(tdp_proteinopathy) %>% 
+    summarize(n_sample = n_distinct(sample_id_rna), 
+              n_patients = n_distinct(external_subject_id),
+              .groups = 'drop') %>% 
+    mutate(rna_tissue_source_simplified = 'Cord_Spinal')
+
+# Combine the tables
+combined_table <- bind_rows(table1, table2, table3) %>%
+  rename(`Proteinopathy` = tdp_proteinopathy,
+         `Tissue Source` = rna_tissue_source_simplified,
+         `Samples (n)` = n_sample,
+         `Patients (n)` = n_patients)
+
+# Display with kable
+kable(combined_table, align = c("l", "l", "c", "c"), 
+      caption = "Sample and Patient Counts by Proteinopathy and Tissue Source") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE, position = "center") %>%
+  row_spec(0, bold = TRUE)
+meta_rimod %>% 
+    mutate(tdp_proteinopathy = case_when(genotype %in% c("C9orf72","GRN")~ "FTLD-TDP",
+                                         genotype == 'control' ~ "Control",
+                                         genotype == 'MAPT' ~ "FTLD-TAU")) %>% 
+    distinct(sample, tdp_proteinopathy) %>%
+    group_by(tdp_proteinopathy) %>% 
+        summarize(n_sample = n_distinct(sample), 
+              n_patients = n_distinct(sample),
+              .groups = 'drop')
+    
+
+meta_nygc %>%  
+    filter(grepl("Cord", rna_tissue_source_simplified)|rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal",'Cortex_Motor')) %>% 
+    filter(tdp_proteinopathy %in% c("Control","FTLD-TAU","FTLD-FUS","FTLD-TDP",c("Control","ALS-TDP","ALS-non-TDP"))) %>% 
+    distinct(rna_tissue_source_simplified,tdp_proteinopathy,external_subject_id,sample_id_rna) %>% 
+    mutate(case_control = ifelse(tdp_proteinopathy == 'Control', 'control', 'case')) %>% 
+    group_by(case_control) %>% 
+            summarize(n_sample = n_distinct(sample_id_rna), 
+              n_patients = n_distinct(external_subject_id))
+
+```
 
 
-## Sequencing features of post-mortem datasets
+# Sequencing features of post-mortem datasets
 
 ```{r sequencing_features_rimod_vs_nygc}
 source("scripts/box_plot_helper.R")
@@ -410,7 +480,6 @@ scale_fill_manual(values = c("#BF5B17","#386CB0")) +
 
 ```
 
-
 # How does library depth vary in compendium datasets?
 
 ```{r uniquely_mapped_compendium}
@@ -435,7 +504,7 @@ lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>%
     broom::tidy()
 ```
 
-## Is library depth stable throughout the 2 dose-dependent curves
+# Is library depth stable throughout the 2 dose-dependent curves
 
 ```{r uniquely_mapped_curves}
 one = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Curves')
@@ -484,7 +553,7 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
 ```
 
 
-### Supplementary figure 3? - sensitivity of CEs to TDP43 LoF
+# TARDBP RNA-seq levels in 2 curves
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ### load data needed
 #S1A
@@ -520,7 +589,7 @@ d <- normal_counts_sk[,c(2:25,27)] %>%
 b + d
 ```
 
-### Are late / early genes more likely to be DE?
+# Are late / early genes more likely to be DE?
 ```{r de_late_early_sh}
 diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
 diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
@@ -609,8 +678,93 @@ diff_plt_be2 %>%
 
 ```
 
-### F. Spaghetti plot for APA events in SH-SY5Y
+# Poison exon expression in NMD
+
+```{r}
+chx_control = fread('data/chx_control.csv')
+upf1_control = fread('data/upf1_control.csv')
+smg1_control_cyto = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/NT_ctrl_cytosol-NT_NMD_cytosol_annotated_junctions.csv")
+smg1_control_nuc = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/NT_ctrl_nucleus-NT_NMD_nucleus_annotated_junctions.csv")
+smg1_control_bulk = fread("~/cluster/vyplab/splicing_TDP43/fractionation_shsy5y_kd/fractionation_sy5y/majiq/delta_psi_voila_tsv/baseline_Control-NMDi_Control_annotated_junctions.csv")
+
+# https://github.com/HudsonAlpha/poison_exon_variant_analysis
+
+psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
+cyto_nmd = psi_all_groups %>% 
+    filter(.id %in% c("nt_ctrl_cytosol","nt_nmd_cytosol")) %>% 
+    distinct(paste_into_igv_junction,gene_id,gene_name,.id,mean_psi_per_lsv_junction) %>% 
+    pivot_wider(names_from = '.id',
+                values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    separate(paste_into_igv_junction,remove = FALSE, into = c("seqnames","start","end"),convert = TRUE)
+
+poison_intron = rtracklayer::import('data/poison_exon_containing_introns.bed')
+poison_casette = rtracklayer::import('data/poison_exon_cassettes.bed')
+
+library(GenomicRanges)
+poison_intron
+result <- subtract(poison_intron, poison_casette)
+result = unlist(result)
+
+
+
+result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(chx_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
+    geom_point() + 
+    theme_bw()
+    
+    
+result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(upf1_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
+    geom_point() + 
+    theme_bw()
+
+result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(smg1_control_cyto %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
+    geom_point() + 
+    theme_bw()
+    
+result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(smg1_control_nuc %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
+    geom_point() + 
+    theme_bw()
+result %>% 
+    mutate(end = end +1) %>% 
+    as.data.table() %>% 
+    select(-strand) %>% 
+    left_join(smg1_control_bulk %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
+    filter(!is.na(gene_name)) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, y = -log10(1 - probability_changing))) + 
+    geom_point() + 
+    theme_bw()
+```
+
+
+
+# F. Spaghetti plot for APA events in SH-SY5Y
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+
 shsy5y_papa = fread("data/shsy5y_papa_curve.csv")
 
 shsy5y_papa |>
@@ -636,7 +790,7 @@ shsy5y_papa |>
 
 ```
 
-#### G. Spaghetti plot for APA events in BE(2)
+# G. Spaghetti plot for APA events in BE(2)
 ```{r}
 sknbe2_papa = fread("data/sknbe2_papa_curve.csv")
 
@@ -914,6 +1068,7 @@ b <- cons_score_df_not_cryptic %>%
   theme(text = element_text(size = plot_text_size))
 a + b
 ```
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in  SK-N-BE(2)

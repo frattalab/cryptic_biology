@@ -93,6 +93,7 @@ tardbp_results <- purrr::map2_dfr(dfs, sheet_names, ~{
   }
 })
 
+
 # View result
 tardbp_results = tardbp_results %>% 
     left_join(compendium_events %>% distinct(comparison,plot_comparison))
@@ -214,7 +215,7 @@ marker_euler =
                 values_fill = FALSE) %>% 
     unique() %>% 
     # mutate(total_count = rowSums(across(RiMOD:`Motor Cortex`)))
-    select(-gene_name) 
+    column_to_rownames('gene_name')
 
 custom_labels <- c("RiMOD\nFTLD\nFrontal Cortex",
                    "NYGC FTLD\nFrontalTemporal Cortex",
