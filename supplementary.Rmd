@@ -72,7 +72,7 @@ library(openxlsx)
 library(dplyr)
 
 # Load all sheets
-xlsx_file <- "/Users/annaleigh/Desktop/deseq2_outputs_compendium.xlsx"
+xlsx_file <- "data/deseq2_outputs_compendium.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
 dfs <- purrr::map(sheet_names, ~read.xlsx(xlsx_file,.x))
 
@@ -269,9 +269,7 @@ id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
 
 summary_post <- fread("data/cryptic_detection_summary_long_version.csv")
 
-nygc_metadata = fread("/Users/annaleigh/Desktop/nygc_metadata_done.csv") %>% 
-    dplyr::rename(sample = V4) %>% 
-    select(-bam_path,-bam_name,-id) %>% 
+nygc_metadata = fread("data/metadta_nygc.csv") %>% 
         mutate(group = case_when(grepl("Cord",rna_tissue_source_simplified) ~ 'Cord',
                              grepl("Cortex_Motor",rna_tissue_source_simplified) & 
                                  tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP") ~ "Motor Cortex",
@@ -596,9 +594,8 @@ diff_plt_sh = diff_expr_sh %>%
     filter(cryptic == 'yes' | is.na(last_exon)) %>% 
     filter(symbol != "RNA5-8SN2") %>% 
     mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
+    mutate(sig_de = ifelse(padj > 0.05,"N.S.",fc_direction)) %>% 
     filter(!is.na(sig_de)) %>% 
-    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
     distinct(symbol,last_exon,cryptic,tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
     mutate(tdp43_sensitivity_sh = ifelse(is.na(tdp43_sensitivity_sh),'Non-splicing',tdp43_sensitivity_sh)) %>% 
     mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) %>% 
@@ -614,21 +611,32 @@ diff_plt_sh %>%
     ungroup() %>% 
     left_join(sh_d_gene) %>% 
     mutate(prop = n_genes / denom) %>% 
-    filter(!grepl("non_sig", sig_de)) %>% 
     ggplot(aes(x = tdp43_sensitivity_sh, 
                y = prop, 
                fill = sig_de)) + 
-    geom_col(position = position_dodge(preserve = "single"), color = 'black') + 
-    geom_text(aes(label = n_genes), 
-              position = position_dodge(width = 0.9), 
-              vjust = -0.5, 
-              size = 4) + # Adding white text on top of the bars
+    geom_col()  +
+    # geom_text(aes(label = n_genes), 
+    #           position = position_dodge(width = 0.9), 
+    #           vjust = -0.5, 
+    #           size = 4) + # Adding white text on top of the bars
     facet_wrap(~source) + 
     theme_classic() + 
     ylab("Proportion of genes") + 
     xlab(element_blank()) + 
-    theme(legend.position = 'bottom') + 
-    scale_fill_manual(values = c("#2B4162", "#721817"))
+    theme(legend.position = 'bottom') 
+
+
+
+diff_plt_sh %>% 
+    group_by(tdp43_sensitivity_sh, sig_de, source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(sh_d_gene) %>% 
+    mutate(prop = n_genes / denom) %>% 
+    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
+    geom_point() + 
+    geom_line() + 
+    facet_wrap(~tdp43_sensitivity_sh)
 
 ```
 
@@ -638,9 +646,8 @@ diff_plt_be2 = diff_expr_sk %>%
     left_join(unique(master_table[junction_for_clustering == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_be2)]),by = c("symbol" = 'gene')) %>% 
     filter(symbol != "RNA5-8SN2") %>% 
     mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj < 0.05 & abs(log2FoldChange) >= fold_cut, "sig", "non_sig")) %>% 
+    mutate(sig_de = ifelse(padj > 0.05, "N.S.", fc_direction)) %>% 
     filter(!is.na(sig_de)) %>% 
-    mutate(sig_de = glue::glue("{sig_de}\n{fc_direction}")) %>% 
     distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
     mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'non-splicing',tdp43_sensitivity_be2)) %>% 
     mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','non-splicing',tdp43_sensitivity_be2)) %>% 
@@ -792,7 +799,7 @@ library(openxlsx)
 library(dplyr)
 
 # Load all sheets
-xlsx_file <- "/Users/annaleigh/Desktop/NMD_deseq_chx_upf1.xlsx"
+xlsx_file <- "data/NMD_deseq_chx_upf1.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
 sheet_names = sheet_names[grepl("upf1|ctrl",sheet_names)]
 dfs <- purrr::map(sheet_names, ~read.xlsx(xlsx_file,.x))
