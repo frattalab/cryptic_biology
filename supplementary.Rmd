@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ###load packages/libraries/scripts
 library(UpSetR)
-
+library(plyranges)
 library(tidyverse)
 library(ggrepel)
 library(patchwork)
@@ -142,17 +142,13 @@ table3 <- meta_nygc %>%
 
 # Combine the tables
 combined_table <- bind_rows(table1, table2, table3) %>%
-  rename(`Proteinopathy` = tdp_proteinopathy,
+  dplyr::rename(`Proteinopathy` = tdp_proteinopathy,
          `Tissue Source` = rna_tissue_source_simplified,
          `Samples (n)` = n_sample,
          `Patients (n)` = n_patients)
 
 # Display with kable
-kable(combined_table, align = c("l", "l", "c", "c"), 
-      caption = "Sample and Patient Counts by Proteinopathy and Tissue Source") %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE, position = "center") %>%
-  row_spec(0, bold = TRUE)
+
 meta_rimod %>% 
     mutate(tdp_proteinopathy = case_when(genotype %in% c("C9orf72","GRN")~ "FTLD-TDP",
                                          genotype == 'control' ~ "Control",
@@ -266,7 +262,7 @@ ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
 
 
 
-## Does baseline gene expression drive detection rate?
+# Does baseline gene expression drive detection rate?
 
 ```{r nygc_gene_expression_detection_rate}
 id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
@@ -681,6 +677,7 @@ diff_plt_be2 %>%
 # Poison exon expression in NMD
 
 ```{r}
+library(ggridges)
 chx_control = fread('data/chx_control.csv')
 upf1_control = fread('data/upf1_control.csv')
 smg1_control_cyto = fread("data/smg1_control_cyto.csv")
@@ -700,54 +697,157 @@ result = unlist(result)
 
 
 
-all_data_sets_nmdi = rbind(result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(smg1_control_cyto %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    mutate(dataset = "smg1_control_cyto"),result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(smg1_control_nuc %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    mutate(dataset = "smg1_control_nuc"),
-    result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(smg1_control_bulk %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    mutate(dataset = "smg1_control_bulk")) %>% 
-    rbind(result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(upf1_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    mutate(dataset = "upf1_control")) %>% 
-    rbind(result %>% 
-    mutate(end = end +1) %>% 
-    as.data.table() %>% 
-    select(-strand) %>% 
-    left_join(chx_control %>% distinct(seqnames,start,end,strand,gene_name,mean_dpsi_per_lsv_junction,probability_changing)) %>% 
-    filter(!is.na(gene_name)) %>% 
-    mutate(dataset = "chx_control"))
 
+data_cyto <- result %>% 
+  as.data.table() %>% 
+  mutate(end = end + 1) %>% 
+  select(-strand) %>% 
+  left_join(smg1_control_cyto %>% distinct(seqnames, start, end, strand,
+                                           gene_name, mean_dpsi_per_lsv_junction,
+                                           probability_changing)) %>% 
+  filter(!is.na(gene_name)) %>% 
+  mutate(dataset = "SH-SY5Y\nSMG1-11j inhibitor\nCytoplasm")
+
+
+data_nuc <- result %>% 
+    as.data.table() %>% 
+  mutate(end = end + 1) %>% 
+  select(-strand) %>% 
+  left_join(smg1_control_nuc %>% distinct(seqnames, start, end, strand, 
+                                          gene_name, mean_dpsi_per_lsv_junction, 
+                                          probability_changing)) %>% 
+  filter(!is.na(gene_name)) %>% 
+  mutate(dataset = "SH-SY5Y\nSMG1-11j inhibitor\nNucleus")
+
+data_smg1_bulk <- result %>% 
+    as.data.table() %>% 
+  mutate(end = end + 1) %>% 
+  select(-strand) %>% 
+  left_join(smg1_control_bulk %>% distinct(seqnames, start, end, strand, 
+                                          gene_name, mean_dpsi_per_lsv_junction, 
+                                          probability_changing)) %>% 
+  filter(!is.na(gene_name)) %>% 
+  mutate(dataset = "SH-SY5Y\nSMG1-11j inhibitor\nPseudo-bulk")
+
+data_upf1 <- result %>% 
+    as.data.table() %>% 
+  mutate(end = end + 1) %>% 
+  select(-strand) %>% 
+  left_join(upf1_control %>% distinct(seqnames, start, end, strand, 
+                                          gene_name, mean_dpsi_per_lsv_junction, 
+                                          probability_changing)) %>% 
+  filter(!is.na(gene_name)) %>% 
+  mutate(dataset = "iPSC Cortical Neuron\nUPF1 KD")
+
+data_chx <- result %>% 
+    as.data.table() %>% 
+  mutate(end = end + 1) %>% 
+  select(-strand) %>% 
+  left_join(chx_control %>% distinct(seqnames, start, end, strand, 
+                                          gene_name, mean_dpsi_per_lsv_junction, 
+                                          probability_changing)) %>% 
+  filter(!is.na(gene_name)) %>% 
+  mutate(dataset = "SH-SY5Y\nCyclohexmide")
+
+all_data_sets_nmdi <- rbind(data_cyto, data_nuc, data_smg1_bulk,data_upf1,data_chx)
+
+
+all_data_sets_nmdi %>% 
+    filter(probability_changing > 0.9) %>% 
+    mutate(dataset = fct_relevel(dataset,"SH-SY5Y\nSMG1-11j inhibitor\nCytoplasm","SH-SY5Y\nSMG1-11j inhibitor\nNucleus",'SH-SY5Y\nSMG1-11j inhibitor\nPseudo-bulk')) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction)) + 
+    geom_histogram() + 
+    facet_wrap(~dataset) +
+    theme_bw() + 
+    ylab("N significant poison exon junctions") +
+    theme(text = element_text(size = 20),
+          axis.text.x = element_text(size = 14)) +
+    theme(legend.position = 'none') +
+    xlab('Delta PSI') + 
+    scale_x_continuous(labels = scales::percent) + 
+    geom_vline(xintercept = 0, linetype = 'dotted')
+
+
+
+all_data_sets_nmdi %>% 
+    mutate(sig = probability_changing > 0.9) %>% 
+    ggplot(aes(x = mean_dpsi_per_lsv_junction, 
+              color = dataset,
+              y = -log10(1 - probability_changing),
+              alpha = sig)) +  # Map alpha to sig
+    geom_point() +
+    scale_alpha_manual(values = c(`TRUE` = 1, `FALSE` = 0.5), guide = "none") +
+    theme_bw() + 
+    geom_hline(yintercept = -log10(0.1)) +
+    geom_vline(xintercept = 0,linetype = 'dotted')  +
+    xlab("Delta PSI NMDi vs Control")
 
 
 ```
 
+# UPF1 and TDP-43 levels in NMD experiments
+
+```{r}
+library(openxlsx)
+library(dplyr)
+
+# Load all sheets
+xlsx_file <- "/Users/annaleigh/Desktop/NMD_deseq_chx_upf1.xlsx"
+sheet_names <- getSheetNames(xlsx_file)
+sheet_names = sheet_names[grepl("upf1|ctrl",sheet_names)]
+dfs <- purrr::map(sheet_names, ~read.xlsx(xlsx_file,.x))
+
+# Extract TARDBP rows and log2FoldChange values
+deseq_nmd_results <- purrr::map2_dfr(dfs, sheet_names, ~{
+  filtered <- filter(.x, symbol %in% c("TARDBP","UPF1"))
+  if (nrow(filtered) > 0) {
+    data.frame(
+      comparison = .y,
+      log2FoldChange = filtered$log2FoldChange,
+      gene_name  = filtered$symbol,
+    padj  = filtered$padj
+
+    )
+  } else {
+    NULL
+  }
+})
+
+deseq_nmd_results %>% 
+    mutate(comparison = case_match(comparison, "upf1_vs_ctrl" ~ "UPF1 KD\nvs\nControl",
+                                   "UPF1ctrl_UPF1TDP43" ~ "UPF1 KD\nvs\nUPF1 KD + TDP-43 KD",
+                                   "ctrlTDP43_UPF1TDP43" ~ "TDP-43 KD\nvs\nUPF1 KD + TDP-43 KD",
+                                   "ctrlctrl_ctrlTDP43" ~ "TDP-43 KD\nvs\nControl")) %>% 
+  mutate(sig = padj < 0.01) %>% 
+  ggplot(aes(
+    x = comparison,
+    y = log2FoldChange,
+    fill = gene_name,
+    alpha = sig,          # map alpha to sig
+    color = sig           # map outline color to sig
+  )) + 
+  geom_col(position = 'dodge2', linewidth = 1) + # linewidth controls outline thickness
+  scale_alpha_manual(values = c(`TRUE` = 1, `FALSE` = 0.7)) +
+  scale_color_manual(values = c(`TRUE` = "black", `FALSE` = NA)) +
+  guides(alpha = "none", color = "none") +
+    theme_bw() +
+    theme(text = element_text(size = 20)) +
+    xlab(element_blank()) +
+    ylab("Log2 Fold Change") + 
+    geom_hline(yintercept = 0,linetype = 'dotted') +
+    guides(fill = guide_legend(title = "Gene name")) +
+    theme(legend.position = 'bottom')
+
+```
 
 
-# F. Spaghetti plot for APA events in SH-SY5Y
+# Spaghetti plot for APA events in SH-SY5Y
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 
 
 shsy5y_papa = fread("data/shsy5y_papa_curve.csv")
 
-shsy5y_papa |>
+sh_plot = shsy5y_papa |>
     select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |>
     complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |>
     dplyr::group_by(le_id) %>%
@@ -755,6 +855,7 @@ shsy5y_papa |>
     ungroup() |>
     mutate(gene_name = ifelse(experiment == 'zanovello_shsy5y_curve_0075',
                               gene_name,NA_character_)) %>%
+    rbind(shsy5y_papa %>% distinct(le_id,gene_name,timing) %>% mutate(experiment = '_fakezero') %>% mutate(mean_ppau_contrast = 0)) %>% 
     ggplot(aes(x = experiment,
                y = mean_ppau_contrast,
                group = le_id,color = timing)) +
@@ -764,24 +865,33 @@ shsy5y_papa |>
     theme_bw() +
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
-    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++")) +
-    facet_wrap(~timing) 
+    scale_x_discrete(labels=c("Control","+", "++", "+++","++++","+++++")) +
+    facet_wrap(~timing) +
+    ylab("Delta % polyA usage") +
+    theme(text = element_text(size = 20)) +
+    xlab(element_blank()) +
+    theme(legend.position = 'none') +
+    scale_y_continuous(labels = scales::percent_format()) 
+
+
     
 
 ```
 
-# G. Spaghetti plot for APA events in BE(2)
+# Spaghetti plot for APA events in BE(2)
 ```{r}
 sknbe2_papa = fread("data/sknbe2_papa_curve.csv")
 
-sknbe2_papa %>% 
+be2_plot = sknbe2_papa %>% 
     select(le_id,mean_ppau_contrast,experiment,gene_name,timing) |> 
     complete(le_id,experiment,fill = list(mean_ppau_contrast = 0))  |> 
     dplyr::group_by(le_id) %>%
     fill(timing, .direction = "downup") %>%
     ungroup() |>
+    rbind(sknbe2_papa %>% distinct(le_id,gene_name,timing) %>% mutate(experiment = '_fakezero') %>% mutate(mean_ppau_contrast = 0)) %>% 
     mutate(gene_name = ifelse(experiment == 'zanovello_skndz_curve_1',
                               gene_name,NA_character_)) |>
+
     ggplot(aes(x = experiment,
                y = mean_ppau_contrast,
                group = le_id,color = timing)) +
@@ -791,9 +901,18 @@ sknbe2_papa %>%
     theme_bw() +
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
-    scale_x_discrete(labels=c("+", "++", "+++","++++","+++++","++++++","++++++")) +
-    ylab("% polyA usage") +
-    scale_y_continuous(labels = scales::percent_format())
+    scale_x_discrete(labels=c("Control","+", "++", "+++","++++","+++++","+++\n+++","+++\n+++++")) +
+    ylab("Delta % polyA usage") +
+    scale_y_continuous(labels = scales::percent_format()) +
+    facet_wrap(~timing) +
+        theme(text = element_text(size = 20)) +
+    xlab(element_blank()) +
+        theme(legend.position = 'none') +
+    scale_y_continuous(labels = scales::percent_format()) 
+
+
+
+ggarrange(plotlist = list(sh_plot,be2_plot),nrow = 2)
 
 ```
 
