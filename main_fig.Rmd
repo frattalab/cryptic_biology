@@ -589,7 +589,7 @@ nuc_kd %>%
     labs(fill = 'Subcellular fraction') +
     xlab(element_blank()) +
     scale_fill_manual(values = c("lightblue", "moccasin")) + 
-    ylab("Log2 Fold Change TDP-43 KD") +
+    ylab("Log2 Fold Change after TDP-43 KD") +
     facet_wrap(~bin_max, labeller = labeller(bin_max = facet_labels),scales = 'free_x') +
     theme(text = element_text(size = 18)) +
     stat_compare_means(hide.ns = TRUE, 

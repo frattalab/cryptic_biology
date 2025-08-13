@@ -927,10 +927,14 @@ sh_plot = shsy5y_papa |>
     theme_bw() +
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
-    scale_x_discrete(labels=c("Control","+", "++", "+++","++++","+++++")) +
+    theme(legend.position = 'bottom') +
+    scale_x_discrete(labels = c("0", "0.0125", "0.0187", "0.0210", "0.0250", "0.0750")) +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+          theme(text = element_text(size = 15)) +
+        theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))    +
     facet_wrap(~timing) +
     ylab("Delta % polyA usage") +
-    theme(text = element_text(size = 20)) +
     xlab(element_blank()) +
     theme(legend.position = 'none') +
     scale_y_continuous(labels = scales::percent_format()) 
@@ -963,14 +967,18 @@ be2_plot = sknbe2_papa %>%
     theme_bw() +
     geom_hline(yintercept = 0.1,linetype = 'dotted') +
     scale_color_manual(values = c("#E376BF","#4A6EDD")) +
-    scale_x_discrete(labels=c("Control","+", "++", "+++","++++","+++++","+++\n+++","+++\n+++++")) +
     ylab("Delta % polyA usage") +
     scale_y_continuous(labels = scales::percent_format()) +
     facet_wrap(~timing) +
-        theme(text = element_text(size = 20)) +
     xlab(element_blank()) +
         theme(legend.position = 'none') +
-    scale_y_continuous(labels = scales::percent_format()) 
+    scale_y_continuous(labels = scales::percent_format()) +
+        theme(legend.position = 'bottom') +
+      scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+          theme(text = element_text(size = 15)) +
+        theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
 
 
 
@@ -978,6 +986,79 @@ ggarrange(plotlist = list(sh_plot,be2_plot),nrow = 2)
 
 ```
 
+
+# UPF1 NMD sensitivity by early/late status
+
+```{r}
+new_cate_nmd_sens_upf1 = wide_upf1 %>% 
+    distinct(paste_into_igv_junction,upf1_effect) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(new_cate)) %>% 
+    filter(new_cate != "") %>% 
+    filter(junction_for_clustering == 'yes') %>% 
+    mutate(upf1_effect = ifelse(upf1_effect == "Dark cryptic","NMD rescued",upf1_effect)) %>% 
+    group_by(upf1_effect,new_cate) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction))
+
+ggplot(new_cate_nmd_sens_upf1) +
+    aes(x = new_cate, fill = upf1_effect, weight = n, by = as.factor(new_cate)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'UPF1 KD') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom') +
+    theme(text = element_text(size = 18))
+
+new_cate_nmd_sens_upf1 %>% 
+    pivot_wider(names_from = 'upf1_effect',values_from = 'n') %>% 
+    column_to_rownames("new_cate") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
+
+
+# SMG1i NMD sensitivity by early/late status
+
+```{r}
+new_cate_nmd_sens_smg1 = wide_smg1 %>% 
+    distinct(paste_into_igv_junction,smg1_effect) %>% 
+    left_join(master_table) %>% 
+    filter(!is.na(new_cate)) %>% 
+    filter(new_cate != "") %>% 
+    filter(junction_for_clustering == 'yes') %>% 
+    mutate(smg1_effect = ifelse(smg1_effect == "Dark cryptic","NMD rescued",smg1_effect)) %>% 
+    group_by(smg1_effect,new_cate) %>% 
+    reframe(n = n_distinct(paste_into_igv_junction))
+
+ggplot(new_cate_nmd_sens_smg1) +
+    aes(x = new_cate, fill = smg1_effect, weight = n, by = as.factor(new_cate)) +
+    geom_bar() +
+    geom_text(
+        aes(label = scales::percent(after_stat(prop), accuracy = 1)),
+        stat = "prop",
+        position = position_stack(.5)
+    ) +
+    theme_classic() + 
+    labs(y = 'N junctions',
+         x = element_blank(),
+         fill = 'SMG-1 i') +
+    scale_fill_manual(values = c("#3288BD","#D53E4F")) + 
+    theme(legend.position = 'bottom') +
+    theme(text = element_text(size = 18))
+
+new_cate_nmd_sens_smg1 %>% 
+    pivot_wider(names_from = 'smg1_effect',values_from = 'n') %>% 
+    column_to_rownames("new_cate") %>% 
+    as.matrix() %>% 
+    rstatix::pairwise_fisher_test()
+```
 
 # UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
 
