@@ -606,6 +606,19 @@ b + d
 
 # How do cryptics with early/late/events change in their fc over time? 
 ```{r de_late_early_sh}
+master_table <- read.csv(here::here("data/master_table.csv"))
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
+
+
 diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
 diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
 master_table = as.data.table(master_table)
@@ -903,7 +916,7 @@ deseq_nmd_results %>%
 ```
 
 
-# Spaghetti plot for APA events in SH-SY5Y
+# Spaghetti plot for APA events in SH-SY5Y and SK-N-BE(2)
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 
 
@@ -940,12 +953,7 @@ sh_plot = shsy5y_papa |>
     scale_y_continuous(labels = scales::percent_format()) 
 
 
-    
 
-```
-
-# Spaghetti plot for APA events in BE(2)
-```{r}
 sknbe2_papa = fread("data/sknbe2_papa_curve.csv")
 
 be2_plot = sknbe2_papa %>% 
@@ -990,6 +998,24 @@ ggarrange(plotlist = list(sh_plot,be2_plot),nrow = 2)
 # UPF1 NMD sensitivity by early/late status
 
 ```{r}
+big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
+big_data_upf1 = big_data_upf1 %>% 
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+wide_upf1 = big_data_upf1 |> 
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    unique() %>% 
+    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
+    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
+    mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.05 ~ "NMD rescued",
+                                  TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>% 
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+    mutate(ensgene =  gsub("\\..*","",gene_id)) 
+
 new_cate_nmd_sens_upf1 = wide_upf1 %>% 
     distinct(paste_into_igv_junction,upf1_effect) %>% 
     left_join(master_table) %>% 
@@ -1027,6 +1053,67 @@ new_cate_nmd_sens_upf1 %>%
 # SMG1i NMD sensitivity by early/late status
 
 ```{r}
+gene_list_slope = c("STMN2", 
+                    "KCNQ2", 
+                    "ATG4B", 
+                    "HDGFL2", 
+                    "KCNQ2", 
+                    "ACTL6B", 
+                    "GPSM2", 
+                    "AKT3", 
+                    "HDGFL2",
+                    "PKN1",
+                    "UNC13A",
+                    'CYFIP2',
+                    "SYNE1")
+
+data_summary_full = fread('data/cryptic_detection_summary_long_version.csv')
+
+true_dark_selective = data_summary_full %>% 
+    filter(true_dark == TRUE) %>%
+    filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
+    pull(paste_into_igv_junction) %>% 
+    unique()
+
+psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups.parquet")
+
+psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
+
+pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
+                                        gene_list = gene_list_slope,
+                                        input_list =  c("nt_ctrl",
+                                                        "nt_nmd",
+                                                        "dox_ctrl",
+                                                        "dox_nmd"),
+                                        nmd_label = 'SMG1i',
+                                        true_dark_junctions = true_dark_selective)
+
+big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>% 
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+
+wide_smg1 = big_data_smg1 |> 
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    unique() %>% 
+    mutate(normal_cryptic_smg1 = nt_ctrl < 0.05 &  dox_ctrl > 0.1) |> 
+    mutate(smg1_cryptic = nt_ctrl < 0.05 &  dox_nmd > 0.1) |> 
+    mutate(smg1_effect = case_when((dox_nmd - dox_ctrl) > 0.1 ~ "NMD rescued",
+                                  dox_ctrl > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>% 
+    left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+    mutate(ensgene =  gsub("\\..*","",gene_id))
+
+
+smg1_dark = wide_smg1 |> 
+    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |> 
+    pull(paste_into_igv_junction) |> unique()
+
+wide_smg1 = wide_smg1 %>% 
+    mutate(smg1_effect = ifelse(paste_into_igv_junction %in% smg1_dark, "Dark cryptic",smg1_effect))
+
 new_cate_nmd_sens_smg1 = wide_smg1 %>% 
     distinct(paste_into_igv_junction,smg1_effect) %>% 
     left_join(master_table) %>% 
@@ -1068,8 +1155,8 @@ summary_post = fread("data/summary_metrics_post_mortem.csv")
 smg1_summary_rest <- generate_summary_table(
     summary_post, 
     pseudo_bulk_plot_slope$filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued"
+    category_column = "color_gene_name"#,
+    #baseline_category = "non-NMD rescued"
 )
 
 fisher_result_smg1 = run_fisher_test(smg1_summary_rest)
@@ -1077,19 +1164,26 @@ smg1_plots = make_final_plot(smg1_summary_rest,fisher_result_smg1)
 smg1_plots$detection_plot + ggtitle('SMG1i junctions')
 smg1_plots$selectivity_plot + ggtitle('SMG1i junctions')
 
+upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1, 
+               gene_list_slope,
+               input_list = c("ctrl_ctrl",
+                "ctrl_UPF1", 
+                "TDP43_ctrl", 
+                "TDP43_UPF1"),nmd_label = 'UPF1 KD',
+               true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
+
+
 upf1_summary_rest <- generate_summary_table(
     summary_post, 
     upf1_slope_plot_table$filtered_table,
-    category_column = "color_gene_name",
-    baseline_category = "non-NMD rescued"
+    category_column = "color_gene_name"#,
+    #baseline_category = "non-NMD rescued"
 )
 
 fisher_result_upf1 = run_fisher_test(upf1_summary_rest)
 upf1_plots = make_final_plot(upf1_summary_rest,fisher_result_upf1)
 upf1_plots$detection_plot + ggtitle('UPF1 junctions')
 upf1_plots$selectivity_plot + ggtitle('UPF1 junctions')
-
-
 
 ```
 
@@ -1116,8 +1210,6 @@ xtabs(n_bucket ~ color_gene_name + group,data = df) %>%
 
 ```
 
-
-```
 
 
 ### Supplementary figure 3 - NMD
