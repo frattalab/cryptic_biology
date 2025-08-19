@@ -46,7 +46,7 @@ plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#173dd3",
                              "Intermediate" = "steelblue","Not found" = 'darkgrey',"Ambiguous" = 'darkred')
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
 plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
-plot_text_size <- 10
+plot_text_size <- 18
 ```
 
 
@@ -55,7 +55,7 @@ plot_text_size <- 10
 ```{r overall dataset}
 compendium_events = fread('data/compendium_cryptics.csv')
 
-compendium_events = compendium_events %>% 
+compendium_events = compendium_events %>%
     mutate(plot_comparison = case_when(comparison == "Ferguson-HeLA" ~ 'HeLa',
                                        comparison == "Appocher-SKNBE2" ~ 'SK-N-BE(2) - 1',
                                        comparison == 'Brown-i3Cortical' ~ "i3 Cortical - 1",
@@ -66,10 +66,10 @@ compendium_events = compendium_events %>%
                                        comparison == 'Humphrey-i3Cortical' ~ "i3 Cortical - 3",
                                        comparison == 'Vargas-i3LMN' ~ "i3 Lower motor neuron",
                                        comparison == 'Klim-MotorNeuron' ~ "iPSC Motor neuron"))
-c_tbl = compendium_events %>% 
-    distinct(paste_into_igv_junction,plot_comparison) %>% 
-    mutate(found = TRUE) %>% 
-    pivot_wider(names_from = 'plot_comparison',values_from = 'found',values_fill = FALSE) %>% 
+c_tbl = compendium_events %>%
+    distinct(paste_into_igv_junction,plot_comparison) %>%
+    mutate(found = TRUE) %>%
+    pivot_wider(names_from = 'plot_comparison',values_from = 'found',values_fill = FALSE) %>%
     tibble::column_to_rownames('paste_into_igv_junction') %>% as.matrix()
 
 ```
@@ -95,7 +95,7 @@ tardbp_results <- purrr::map2_dfr(dfs, sheet_names, ~{
 
 
 # View result
-tardbp_results = tardbp_results %>% 
+tardbp_results = tardbp_results %>%
     left_join(compendium_events %>% distinct(comparison,plot_comparison))
 # Calculate the absolute overlap counts
 overlap_matrix <- matrix(0, ncol=ncol(c_tbl), nrow=ncol(c_tbl))
@@ -123,13 +123,13 @@ matrix_order <- hc$order
 # Reorder the matrix rows and columns using the same order
 ordered_matrix <- norm_matrix[matrix_order, matrix_order]
 
-ordered_display_mat <- matrix(paste0(round(ordered_matrix * 100, 0), "%"), 
+ordered_display_mat <- matrix(paste0(round(ordered_matrix * 100, 0), "%"),
                               nrow = nrow(ordered_matrix))
 
-tardbp_results <- tardbp_results[matrix_order, , drop = FALSE] 
+tardbp_results <- tardbp_results[matrix_order, , drop = FALSE]
 
 rownames(tardbp_results) = tardbp_results$plot_comparison
-tardbp_results = tardbp_results %>% 
+tardbp_results = tardbp_results %>%
     select(-comparison,-plot_comparison)
 
 
@@ -137,8 +137,8 @@ tardbp_results <- tardbp_results[rownames(ordered_matrix), , drop = FALSE]
 # Create the heatmap with the ordered matrix
 pheatmap(ordered_matrix * 100,
          color = colorRampPalette(c("white", "orange", "red"))(100),
-         cluster_rows = FALSE,  
-         cluster_cols = FALSE,  
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
           display_numbers = ordered_display_mat,
          main = "Cryptic Splice Junction Overlap (%)",
          fontsize = 12,
@@ -151,22 +151,22 @@ pheatmap(ordered_matrix * 100,
 
 
 ```{r appearnace of most frequent}
-compendium_events %>% 
-    mutate(gene_name_new = ifelse(grepl("^ENS", gene_name), NA_character_, gene_name)) %>% 
-    group_by(paste_into_igv_junction) %>% 
-    fill(gene_name_new) %>% 
-    ungroup() %>% 
+compendium_events %>%
+    mutate(gene_name_new = ifelse(grepl("^ENS", gene_name), NA_character_, gene_name)) %>%
+    group_by(paste_into_igv_junction) %>%
+    fill(gene_name_new) %>%
+    ungroup() %>%
     filter(n_significant_data >= 6) %>%
-    distinct(gene_name_new, plot_comparison) %>% 
-    mutate(gene_name_new = ifelse(gene_name_new == 'RP1-283E3.8', 'CDK11A', gene_name_new)) %>% 
-    mutate(gene_name_new = ifelse(gene_name_new == 'RP4-583P15.15', 'ZGPAT', gene_name_new)) %>% 
-    distinct(gene_name_new, plot_comparison) %>% 
-    group_by(gene_name_new) %>% 
-    mutate(n_datasets = n_distinct(plot_comparison)) %>% 
-    ungroup() %>% 
-    mutate(gene_name_new = fct_reorder(gene_name_new, n_datasets)) %>% 
-    mutate(present = 1) %>% 
-    ggplot(aes(y = gene_name_new, x = plot_comparison,fill = present)) + 
+    distinct(gene_name_new, plot_comparison) %>%
+    mutate(gene_name_new = ifelse(gene_name_new == 'RP1-283E3.8', 'CDK11A', gene_name_new)) %>%
+    mutate(gene_name_new = ifelse(gene_name_new == 'RP4-583P15.15', 'ZGPAT', gene_name_new)) %>%
+    distinct(gene_name_new, plot_comparison) %>%
+    group_by(gene_name_new) %>%
+    mutate(n_datasets = n_distinct(plot_comparison)) %>%
+    ungroup() %>%
+    mutate(gene_name_new = fct_reorder(gene_name_new, n_datasets)) %>%
+    mutate(present = 1) %>%
+    ggplot(aes(y = gene_name_new, x = plot_comparison,fill = present)) +
     geom_tile(color = "black", fill = "grey", linewidth = 0.3) +
         scale_y_discrete(drop = FALSE) + # Shows all genes even if not in every comparison
     theme_minimal() +
@@ -177,9 +177,9 @@ compendium_events %>%
         axis.text.y = element_text(face = "italic")
     ) +
     labs(x = element_blank(), y = element_blank()) +
-    theme(axis.text = element_text(size = 12)) 
+    theme(axis.text = element_text(size = 12))
 
- 
+
 ```
 
 
@@ -203,17 +203,17 @@ not_in_the_cord = summary_post %>%
     mutate(total_count = rowSums(across(RiMOD:`Motor Cortex`))) %>%
     filter(Cord == FALSE & total_count == 3)
 
-marker_euler = 
-    summary_post %>% 
-    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>% 
-    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>% 
-    filter(value_tdp_path >=5) %>% 
-    distinct(group,gene_name) %>% 
-    mutate(observed = TRUE) %>% 
+marker_euler =
+    summary_post %>%
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
+    filter(value_tdp_path >=5) %>%
+    distinct(group,gene_name) %>%
+    mutate(observed = TRUE) %>%
     pivot_wider(names_from = 'group',
                 values_from = 'observed',
-                values_fill = FALSE) %>% 
-    unique() %>% 
+                values_fill = FALSE) %>%
+    unique() %>%
     # mutate(total_count = rowSums(across(RiMOD:`Motor Cortex`)))
     column_to_rownames('gene_name')
 
@@ -223,8 +223,8 @@ custom_labels <- c("RiMOD\nFTLD\nFrontal Cortex",
                     "NYGC ALS\nMotor Cortex")
 
 colnames(marker_euler) = custom_labels
-gg_euler = marker_euler %>% 
-    eulerr::euler(shape = "ellipse") %>% 
+gg_euler = marker_euler %>%
+    eulerr::euler(shape = "ellipse") %>%
     plot(
      fills = c("#EF7F7F", "#ACD7E5", "#4A5240", "#5F4BB6"),
      labels = list(col = "white", cex = 1.1),  # Try labels as a list with color
@@ -238,35 +238,35 @@ gg_euler = marker_euler %>%
 gg_euler = as.ggplot(gg_euler)
 
 #get the genes in the overlap section
-genes_everywhere = summary_post %>% 
-    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>% 
-    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>% 
-    filter(value_tdp_path >=5) %>% 
-    distinct(group,paste_into_igv_junction) %>% 
-    group_by(paste_into_igv_junction) %>% 
-    add_count() %>% 
-    filter(n == 4) %>% 
-    ungroup() %>% 
-    left_join(summary_post %>% distinct(paste_into_igv_junction,gene_name,frac_ob_tdp_path)) %>% 
-    group_by(gene_name) %>% 
-    summarise(avg_d = mean(frac_ob_tdp_path)) %>% 
+genes_everywhere = summary_post %>%
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
+    filter(value_tdp_path >=5) %>%
+    distinct(group,paste_into_igv_junction) %>%
+    group_by(paste_into_igv_junction) %>%
+    add_count() %>%
+    filter(n == 4) %>%
+    ungroup() %>%
+    left_join(summary_post %>% distinct(paste_into_igv_junction,gene_name,frac_ob_tdp_path)) %>%
+    group_by(gene_name) %>%
+    summarise(avg_d = mean(frac_ob_tdp_path)) %>%
     arrange(-avg_d)
 
 #get the ordering of the genes not in the cord
-genes_not_in_cord = summary_post %>% 
-    filter(gene_name %in% not_in_the_cord$gene_name) %>% 
-    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>% 
-    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>% 
-    filter(value_tdp_path >=5) %>% 
-    distinct(group,paste_into_igv_junction) %>% 
-    group_by(paste_into_igv_junction) %>% 
-    add_count() %>% 
-    filter(n == 3) %>% 
-    ungroup() %>% 
-    left_join(summary_post %>% distinct(paste_into_igv_junction,gene_name,frac_ob_tdp_path)) %>% 
-    group_by(gene_name) %>% 
-    summarise(avg_d = mean(frac_ob_tdp_path)) %>% 
-    arrange(-avg_d) %>% 
+genes_not_in_cord = summary_post %>%
+    filter(gene_name %in% not_in_the_cord$gene_name) %>%
+    filter(paste_into_igv_junction %in% compendium_events$paste_into_igv_junction) %>%
+    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
+    filter(value_tdp_path >=5) %>%
+    distinct(group,paste_into_igv_junction) %>%
+    group_by(paste_into_igv_junction) %>%
+    add_count() %>%
+    filter(n == 3) %>%
+    ungroup() %>%
+    left_join(summary_post %>% distinct(paste_into_igv_junction,gene_name,frac_ob_tdp_path)) %>%
+    group_by(gene_name) %>%
+    summarise(avg_d = mean(frac_ob_tdp_path)) %>%
+    arrange(-avg_d) %>%
     mutate(gene_name = ifelse(gene_name == 'CORO7-PAM16,CORO7','CORO7',gene_name))
 
 paste0(genes_everywhere$gene_name,collapse = "\n")
@@ -281,26 +281,26 @@ gg_euler +
     xlim(-0.5, 1.5) +  # Extend left side from 0 to -0.5
     ylim(0, 1) +     # Keep vertical limits the same
     # Add arrow pointing to center (now with more space)
-    annotate("segment", 
+    annotate("segment",
              x = 1, y = 0.6,          # Start point (now in the expanded left space)
              xend = 0.665, yend = 0.45,     # End point (center of euler plot)
              arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
-             color = "black", 
+             color = "black",
              size = 1.2) +
     # Add text box annotation in the expanded space
-    annotate("label", 
+    annotate("label",
              x = 1.12, y = 0.5,          # Position in the new left space
-             label = paste0(genes_not_in_cord$gene_name,collapse = "\n"), 
-             fill = "white", 
+             label = paste0(genes_not_in_cord$gene_name,collapse = "\n"),
+             fill = "white",
              color = "black",
              size = 6,
              fontface = "bold.italic",
              hjust = 0.5) +
         # Add text box annotation in the expanded space
-    annotate("label", 
+    annotate("label",
              x = -0.2, y = 0.5,          # Position in the new left space
-             label = paste0(genes_everywhere$gene_name,collapse = "\n"), 
-             fill = "white", 
+             label = paste0(genes_everywhere$gene_name,collapse = "\n"),
+             fill = "white",
              color = "black",
              size = 6,
              fontface = "bold.italic",
@@ -308,7 +308,7 @@ gg_euler +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA),
           plot.margin = margin(60, 20, 20, 60, "pt"))  # Add extra margin on left (60pt)
-    
+
 ```
 
 
@@ -317,27 +317,27 @@ gg_euler +
 ```{r fpr_compendium}
 summary_post = fread("data/summary_metrics_post_mortem.csv")
 
-fpr_across_ds_plot_table = summary_post %>% 
-    left_join(compendium_events %>% 
-    distinct(n_significant_data,paste_into_igv_junction)) %>% 
+fpr_across_ds_plot_table = summary_post %>%
+    left_join(compendium_events %>%
+    distinct(n_significant_data,paste_into_igv_junction)) %>%
         mutate(bind_n = case_when(n_significant_data <= 3 ~ "1-3",
                               n_significant_data >= 4 & n_significant_data <= 6 ~ "4-6",
-                              TRUE ~ "7-10")) %>% 
-    filter(!is.na(n_significant_data)) %>% 
+                              TRUE ~ "7-10")) %>%
+    filter(!is.na(n_significant_data)) %>%
     mutate(plot_name = case_when(paste_into_igv_junction == "chr12:131992230-132005077" ~ 'EP400',
                                  paste_into_igv_junction == 'chr10:3099352-3099557' ~ 'PFKP',
                                  # paste_into_igv_junction == 'chr1:1709640-1719358' ~ "CDK11A",
                                  # paste_into_igv_junction == 'chr2:3458515-3460263' ~ 'TRAPPC12',
-                                 paste_into_igv_junction == 'chr6:16585907-16589446' ~ 'ATXN1')) %>% 
-    unique() %>% 
-    # group_by(paste_into_igv_junction) %>% 
-    # mutate(plot_name = ifelse(value == max(value),plot_name, NA_character_)) %>% 
-    ungroup() 
+                                 paste_into_igv_junction == 'chr6:16585907-16589446' ~ 'ATXN1')) %>%
+    unique() %>%
+    # group_by(paste_into_igv_junction) %>%
+    # mutate(plot_name = ifelse(value == max(value),plot_name, NA_character_)) %>%
+    ungroup()
 
-fpr_across_ds_plot_table %>% 
+fpr_across_ds_plot_table %>%
     ggplot(aes(x = bind_n,
                y = fpr_value,
-               fill = group)) + 
+               fill = group)) +
     geom_boxplot(outliers = FALSE) +
     ylab("False positive rate TDP-43 proteinopathy vs not") +
     xlab("N datasets cryptic detected") +
@@ -354,7 +354,7 @@ fpr_across_ds_plot_table %>%
         labels = percent_format(),
     ) +
     theme(axis.text = element_text(size = 12))
-    
+
 
 
 ```
@@ -365,73 +365,73 @@ fpr_across_ds_plot_table %>%
 
 ```{r makewidechx}
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
-big_data_chx = big_data_chx %>% 
+big_data_chx = big_data_chx %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
 
-wide_chx = big_data_chx |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_chx = big_data_chx |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |> 
-    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |>
+    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |>
     mutate(chx_effect = case_when((Cycloheximide_TDP43KD - Control_TDP43KD) > 0.1 ~ "NMD rescued",
                                   Control_TDP43KD > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 
-chx_dark = wide_chx |> 
-    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued" & Cycloheximide_Control < 0.1) |> 
+chx_dark = wide_chx |>
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued" & Cycloheximide_Control < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_chx = wide_chx %>% 
+wide_chx = wide_chx %>%
     mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
 ```
 
 ```{r makewideupf1}
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
-big_data_upf1 = big_data_upf1 %>% 
+big_data_upf1 = big_data_upf1 %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
 
-wide_upf1 = big_data_upf1 |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_upf1 = big_data_upf1 |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
-    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |>
+    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |>
     mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.1 ~ "NMD rescued",
                                   TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 
-upf1_dark = wide_upf1 |> 
-    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued" & ctrl_UPF1 < 0.1) |> 
+upf1_dark = wide_upf1 |>
+    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued" & ctrl_UPF1 < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_upf1 = wide_upf1 %>% 
+wide_upf1 = wide_upf1 %>%
     mutate(upf1_effect = ifelse(paste_into_igv_junction %in% upf1_dark, "Dark cryptic",upf1_effect))
 ```
 
 ## NMDi all slope plots
 
 ```{r slopeplot_all, echo=FALSE, warning=FALSE, message=FALSE}
-gene_list_slope = c("STMN2", 
-                    "KCNQ2", 
-                    "ATG4B", 
-                    "HDGFL2", 
-                    "KCNQ2", 
-                    "ACTL6B", 
-                    "GPSM2", 
-                    "AKT3", 
+gene_list_slope = c("STMN2",
+                    "KCNQ2",
+                    "ATG4B",
+                    "HDGFL2",
+                    "KCNQ2",
+                    "ACTL6B",
+                    "GPSM2",
+                    "AKT3",
                     "HDGFL2",
                     "PKN1",
                     "UNC13A",
@@ -441,8 +441,8 @@ gene_list_slope = c("STMN2",
 
 
 input_list = c("Control_Control",
-                "Cycloheximide_Control", 
-                "Control_TDP43KD", 
+                "Cycloheximide_Control",
+                "Control_TDP43KD",
                 "Cycloheximide_TDP43KD")
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
@@ -451,17 +451,17 @@ big_data_chx$label_junction = NULL
 
 data_summary_full = fread('data/cryptic_detection_summary_long_version.csv')
 
-true_dark_selective = data_summary_full %>% 
+true_dark_selective = data_summary_full %>%
     filter(true_dark == TRUE) %>%
     filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
-    pull(paste_into_igv_junction) %>% 
+    pull(paste_into_igv_junction) %>%
     unique()
 
-chx_slope_plot_table <- slope_plot_nmd(big_data_chx, 
+chx_slope_plot_table <- slope_plot_nmd(big_data_chx,
                gene_list_slope,
                input_list = c("Control_Control",
-                "Cycloheximide_Control", 
-                "Control_TDP43KD", 
+                "Cycloheximide_Control",
+                "Control_TDP43KD",
                 "Cycloheximide_TDP43KD"),
                nmd_label = 'CHX treatment',
                 true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
@@ -470,11 +470,11 @@ big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 big_data_upf1$alpha_gene_name = NULL
 big_data_upf1$label_junction = NULL
 
-upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1, 
+upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1,
                gene_list_slope,
                input_list = c("ctrl_ctrl",
-                "ctrl_UPF1", 
-                "TDP43_ctrl", 
+                "ctrl_UPF1",
+                "TDP43_ctrl",
                 "TDP43_UPF1"),nmd_label = 'UPF1 KD',
                true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
 
@@ -483,11 +483,11 @@ psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups
 
 psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
 
-psi_all_groups_cyto = psi_all_groups %>% 
-    filter(!grepl("na",lsv_id)) %>% 
-    filter(grepl("_cytosol",.id))  
+psi_all_groups_cyto = psi_all_groups %>%
+    filter(!grepl("na",lsv_id)) %>%
+    filter(grepl("_cytosol",.id))
 
-smg1_slope_plot_table_cyto <- slope_plot_nmd(psi_all_groups_cyto, 
+smg1_slope_plot_table_cyto <- slope_plot_nmd(psi_all_groups_cyto,
                                              gene_list_slope,
                                              input_list =  c("nt_ctrl_cytosol",
                                                                           "nt_nmd_cytosol",
@@ -513,90 +513,90 @@ ggarrange(chx_slope_plot_table$plot,upf1_slope_plot_table$plot,pseudo_bulk_plot_
 
 
 ```{r makewidesmg1}
-big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>% 
+big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
 
-wide_smg1 = big_data_smg1 |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_smg1 = big_data_smg1 |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_smg1 = nt_ctrl < 0.05 &  dox_ctrl > 0.1) |> 
-    mutate(smg1_cryptic = nt_ctrl < 0.05 &  dox_nmd > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_smg1 = nt_ctrl < 0.05 &  dox_ctrl > 0.1) |>
+    mutate(smg1_cryptic = nt_ctrl < 0.05 &  dox_nmd > 0.1) |>
     mutate(smg1_effect = case_when((dox_nmd - dox_ctrl) > 0.1 ~ "NMD rescued",
                                   dox_ctrl > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 
-smg1_dark = wide_smg1 |> 
-    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |> 
+smg1_dark = wide_smg1 |>
+    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_smg1 = wide_smg1 %>% 
+wide_smg1 = wide_smg1 %>%
     mutate(smg1_effect = ifelse(paste_into_igv_junction %in% smg1_dark, "Dark cryptic",smg1_effect))
 ```
 
 ### Are NMD sensitive events up/downregulated?
 
 ```{r nmd_up_down_sh_fractionation}
-nuc_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>% 
+nuc_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
         mutate(ensgene =  gsub("\\..*","",gene_id))
 
-cyto_kd = fread("data/nuc_cyto/deseq2_results_cyto_kd.csv") %>% 
+cyto_kd = fread("data/nuc_cyto/deseq2_results_cyto_kd.csv") %>%
             mutate(ensgene =  gsub("\\..*","",gene_id))
 
-pseudo_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>% 
+pseudo_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
             mutate(ensgene =  gsub("\\..*","",gene_id))
 
 
-nuc_kd = nuc_kd %>% 
-    left_join(wide_smg1,by = c("ensgene")) %>% 
-    filter(!is.na(smg1_effect))  %>% 
-    group_by(ensgene) %>% 
-    mutate(max_psi = max(dox_nmd)) %>% 
-    ungroup() %>% 
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
+nuc_kd = nuc_kd %>%
+    left_join(wide_smg1,by = c("ensgene")) %>%
+    filter(!is.na(smg1_effect))  %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(dox_nmd)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     mutate(fraction = 'nuclear RNA')
 
 
-cyto_kd = cyto_kd %>% 
-    left_join(wide_smg1,by = c("ensgene")) %>% 
-    filter(!is.na(smg1_effect))  %>% 
-    group_by(ensgene) %>% 
-    mutate(max_psi = max(dox_nmd)) %>% 
-    ungroup() %>% 
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
+cyto_kd = cyto_kd %>%
+    left_join(wide_smg1,by = c("ensgene")) %>%
+    filter(!is.na(smg1_effect))  %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(dox_nmd)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     mutate(fraction = 'cytoplasmic RNA')
 
 facet_labels <- c("Low expressed (PSI < 46%)", "High expressed (PSI > 46%)")
-names(facet_labels) <- unique(nuc_kd$bin_max)  
+names(facet_labels) <- unique(nuc_kd$bin_max)
 
-nuc_kd %>% 
-    rbind(cyto_kd) %>% 
-    group_by(smg1_effect,bin_max) %>% 
-    mutate(n = n_distinct(paste_into_igv_junction)) %>% 
-    mutate(x = glue::glue('{smg1_effect}\nn = {n}')) %>% 
+nuc_kd %>%
+    rbind(cyto_kd) %>%
+    group_by(smg1_effect,bin_max) %>%
+    mutate(n = n_distinct(paste_into_igv_junction)) %>%
+    mutate(x = glue::glue('{smg1_effect}\nn = {n}')) %>%
     ggplot(aes(x = x,
                y = log2FoldChange,
-               fill = fraction)) + 
+               fill = fraction)) +
     geom_hline(yintercept = 0, linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
     theme_classic() +
     labs(fill = 'Subcellular fraction') +
     xlab(element_blank()) +
-    scale_fill_manual(values = c("lightblue", "moccasin")) + 
+    scale_fill_manual(values = c("lightblue", "moccasin")) +
     ylab("Log2 Fold Change after TDP-43 KD") +
     facet_wrap(~bin_max, labeller = labeller(bin_max = facet_labels),scales = 'free_x') +
     theme(text = element_text(size = 18)) +
-    stat_compare_means(hide.ns = TRUE, 
+    stat_compare_means(hide.ns = TRUE,
                        method = "wilcox.test",
-                       label = "p.signif",  
+                       label = "p.signif",
                        p.adjust.method = "BH",
-                       size = 10) + 
+                       size = 10) +
     theme(legend.position = 'bottom')
 
 
@@ -606,16 +606,16 @@ nuc_kd %>%
 
 chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
 
-chx_nmd_effect = chx_rna_full %>% 
-    left_join(wide_chx) %>% 
-    filter(!is.na(chx_effect)) %>% 
-    filter(experiment == "Control_TDP43KD|Control_Control") %>% 
-    group_by(ensgene) %>% 
-    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>% 
-    ungroup() %>% 
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
+chx_nmd_effect = chx_rna_full %>%
+    left_join(wide_chx) %>%
+    filter(!is.na(chx_effect)) %>%
+    filter(experiment == "Control_TDP43KD|Control_Control") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     ggplot(aes(x = bin_max,
-               y = log2fold_change,fill = chx_effect)) + 
+               y = log2fold_change,fill = chx_effect)) +
     geom_hline(yintercept = 0,linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
     stat_summary(fun.data = give.n,
@@ -624,14 +624,14 @@ chx_nmd_effect = chx_rna_full %>%
                  position = position_dodge(width = 0.75),color = 'white',) +
     theme_classic() +
     xlab(element_blank()) +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) + 
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
     ylab("Log2 Fold Change TDP-43 KD") +
     labs(fill = 'NMD sensitivity') +
     theme(text  = element_text(size = 18)) +
     theme(legend.position = "bottom")
 
 
-    
+
 ```
 
 
@@ -641,16 +641,16 @@ upf1_rna_full = fread(here::here('data',"upf1_all_gene_expression.csv"))
 
 
 
-upf1_nmd_effect = upf1_rna_full %>% 
-    left_join(wide_upf1) %>% 
-    filter(!is.na(upf1_effect)) %>% 
-    filter(experiment == "ctrlctrl_ctrlTDP43") %>% 
-    group_by(ensgene) %>% 
-    mutate(max_psi = max(TDP43_UPF1)) %>% 
-    ungroup() %>% 
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
+upf1_nmd_effect = upf1_rna_full %>%
+    left_join(wide_upf1) %>%
+    filter(!is.na(upf1_effect)) %>%
+    filter(experiment == "ctrlctrl_ctrlTDP43") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(TDP43_UPF1)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     ggplot(aes(x = bin_max,
-               y = log2fold_change,fill = upf1_effect)) + 
+               y = log2fold_change,fill = upf1_effect)) +
     geom_hline(yintercept = 0,linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
     stat_summary(fun.data = give.n,
@@ -659,10 +659,10 @@ upf1_nmd_effect = upf1_rna_full %>%
                  position = position_dodge(width = 0.75),color = 'white') +
     theme_classic() +
     xlab(element_blank()) +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) + 
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
     ylab("Log2 Fold Change TDP-43 KD") +
     theme(legend.position = 'none') +
-    theme(text  = element_text(size = 18)) 
+    theme(text  = element_text(size = 18))
 
 ```
 
@@ -673,27 +673,27 @@ upf1_nmd_effect = upf1_rna_full %>%
 ```{r}
 sj_star_counts = arrow::read_parquet('data/nuc_cyto/star_splice_junctioncounts.parquet')
 
-sj_star_counts %>% 
-    filter(paste_into_igv_junction %in% pseudo_bulk_plot_slope$filtered_table$paste_into_igv_junction) %>% 
-    # left_join(librar_sizes) %>% 
-    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>% 
-    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>% 
-    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name))  %>% 
-    filter(tdp_kd == 'dox') %>% 
-    group_by(paste_into_igv_junction,nmdi,compartment) %>% 
-    summarise(mean_rpkm = mean(rpkm),color_gene_name) %>% 
-    unique() %>% 
+sj_star_counts %>%
+    filter(paste_into_igv_junction %in% pseudo_bulk_plot_slope$filtered_table$paste_into_igv_junction) %>%
+    # left_join(librar_sizes) %>%
+    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>%
+    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>%
+    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name))  %>%
+    filter(tdp_kd == 'dox') %>%
+    group_by(paste_into_igv_junction,nmdi,compartment) %>%
+    summarise(mean_rpkm = mean(rpkm),color_gene_name) %>%
+    unique() %>%
     pivot_wider(names_from = c('compartment','nmdi'),
                 values_from = 'mean_rpkm',
-                values_fill = 0) %>% 
-    ungroup() %>% 
-    mutate(log2rpkm_baseline = log2(nucleus_ctrl / cytosol_ctrl)) %>% 
-    mutate(log2rpkm_nmd = log2(nucleus_nmd / cytosol_nmd)) %>% 
-    mutate(log2rpkm_nuc_change_nmd = log2(nucleus_nmd / nucleus_ctrl)) %>% 
-    mutate(log2rpkm_cyto_change_nmd = log2(cytosol_nmd / cytosol_ctrl)) %>% 
-    mutate(change_in_local = (log2rpkm_nmd - log2rpkm_baseline)) %>% 
-    mutate(delta_log2_nc = (log2rpkm_cyto_change_nmd - log2rpkm_nuc_change_nmd)) %>% 
-    ggplot(aes(x = log2rpkm_baseline,colour = color_gene_name)) + 
+                values_fill = 0) %>%
+    ungroup() %>%
+    mutate(log2rpkm_baseline = log2(nucleus_ctrl / cytosol_ctrl)) %>%
+    mutate(log2rpkm_nmd = log2(nucleus_nmd / cytosol_nmd)) %>%
+    mutate(log2rpkm_nuc_change_nmd = log2(nucleus_nmd / nucleus_ctrl)) %>%
+    mutate(log2rpkm_cyto_change_nmd = log2(cytosol_nmd / cytosol_ctrl)) %>%
+    mutate(change_in_local = (log2rpkm_nmd - log2rpkm_baseline)) %>%
+    mutate(delta_log2_nc = (log2rpkm_cyto_change_nmd - log2rpkm_nuc_change_nmd)) %>%
+    ggplot(aes(x = log2rpkm_baseline,colour = color_gene_name)) +
     geom_rect(aes(xmin = -Inf, xmax = 0, ymin = -Inf, ymax = 1), fill = "lightblue", alpha = 0.2, inherit.aes = FALSE) +  # Bottom-left
     geom_rect(aes(xmin = 0, xmax = Inf, ymin = -Inf, ymax = 1), fill = "moccasin", alpha = 0.2, inherit.aes = FALSE)     +# Top-right
     stat_ecdf(size = 2) +
@@ -707,44 +707,44 @@ sj_star_counts %>%
     theme(legend.position = 'bottom')
 ```
 
-# localization of cryptic isoform compare to localization of parent gene - Expression in KD 
+# localization of cryptic isoform compare to localization of parent gene - Expression in KD
 
 
 ```{r}
 
 
-cryptics =(pseudo_bulk_plot_slope$filtered_table %>% 
-                                             ungroup() %>% 
+cryptics =(pseudo_bulk_plot_slope$filtered_table %>%
+                                             ungroup() %>%
                                              filter(mean_psi_per_lsv_junction >= 0.10))$paste_into_igv_junction
 
-cryptic_rpkm = sj_star_counts %>% 
-    filter(paste_into_igv_junction %in% cryptics) %>% 
-    # left_join(librar_sizes) %>% 
-    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>% 
-    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>% 
-    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name,gene_name))  %>% 
-    filter(tdp_kd == 'dox') %>% 
-    group_by(paste_into_igv_junction,nmdi,compartment) %>% 
-    summarise(mean_rpkm = mean(rpkm),color_gene_name,gene_name) %>% 
-    unique() %>% 
+cryptic_rpkm = sj_star_counts %>%
+    filter(paste_into_igv_junction %in% cryptics) %>%
+    # left_join(librar_sizes) %>%
+    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>%
+    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>%
+    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name,gene_name))  %>%
+    filter(tdp_kd == 'dox') %>%
+    group_by(paste_into_igv_junction,nmdi,compartment) %>%
+    summarise(mean_rpkm = mean(rpkm),color_gene_name,gene_name) %>%
+    unique() %>%
     pivot_wider(names_from = c('compartment','nmdi'),
                 values_from = 'mean_rpkm',
-                values_fill = 0) %>% 
-    ungroup() %>% 
-    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,lsv_id)) %>% 
+                values_fill = 0) %>%
+    ungroup() %>%
+    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,lsv_id)) %>%
     ungroup()
 
-these_lsv = pseudo_bulk_plot_slope$filtered_table %>% 
-        ungroup() %>% 
+these_lsv = pseudo_bulk_plot_slope$filtered_table %>%
+        ungroup() %>%
         pull(lsv_id)
 
-ann_junctions = psi_all_groups %>% 
-    filter(de_novo_junctions == 0) %>% 
-    filter(lsv_id %in% these_lsv) %>% 
-    ungroup() %>% 
-    distinct(lsv_id,paste_into_igv_junction) %>% 
+ann_junctions = psi_all_groups %>%
+    filter(de_novo_junctions == 0) %>%
+    filter(lsv_id %in% these_lsv) %>%
+    ungroup() %>%
+    distinct(lsv_id,paste_into_igv_junction) %>%
     dplyr::rename(annotated_junction = paste_into_igv_junction)
-    
+
 annotated_rpkm = sj_star_counts %>%
     filter(paste_into_igv_junction %in% ann_junctions$annotated_junction) %>%
     # left_join(librar_sizes) %>%
@@ -760,14 +760,14 @@ annotated_rpkm = sj_star_counts %>%
                 values_fill = 0,
                 names_prefix = 'annotated_')
 
-baseline_rpkm_plot = cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2_annotated = log2((annotated_nucleus_ctrl)/ (annotated_cytosol_ctrl))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl)/ (cytosol_ctrl))) %>% 
-    mutate(log2_cryptic_nuclear_bias = log2rpkm_baseline - log2_annotated) %>% 
-    group_by(gene_name) %>% 
-    mutate(color_gene_name = ifelse(any(color_gene_name == 'NMD rescued'),'NMD rescued', color_gene_name)) %>% 
-    mutate(plot_name = ifelse(log2rpkm_baseline == max(log2rpkm_baseline) &gene_name %in% gene_list_slope ,gene_name,NA_character_)) %>% 
+baseline_rpkm_plot = cryptic_rpkm %>%
+    left_join(annotated_rpkm) %>%
+    mutate(log2_annotated = log2((annotated_nucleus_ctrl)/ (annotated_cytosol_ctrl))) %>%
+    mutate(log2rpkm_baseline = log2((nucleus_ctrl)/ (cytosol_ctrl))) %>%
+    mutate(log2_cryptic_nuclear_bias = log2rpkm_baseline - log2_annotated) %>%
+    group_by(gene_name) %>%
+    mutate(color_gene_name = ifelse(any(color_gene_name == 'NMD rescued'),'NMD rescued', color_gene_name)) %>%
+    mutate(plot_name = ifelse(log2rpkm_baseline == max(log2rpkm_baseline) &gene_name %in% gene_list_slope ,gene_name,NA_character_)) %>%
     ggplot(aes(x = log2_annotated, y = log2rpkm_baseline)) +
     geom_rect(aes(xmin = -Inf, xmax = 0, ymin = -Inf, ymax = 0), fill = "lightblue", alpha = 0.2, inherit.aes = FALSE) +  # Bottom-left
     # geom_rect(aes(xmin = 0, xmax = Inf, ymin = -Inf, ymax = 0), fill = "lightgreen", alpha = 0.2, inherit.aes = FALSE)  +# Bottom-right
@@ -788,19 +788,19 @@ baseline_rpkm_plot = cryptic_rpkm %>%
 
 
 
-    
+
 ```
 
-# localization of cryptic isoform after NMDi 
+# localization of cryptic isoform after NMDi
 
 ```{r}
-nmdi_rpkm_plot = cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2_annotated = log2((annotated_nucleus_nmd)/ (annotated_cytosol_ctrl))) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd)/ (cytosol_nmd))) %>% 
-    group_by(gene_name) %>% 
-    mutate(color_gene_name = ifelse(any(color_gene_name == 'NMD rescued'),'NMD rescued', color_gene_name)) %>% 
-    mutate(plot_name = ifelse(log2rpkm_nmd == max(log2rpkm_nmd) &gene_name %in% gene_list_slope ,gene_name,NA_character_)) %>% 
+nmdi_rpkm_plot = cryptic_rpkm %>%
+    left_join(annotated_rpkm) %>%
+    mutate(log2_annotated = log2((annotated_nucleus_nmd)/ (annotated_cytosol_ctrl))) %>%
+    mutate(log2rpkm_nmd = log2((nucleus_nmd)/ (cytosol_nmd))) %>%
+    group_by(gene_name) %>%
+    mutate(color_gene_name = ifelse(any(color_gene_name == 'NMD rescued'),'NMD rescued', color_gene_name)) %>%
+    mutate(plot_name = ifelse(log2rpkm_nmd == max(log2rpkm_nmd) &gene_name %in% gene_list_slope ,gene_name,NA_character_)) %>%
     ggplot(aes(x = log2_annotated, y = log2rpkm_nmd)) +
     geom_rect(aes(xmin = -Inf, xmax = 0, ymin = -Inf, ymax = 0), fill = "lightblue", alpha = 0.2, inherit.aes = FALSE) +  # Bottom-left
     # geom_rect(aes(xmin = 0, xmax = Inf, ymin = -Inf, ymax = 0), fill = "lightgreen", alpha = 0.2, inherit.aes = FALSE)  +# Bottom-right
@@ -818,7 +818,7 @@ nmdi_rpkm_plot = cryptic_rpkm %>%
     geom_text_repel(aes(label = plot_name),bg.colour = 'white') +
     theme(text = element_text(size = 18))
 
-ggarrange(baseline_rpkm_plot,nmdi_rpkm_plot)  
+ggarrange(baseline_rpkm_plot,nmdi_rpkm_plot)
 
 
 ```
@@ -856,21 +856,21 @@ smg1_detection_plots = make_final_plot(smg1_summary_postmortem,fisher_smg1)
 
 # Create the individual plots with titles
 # Top row: remove x-axis labels and ticks, turn off legends
-chx_detection <- chx_detection_plots$detection_plot + 
-    ggtitle('CHX Detection Rate') + 
+chx_detection <- chx_detection_plots$detection_plot +
+    ggtitle('CHX Detection Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
     guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
-upf1_detection <- upf1_detection_plots$detection_plot + 
+upf1_detection <- upf1_detection_plots$detection_plot +
     ggtitle('UPF1 KD Detection Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
     guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
-smg1_detection <- smg1_detection_plots$detection_plot + 
+smg1_detection <- smg1_detection_plots$detection_plot +
     ggtitle('SMG1i Detection Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
@@ -878,14 +878,14 @@ smg1_detection <- smg1_detection_plots$detection_plot +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
 # Bottom row: keep x-axis labels and ticks, use dodge position for overlapping labels
-chx_selectivity <- chx_detection_plots$selectivity_plot + 
+chx_selectivity <- chx_detection_plots$selectivity_plot +
     ggtitle('CHX Selectivity Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
     guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
-upf1_selectivity <- upf1_detection_plots$selectivity_plot + 
+upf1_selectivity <- upf1_detection_plots$selectivity_plot +
     ggtitle('UPF1 KD Selectivity Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
@@ -893,7 +893,7 @@ upf1_selectivity <- upf1_detection_plots$selectivity_plot +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
 
-smg1_selectivity <- smg1_detection_plots$selectivity_plot + 
+smg1_selectivity <- smg1_detection_plots$selectivity_plot +
     ggtitle('SMG1i Selectivity Rate') +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
@@ -919,22 +919,22 @@ arranged_plots_sel <- grid.arrange(
 
 ```{r sensitivity_by_localization}
 
-my_table = cryptic_rpkm %>% 
-    left_join(annotated_rpkm) %>% 
-    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>% 
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>% 
-    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>% 
+my_table = cryptic_rpkm %>%
+    left_join(annotated_rpkm) %>%
+    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>%
+    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>%
+    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>%
     mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>% 
+                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>%
     mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>% 
+                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>%
     mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
-                                         log2rpkm_cytoshift < 0.5 ~ "unshifted")) 
+                                         log2rpkm_cytoshift < 0.5 ~ "unshifted"))
 
 
 nmd_localization_effect = generate_summary_table(summary_post,
                        my_table,
-                       category_column = 'baseline_localization') 
+                       category_column = 'baseline_localization')
 
 fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'baseline_localization')
 
@@ -948,7 +948,7 @@ print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization at b
 #nmd localization
 nmd_localization_effect = generate_summary_table(summary_post,
                        my_table,
-                       category_column = 'nmd_localization') 
+                       category_column = 'nmd_localization')
 
 fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_localization')
 
@@ -962,7 +962,7 @@ print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization unde
 #effective of NMD inhibition on localization
 nmd_localization_effect = generate_summary_table(summary_post,
                        my_table,
-                       category_column = 'nmd_cytoshift') 
+                       category_column = 'nmd_cytoshift')
 
 fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_cytoshift')
 
@@ -973,12 +973,12 @@ nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
 print(nmd_localization_effect_plots$detection_plot + ggtitle('NMDi effect on localization'))
 print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on localization'))
 
-``` 
+```
 
 
 
 
-## Dose-response curves in SH-SY5Y and SK-N-BE(2) 
+## Dose-response curves in SH-SY5Y and SK-N-BE(2)
 
 ## Figure 2 - NMD
 
@@ -988,48 +988,48 @@ print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on lo
 chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
-wide_chx = big_data_chx |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_chx = big_data_chx |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |> 
-    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |>
+    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |>
     mutate(chx_effect = case_when((Cycloheximide_TDP43KD - Control_TDP43KD) > 0.05 ~ "NMD rescued",
                                   Control_TDP43KD > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
-chx_dark = wide_chx |> 
-    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |> 
+chx_dark = wide_chx |>
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_chx = wide_chx %>% 
+wide_chx = wide_chx %>%
     mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
 
-chx_rna_full %>% 
-    left_join(wide_chx) %>% 
-    filter(!is.na(chx_effect)) %>% 
-    filter(experiment == "Control_TDP43KD|Control_Control") %>% 
-    group_by(ensgene) %>% 
-    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>% 
-    ungroup() %>% 
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>% 
+chx_rna_full %>%
+    left_join(wide_chx) %>%
+    filter(!is.na(chx_effect)) %>%
+    filter(experiment == "Control_TDP43KD|Control_Control") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     ggplot(aes(x = bin_max,
-               y = log2fold_change,fill = chx_effect)) + 
+               y = log2fold_change,fill = chx_effect)) +
     geom_hline(yintercept = 0,linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
-    # stat_summary(fun.data = give.n, 
+    # stat_summary(fun.data = give.n,
     #              geom = "text",
     #              fun.y = median,
     #              position = position_dodge(width = 0.75)) +
     theme_classic() +
     xlab("Max PSI NMDi + TDP-43 KD") +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) + 
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
     ylab("Log2 Fold Change TDP-43 KD SH-SY5Y")
 
-   
+
 ```
 
 
@@ -1040,15 +1040,15 @@ chx_rna_full %>%
 ```{r, echo = FALSE, warning=FALSE, message=FALSE}
 master_table <- read.csv(here::here("data/master_table.csv"))
 master_table <- master_table %>%
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>%
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>%
     mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
                                 tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
                                 tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
-                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
-        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>%
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
 #1A and 1B
 levels_sy5y_qpcr <- read.csv(here::here('data',"qPCR_RNA.csv"))
@@ -1066,8 +1066,8 @@ master_table <- read.csv(here::here("data/master_table.csv"))
 #####
 print("1A - Dose-response curves for SH-SY5Y and SK-N-BE(2)")
 a = levels_sy5y_qpcr %>%
-    filter(Gene == 'TDP-43') %>% 
-    mutate(source = c(rep(unique(diff_expr_sh$source),each = 3),rep(0,3))) %>% 
+    filter(Gene == 'TDP-43') %>%
+    mutate(source = c(rep(unique(diff_expr_sh$source),each = 3),rep(0,3))) %>%
   ggplot(aes(x = as.character(source), y = Value)) +
     geom_violin() +
   geom_jitter() +
@@ -1092,27 +1092,27 @@ a+c
 
 ```{r de_by_levels}
 
-avg_tdp_level_sh = levels_sy5y_qpcr %>% 
-    group_by(Treatment) %>% 
+avg_tdp_level_sh = levels_sy5y_qpcr %>%
+    group_by(Treatment) %>%
     summarize(m = mean(Value)) %>% pull(m) %>% head(5)
 
 print("1B - Differential expression in SH-SY5Y and SK-N-BE(2)")
 plot_de <- diff_expr_sh %>%
-    filter(symbol != "RNA5-8SN2") %>% 
+    filter(symbol != "RNA5-8SN2") %>%
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
-  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig")) 
+  mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig"))
 plot_de_stmn_unc = plot_de %>% filter(symbol %in% c("STMN2","UNC13A"))
 plot_de_meta <- as.data.frame(table(plot_de$color_gene_name, plot_de$alpha_gene_name, plot_de$source))
 e <- plot_de %>%
     ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
-    geom_point(aes(color = color_gene_name, 
-                   alpha = alpha_gene_name, 
-                   shape = alpha_gene_name, 
+    geom_point(aes(color = color_gene_name,
+                   alpha = alpha_gene_name,
+                   shape = alpha_gene_name,
                    fill = alpha_gene_name),
                size = 0.2,
                position = position_jitter(width = 0, height = 0.4),
                show.legend = F) +
-    geom_text(data = plot_de_meta[plot_de_meta$Var2 == "sig",], 
+    geom_text(data = plot_de_meta[plot_de_meta$Var2 == "sig",],
               aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
               size = 5,
               show.legend = F) +
@@ -1128,21 +1128,21 @@ e <- plot_de %>%
     scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,0),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size), plot.title = element_text(hjust = 0.5)) +
-    ggtitle("SH-SY5Y") + 
+    ggtitle("SH-SY5Y") +
     geom_point(inherit.aes = FALSE,
               aes(x = log2FoldChange, y = as.factor(source),color = symbol),
-              data = plot_de_stmn_unc) + 
+              data = plot_de_stmn_unc) +
         labs(color = "") +
       theme(text = element_text(size = 18))
 
 
 avg_be2_qpcr = levels_dz_qpcr %>%
-  filter(experiment == "new_new") %>% 
-    group_by(sample) %>% 
+  filter(experiment == "new_new") %>%
+    group_by(sample) %>%
     summarize(m = mean(value)) %>% pull(m) %>% tail(7) * 100
 
 plot_de_dz <- diff_expr_sk %>%
-    filter(symbol != "RNA5-8SN2") %>% 
+    filter(symbol != "RNA5-8SN2") %>%
   mutate(color_gene_name = ifelse(log2FoldChange > 0, "up","down")) %>%
   mutate(alpha_gene_name = ifelse(padj < 0.05, "sig", "non_sig"))
 
@@ -1151,14 +1151,14 @@ plot_de_stmn_unc_dz = plot_de_dz %>% filter(symbol %in% c("STMN2","UNC13A"))
 plot_de_dz_meta <- as.data.frame(table(plot_de_dz$color_gene_name, plot_de_dz$alpha_gene_name, plot_de_dz$source))
 f <- plot_de_dz %>%
     ggplot(aes(x = log2FoldChange, y = as.factor(source))) +
-    geom_point(aes(color = color_gene_name, 
-                   alpha = alpha_gene_name, 
-                   shape = alpha_gene_name, 
+    geom_point(aes(color = color_gene_name,
+                   alpha = alpha_gene_name,
+                   shape = alpha_gene_name,
                    fill = alpha_gene_name),
                size = 0.2,
                position = position_jitter(width = 0, height = 0.4),
                show.legend = F) +
-    geom_text(data = plot_de_dz_meta[plot_de_dz_meta$Var2 == "sig",], 
+    geom_text(data = plot_de_dz_meta[plot_de_dz_meta$Var2 == "sig",],
               aes(x = ifelse(Var1 == "down", -8, 8), y = Var3, label = Freq, color = Var1),
               size = 5,
               show.legend = F) +
@@ -1190,23 +1190,23 @@ ggarrange(e, f, common.legend = TRUE, legend = 'bottom')
 print("1C - Spaghetti plot in SH-SY5Y and SK-N-BE(2)")
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1","RANBP1",'PHF2')
 
-avg_tdp_level_sh = levels_sy5y_qpcr %>% 
-    group_by(Treatment) %>% 
+avg_tdp_level_sh = levels_sy5y_qpcr %>%
+    group_by(Treatment) %>%
     summarize(m = mean(Value)) %>% pull(m) %>% head(5)
 avg_tdp_level_sh = c(100,avg_tdp_level_sh)
 
 
 big_data_filtereds_early_late_sh <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
-    mutate(dox0 = dox0_sh) %>% 
+    mutate(dox0 = dox0_sh) %>%
     dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox0125,dox0187,dox021,dox025,dox075,
-             tdp43_sensitivity_sh,max_psi_sh)) %>% 
-    group_by(gene) %>% 
-    arrange(desc(dox025)) %>% 
-    distinct(gene, .keep_all = T) %>% 
-    filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
+             tdp43_sensitivity_sh,max_psi_sh)) %>%
+    group_by(gene) %>%
+    arrange(desc(dox025)) %>%
+    distinct(gene, .keep_all = T) %>%
+    filter(cryptic == "yes" & #junction_for_clustering == "yes" &
              !is.na(dox0)) %>%
-  pivot_longer(cols = c(7:12)) %>% 
+  pivot_longer(cols = c(7:12)) %>%
   mutate(name = factor(name, levels = c("dox0","dox0125", "dox0187", "dox021", "dox025", "dox075"))) %>%
   mutate(label_junction = case_when(name == "dox025" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_sh$tdp43_sensitivity_sh)
@@ -1224,27 +1224,27 @@ GG <- big_data_filtereds_early_late_sh %>%
   scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++")
                    paste0(round(avg_tdp_level_sh,0),rep("%",5))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
-  facet_wrap(~tdp43_sensitivity_sh) + 
+  facet_wrap(~tdp43_sensitivity_sh) +
   theme_classic()
 
 avg_be2_qpcr = levels_dz_qpcr %>%
-  filter(experiment == "new_new") %>% 
-    group_by(sample) %>% 
+  filter(experiment == "new_new") %>%
+    group_by(sample) %>%
     summarize(m = mean(value)) %>% pull(m) %>% tail(7) * 100
 avg_be2_qpcr = c(100,avg_be2_qpcr)
 
 big_data_filtereds_early_late_be2 <- master_table %>% #[,c(2,1,3:9,20:24)] %>%
-    mutate(dox0 = dox0_be2) %>% 
+    mutate(dox0 = dox0_be2) %>%
     dplyr::select(c(gene,paste_into_igv_junction,strand,junc_cat,cryptic,junction_for_clustering,
              dox0,dox002,dox003,dox004,dox005,dox0075,dox01,dox1,
              #dox0,dox0125,dox0187,dox021,dox025,dox075,
-             tdp43_sensitivity_be2,max_psi_be2)) %>% 
-    group_by(gene) %>% 
-    arrange(desc(dox01)) %>% 
-    distinct(gene, .keep_all = T) %>% 
-  filter(cryptic == "yes" & #junction_for_clustering == "yes" & 
+             tdp43_sensitivity_be2,max_psi_be2)) %>%
+    group_by(gene) %>%
+    arrange(desc(dox01)) %>%
+    distinct(gene, .keep_all = T) %>%
+  filter(cryptic == "yes" & #junction_for_clustering == "yes" &
              !is.na(dox0)) %>%
-  pivot_longer(cols = c(7:14)) %>% 
+  pivot_longer(cols = c(7:14)) %>%
   mutate(name = factor(name, levels = c("dox0","dox002","dox003","dox004","dox005","dox0075","dox01","dox1"))) %>%
   mutate(label_junction = case_when(name == "dox01" & gene %in% list_gene ~ gene, T ~ ""))
 table(big_data_filtereds_early_late_be2$tdp43_sensitivity_be2)
@@ -1263,7 +1263,7 @@ HH = big_data_filtereds_early_late_be2 %>%
   scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++", "++++++", "+++++++")
                    paste0(round(avg_be2_qpcr,0),rep("%",7))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
-  facet_wrap(~tdp43_sensitivity_be2) + 
+  facet_wrap(~tdp43_sensitivity_be2) +
   theme_classic()
 GG + HH
 #ggsave("~/Desktop/earlylate.svg", width = 18, height = 6, dpi = 300)
@@ -1274,44 +1274,44 @@ GG + HH
 print("1D - alluvial plot")
 master_table <- read.csv(here::here("data/master_table.csv"))
 master_table <- master_table %>%
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>%
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>%
     mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
                                 tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
                                 tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
-                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
-        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>%
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
-tmp = master_table %>% 
-    filter(tdp43_sensitivity_be2 != "Not found") %>% 
+tmp = master_table %>%
+    filter(tdp43_sensitivity_be2 != "Not found") %>%
     filter(tdp43_sensitivity_sh != "Not found")
 df_long <- to_lodes_form(tmp, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
 
-df_long %>% 
-    filter(junction_for_clustering == 'yes') %>% 
-    mutate(axis = ifelse(axis == "tdp43_sensitivity_sh", "SH-SY5Y", "SK-N-BE(2)")) %>% 
+df_long %>%
+    filter(junction_for_clustering == 'yes') %>%
+    mutate(axis = ifelse(axis == "tdp43_sensitivity_sh", "SH-SY5Y", "SK-N-BE(2)")) %>%
     ggplot(
        aes(x = axis,
-           stratum = stratum, 
+           stratum = stratum,
            alluvium = alluvium,
-           fill = stratum, 
+           fill = stratum,
            label = stratum)) +
     scale_fill_manual(values = plot_sensitivity_colors) +
-    geom_flow(stat = "alluvium", 
+    geom_flow(stat = "alluvium",
               lode.guidance = "frontback") +
     geom_stratum() +
     theme(legend.position = "bottom") +
     facet_wrap(~cryptic,
                labeller = as_labeller(
-               c(no = "Alternative splicing", yes = "Cryptic splicing"))) + 
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
     theme_classic() +
     geom_text(stat = "stratum",
               aes(label = after_stat(count))) +
     labs(fill = element_blank(),
          x = element_blank(),
-         y = 'N junctions') 
+         y = 'N junctions')
 #ggsave("~/Desktop/alluvial.svg", width = 6, height = 4, dpi = 300)
 ```
 
@@ -1324,13 +1324,13 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
                                 tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
                                 tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
-                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>%
     mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
 
 print("1E - Concordance between SH and SK scatterplot")
 #scatterplot from upgrade
-master_table %>% 
+master_table %>%
     ggplot(aes(x = dox075, y = dox1)) +
     geom_point() +
     geom_smooth(method = 'lm', se = F) +
@@ -1344,69 +1344,69 @@ master_table %>%
 
 ```{r makewidechx_1}
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
-big_data_chx = big_data_chx %>% 
+big_data_chx = big_data_chx %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
 
-wide_chx = big_data_chx |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_chx = big_data_chx |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |> 
-    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |>
+    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |>
     mutate(chx_effect = case_when((Cycloheximide_TDP43KD - Control_TDP43KD) > 0.05 ~ "NMD rescued",
                                   Control_TDP43KD > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 
-chx_dark = wide_chx |> 
-    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |> 
+chx_dark = wide_chx |>
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_chx = wide_chx %>% 
+wide_chx = wide_chx %>%
     mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
 ```
 
 ```{r makewideupf1_1}
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
-big_data_upf1 = big_data_upf1 %>% 
+big_data_upf1 = big_data_upf1 %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
-wide_upf1 = big_data_upf1 |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+wide_upf1 = big_data_upf1 |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
-    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |>
+    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |>
     mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.05 ~ "NMD rescued",
                                   TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
-    mutate(ensgene =  gsub("\\..*","",gene_id)) 
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
+    mutate(ensgene =  gsub("\\..*","",gene_id))
 
-upf1_dark = wide_upf1 |> 
-    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued") |> 
+upf1_dark = wide_upf1 |>
+    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued") |>
     pull(paste_into_igv_junction) |> unique()
 
-wide_upf1 = wide_upf1 %>% 
+wide_upf1 = wide_upf1 %>%
     mutate(upf1_effect = ifelse(paste_into_igv_junction %in% upf1_dark, "Dark cryptic",upf1_effect))
 ```
 
 ```{r EarlyLateSushi}
-sh_nmd_sens = wide_chx %>% 
-    distinct(paste_into_igv_junction,chx_effect) %>% 
-    left_join(master_table) %>% 
-    filter(!is.na(tdp43_sensitivity_sh)) %>% 
-    filter(tdp43_sensitivity_sh != "") %>% 
-    filter(junction_for_clustering == 'yes') %>% 
-    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>% 
-    group_by(chx_effect,tdp43_sensitivity_sh) %>% 
+sh_nmd_sens = wide_chx %>%
+    distinct(paste_into_igv_junction,chx_effect) %>%
+    left_join(master_table) %>%
+    filter(!is.na(tdp43_sensitivity_sh)) %>%
+    filter(tdp43_sensitivity_sh != "") %>%
+    filter(junction_for_clustering == 'yes') %>%
+    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>%
+    group_by(chx_effect,tdp43_sensitivity_sh) %>%
     reframe(n = n_distinct(paste_into_igv_junction))
 
 ggplot(sh_nmd_sens) +
@@ -1417,19 +1417,19 @@ ggplot(sh_nmd_sens) +
         stat = "prop",
         position = position_stack(.5)
     ) +
-    theme_classic() + 
+    theme_classic() +
     labs(y = 'N junctions',
          x = element_blank(),
          fill = 'CHX treatment') +
-    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
-    theme(legend.position = 'bottom', legend.text.position = 'bottom') 
+    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) +
+    theme(legend.position = 'bottom', legend.text.position = 'bottom')
 #ggsave("~/Desktop/sh_nmd_sens.svg", width = 5, height = 4, dpi = 300)
 
-sh_nmd_sens %>% 
-    filter(chx_effect != "PSI > 95% at baseline") %>% 
-    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>% 
-    column_to_rownames("tdp43_sensitivity_sh") %>% 
-    as.matrix() %>% 
+sh_nmd_sens %>%
+    filter(chx_effect != "PSI > 95% at baseline") %>%
+    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>%
+    column_to_rownames("tdp43_sensitivity_sh") %>%
+    as.matrix() %>%
     rstatix::pairwise_fisher_test()
 ```
 
@@ -1441,20 +1441,20 @@ big_delta_de <- read.csv(here::here('data','big_delta_de.csv'))
 for_plot <- big_delta_de[,c(4,8,10,11)] %>%
   dplyr::filter(symbol == "STMN2" | symbol == "AARS1" | symbol == "HDGFL2" | symbol == "UNC13A" |
                   symbol == "SYNE1" | symbol == "CYFIP2")
-for_plot_0 <- for_plot %>% 
-  distinct(symbol, .keep_all = T) %>% 
+for_plot_0 <- for_plot %>%
+  distinct(symbol, .keep_all = T) %>%
   mutate(log2FoldChange = 0, padj = 0, source = 0)
-for_plot <- rbind(for_plot_0,for_plot) %>% 
+for_plot <- rbind(for_plot_0,for_plot) %>%
   mutate(symbol = factor(symbol, levels = c("AARS1", "HDGFL2", "SYNE1", "CYFIP2", "UNC13A", "STMN2")))
 
-big_delta_de_tdp <- big_delta_de[,c(4,8,10,11)] %>% 
+big_delta_de_tdp <- big_delta_de[,c(4,8,10,11)] %>%
   dplyr::filter(symbol == "TARDBP")
-for_plot_0_tdp <- big_delta_de_tdp[1,] %>% 
+for_plot_0_tdp <- big_delta_de_tdp[1,] %>%
   mutate(log2FoldChange = 0, padj = 0, source = 0)
 big_delta_de_tdp <- rbind(for_plot_0_tdp,big_delta_de_tdp)
 
 for_plot$source <- as.factor(for_plot$source)
-a <- for_plot %>%   
+a <- for_plot %>%
   ggplot() +
   geom_col(aes(x = as.character(source), y = log2FoldChange, fill = symbol), data = big_delta_de_tdp, alpha = 0.3, show.legend = F) +
   geom_point(aes(x = source, y = log2FoldChange, color = symbol, group = symbol), show.legend = F) +
@@ -1469,23 +1469,23 @@ a <- for_plot %>%
 
 big_delta_de_dz <- read.csv(here::here('data','big_delta_de_dz.csv'))
 
-big_delta_de_dz_tdp <- big_delta_de_dz[,c(4,8,10,11)] %>% 
+big_delta_de_dz_tdp <- big_delta_de_dz[,c(4,8,10,11)] %>%
   dplyr::filter(symbol == "TARDBP")
-for_plot_dz_0_tdp <- big_delta_de_dz_tdp[1,] %>% 
+for_plot_dz_0_tdp <- big_delta_de_dz_tdp[1,] %>%
   mutate(log2FoldChange = 0, padj = 0, source = 0)
 big_delta_de_dz_tdp <- rbind(for_plot_dz_0_tdp,big_delta_de_dz_tdp)
 
 for_plot_dz <- big_delta_de_dz[,c(4,8,10,11)] %>%
   dplyr::filter(symbol == "STMN2" | symbol == "AARS1" | symbol == "HDGFL2" | symbol == "UNC13A" |
                   symbol == "SYNE1" | symbol == "CYFIP2")
-for_plot_dz_0 <- for_plot_dz %>% 
-  distinct(symbol, .keep_all = T) %>% 
+for_plot_dz_0 <- for_plot_dz %>%
+  distinct(symbol, .keep_all = T) %>%
   mutate(log2FoldChange = 0, padj = 0, source = 0)
-for_plot_dz <- rbind(for_plot_dz_0,for_plot_dz) %>% 
+for_plot_dz <- rbind(for_plot_dz_0,for_plot_dz) %>%
   mutate(symbol = factor(symbol, levels = c("AARS1", "HDGFL2", "SYNE1", "CYFIP2", "UNC13A", "STMN2")))
 
 for_plot_dz$source <- as.factor(for_plot_dz$source)
-b <- for_plot_dz %>%   
+b <- for_plot_dz %>%
   ggplot() +
   geom_col(aes(x = as.character(source), y = log2FoldChange, fill = symbol), data = big_delta_de_dz_tdp, alpha = 0.3) +
   geom_point(aes(x = source, y = log2FoldChange, color = symbol, group = symbol)) +
@@ -1502,49 +1502,49 @@ a+b
 ```
 
 ```{r new_cate_creation}
-master_table %>% 
-    filter(new_cate != "Ambiguous") %>% 
-    select(paste_into_igv_junction,cryptic,tdp43_sensitivity_sh,tdp43_sensitivity_be2,new_cate) %>% 
+master_table %>%
+    filter(new_cate != "Ambiguous") %>%
+    select(paste_into_igv_junction,cryptic,tdp43_sensitivity_sh,tdp43_sensitivity_be2,new_cate) %>%
     mutate(cell_contribution = case_when(tdp43_sensitivity_sh == "Not found" ~ "SK-N-BE(2)",
                                          tdp43_sensitivity_be2 == "Not found" ~ "SH-SY5Y",
-                                         TRUE ~ "Both cell lines")) %>% 
-    group_by(cryptic,new_cate) %>% 
-    count(cell_contribution) %>% 
+                                         TRUE ~ "Both cell lines")) %>%
+    group_by(cryptic,new_cate) %>%
+    count(cell_contribution) %>%
     ggplot(aes(x = new_cate,
                y = n,
-               fill = cell_contribution)) + 
-    geom_col() + 
+               fill = cell_contribution)) +
+    geom_col() +
     facet_wrap(~cryptic,
                labeller = as_labeller(
-               c(no = "Alternative splicing", yes = "Cryptic splicing"))) + 
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
     theme_classic() +
     labs(fill = element_blank(),
          x = element_blank(),
          y = 'N junctions') +
     theme(legend.position = "bottom") +
     scale_fill_manual(values = c("#7DDE92","#DB504A","#D7CDCC"))
-    
-master_table %>% 
-    filter(new_cate != "Ambiguous") %>% 
-    select(paste_into_igv_junction, cryptic, tdp43_sensitivity_sh, tdp43_sensitivity_be2, new_cate) %>% 
+
+master_table %>%
+    filter(new_cate != "Ambiguous") %>%
+    select(paste_into_igv_junction, cryptic, tdp43_sensitivity_sh, tdp43_sensitivity_be2, new_cate) %>%
     mutate(cell_contribution = case_when(
         tdp43_sensitivity_sh == "Not found" ~ "SK-N-BE(2)",
         tdp43_sensitivity_be2 == "Not found" ~ "SH-SY5Y",
         TRUE ~ "Both cell lines"
-    )) %>% 
-    group_by(cryptic, new_cate, cell_contribution) %>% 
-    summarise(n = n_distinct(paste_into_igv_junction)) %>% 
-    mutate(percentage = n / sum(n))  %>% 
-    ggplot(aes(x = "", y = percentage, fill = cell_contribution)) + 
-    geom_bar(stat = "identity", width = 1) + 
-    coord_polar(theta = "y") + 
+    )) %>%
+    group_by(cryptic, new_cate, cell_contribution) %>%
+    summarise(n = n_distinct(paste_into_igv_junction)) %>%
+    mutate(percentage = n / sum(n))  %>%
+    ggplot(aes(x = "", y = percentage, fill = cell_contribution)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar(theta = "y") +
 facet_grid(new_cate ~ cryptic, labeller = as_labeller(
     c(no = "Alternative splicing", yes = "Cryptic splicing",
       Early = "Early", Intermediate = "Intermediate", Late = "Late")
-)) + 
+)) +
     theme_classic() +
-    labs(fill = element_blank(), 
-         x = element_blank(), 
+    labs(fill = element_blank(),
+         x = element_blank(),
          y = element_blank()) +
     theme(legend.position = "bottom") +
     scale_fill_manual(values = c("#7DDE92","#DB504A","#D7CDCC")) +
@@ -1595,7 +1595,7 @@ df_ss_strength <- rbind(
 ) %>%
   filter(new_cate %in% c("Early", "Late"))
 
-h <- df_ss_strength %>%
+ss_strength_plot <- df_ss_strength %>%
   ggplot(aes(x=site, y = log2(ss_ratio), fill = new_cate)) +
   geom_boxplot() +
   geom_abline(intercept = 0, slope = 0, color = "black", linetype = "dashed") +
@@ -1609,10 +1609,11 @@ h <- df_ss_strength %>%
   scale_fill_manual(values = plot_sensitivity_colors) +
   #ylim(-4.1, 2.5) +
   labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
-  theme_minimal() +
+  theme_classic() +
+  theme(text = element_text(size = plot_text_size)) +
   theme(legend.position = "top") +
   guides(fill = "none")
-h
+ss_strength_plot
 ```
 
 ```{r conservation_cell_only}
@@ -1625,31 +1626,15 @@ cons_score_df <- master_table %>%
 cons_score_df_cryptic <- cons_score_df %>% filter(cryptic == "yes")
 cons_score_df_not_cryptic <- cons_score_df %>% filter(cryptic == "no")
 
-a <- cons_score_df_cryptic %>%
+cons_score_plot <- cons_score_df %>%
   ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
   geom_boxplot() +
   xlab("") +
   ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Novel splice site", "Unchanged splice site")) +
-  scale_fill_manual(values = plot_sensitivity_colors) +
-  guides(fill = "none") +
-  geom_signif(
-    y_position = c(1.1, 1.1), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2), tip_length = 0.02,
-    annotation = c(get_significance(cons_score_df_cryptic,
-                                    "cons_score", "new_cate", "category", "phastCons_alt"),
-                   get_significance(cons_score_df_cryptic,
-                                    "cons_score", "new_cate", "category", "phastCons_unchanged"))
-  ) +
-  #facet_wrap(facets = vars(cryptic)) +
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size))
-
-b <- cons_score_df_not_cryptic %>%
-  ggplot(aes(x = category, y = cons_score, fill = new_cate)) +
-  geom_boxplot() +
-  xlab("") +
-  ylab('PhastCons score') +
-  scale_x_discrete(labels = c("Alternatively used splice site", "Unchanged splice site")) +
+    facet_wrap(~cryptic,
+               labeller = as_labeller(
+               c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
+  scale_x_discrete(labels = c("Alternatively used\nsplice site", "Unchanged\nsplice site")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
   guides(fill = "none") +
   geom_signif(
@@ -1661,25 +1646,25 @@ b <- cons_score_df_not_cryptic %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-a + b
+cons_score_plot
 ```
 
 ```{r exon_in_frame}
 result_mrg = fread('data/result_exon_table_merged.csv')
-tmp_gr = result_mrg %>% 
-    separate(exon_coord,into = c("chr","start","end")) %>% 
+tmp_gr = result_mrg %>%
+    separate(exon_coord,into = c("chr","start","end")) %>%
     makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
 
 seq_tmp <- getSeq(BSgenome.Hsapiens.UCSC.hg38,tmp_gr)
 
 
-result_mrg = result_mrg %>% 
-    mutate(width = seq_tmp %>% width()) %>% 
-    mutate(div_3 = ifelse(width %% 3==0,"In-frame","Out-frame")) 
+result_mrg = result_mrg %>%
+    mutate(width = seq_tmp %>% width()) %>%
+    mutate(div_3 = ifelse(width %% 3==0,"In-frame","Out-frame"))
 
 
 exon_counts <- result_mrg %>%
-    filter(last_exon == FALSE) %>% 
+    filter(last_exon == FALSE) %>%
   group_by(new_cate, cryptic, div_3) %>%
   summarise(count = n_distinct(exon_coord)) %>%
   ungroup()
@@ -1689,24 +1674,24 @@ frame_early <- exon_counts %>%
     filter(new_cate == "Early") %>%
     pivot_wider(names_from = div_3, values_from = count, values_fill = 0L) %>%
     select(-new_cate) %>%
-    column_to_rownames('cryptic') %>% 
+    column_to_rownames('cryptic') %>%
     chisq.test() %>% broom::tidy()
 
 frame_late <- exon_counts %>%
     filter(new_cate == "Late") %>%
     pivot_wider(names_from = div_3, values_from = count, values_fill = 0L) %>%
     select(-new_cate) %>%
-    column_to_rownames('cryptic') %>% 
+    column_to_rownames('cryptic') %>%
     chisq.test() %>% broom::tidy()
 
-exon_counts %>% 
+symmetry <- exon_counts %>%
     filter(new_cate %in% c("Early","Late")) %>%
     ggplot(aes(x = cryptic, y = count, fill = div_3)) +
   geom_bar(stat = "identity", position = "dodge") +
         facet_wrap(~new_cate) +
   geom_signif(data = data.frame(new_cate = c("Early","Late"), div_3=c('In-frame', 'Out-frame')),
               aes(y_position=c(61, 61), xmin=c(0.8, 0.8), xmax=c(2.2, 2.2),
-              annotations=c(get_signif_stars(frame_early$p.value), 
+              annotations=c(get_signif_stars(frame_early$p.value),
                             get_signif_stars(frame_late$p.value))), tip_length=0.02, manual = T) +
 
   labs(
@@ -1721,7 +1706,7 @@ exon_counts %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size), axis.text.x = element_text(angle = 45, hjust = 1))
-
+symmetry
 ```
 
 ```{r}
@@ -1733,8 +1718,8 @@ all_exons <- all_exons %>%
 
 all_exons <- all_exons %>%
   filter(!is.na(incl_rate))%>%
-  mutate(incl_rate_group = cut(incl_rate, 
-                                breaks = c(0.01, 0.25, 0.85, 0.99, Inf), 
+  mutate(incl_rate_group = cut(incl_rate,
+                                breaks = c(0.01, 0.25, 0.85, 0.99, Inf),
                                 labels = c("1-25%", "25-85%", "85-99%", ">99%")))
                                 #labels = c("<0.85", "0.85-0.995", ">0.995")))
 
@@ -1746,9 +1731,9 @@ cont_table <- plot_cont_table %>%
     pivot_wider(names_from = div_3, values_from = count)
 
 group_pairs <- list(
-  c(1,2), 
-  c(1,3),  
-  c(1,4)   
+  c(1,2),
+  c(1,3),
+  c(1,4)
 )
 
 p_values <- sapply(group_pairs, function(pair) {
@@ -1762,21 +1747,22 @@ ggplot(plot_cont_table, aes(x = incl_rate_group, y = count, fill = div_3)) +
        y = "Number of exons",
        fill = "") +
   theme_classic() +
+  theme(text = element_text(size = plot_text_size))+
   scale_fill_manual(
     values = plot_inframe_colors,
   ) +
-  geom_signif(comparisons = list(c("1-25%", "25-85%"), 
-                                 c("1-25%", "85-99%"), 
+  geom_signif(comparisons = list(c("1-25%", "25-85%"),
+                                 c("1-25%", "85-99%"),
                                  c("1-25%", ">99%")),
               annotations = sprintf("p = %.1e", p_values),
-              y_position = c(max(plot_cont_table$count)*1.1, 
-                             max(plot_cont_table$count)*1.2, 
+              y_position = c(max(plot_cont_table$count)*1.1,
+                             max(plot_cont_table$count)*1.2,
                              max(plot_cont_table$count)*1.3))
 ```
 
 ## Repeatmasker
 
-Enrichment of repeats in the flanking regions of acceptor and donors compared to other introns 
+Enrichment of repeats in the flanking regions of acceptor and donors compared to other introns
 
 ```{r repeatmasker intronic controls simple and sine}
 # INPUT
@@ -1828,143 +1814,138 @@ don_late <- cand_ctrl %>% filter(new_cate == "Late" & junc_type == "donor")
 cryp_don_late <- unique(don_late$cryptic)
 ctrl_don_late <- unique(don_late$ctrl)
 
-
-
-
 rep_classes <- unique(c(ctrl_rep$rep_class, cryp_rep$rep_class))
 
-
-
 for(i in 1:length(rep_classes)){
-  
+
   repeat_c <- rep_classes[i]
   print(repeat_c)
-  
+
   # Early Acceptor
   cryp_acc_early_df <- cryp_rep %>% filter(name %in% cryp_acc_early & rep_class == repeat_c)
   ctrl_acc_early_df <- ctrl_rep %>% filter(name %in% ctrl_acc_early & rep_class == repeat_c)
-  
+
   cryp_acc_early_df_rep <- rep_ranges(cryp_acc_early_df, "cryptic")
   ctrl_acc_early_df_rep <- rep_ranges(ctrl_acc_early_df, "controls")
-  
+
   acc_early_df <- merge(cryp_acc_early_df_rep, ctrl_acc_early_df_rep, by="position")
   acc_early_df$n_cry <- length(cryp_acc_early)
   acc_early_df$n_ctrl <- length(ctrl_acc_early)
-  
+
   acc_early_df <- rowwise_fisher_test(
-    acc_early_df, 
-    cryptic_col = "cryptic", 
-    set1_col = "controls", 
-    n_cry_col = "n_cry", 
+    acc_early_df,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
     n_ctrl_col = "n_ctrl",
     pval_out = "pv",
     or_out = "OR"
   )
-  
+
   acc_early_df$new_cate <- "Early"
   acc_early_df$junc_type <- "acceptor"
-  
-  
-  
+
+
+
   # Early Donor
   cryp_don_early_df <- cryp_rep %>% filter(name %in% cryp_don_early & rep_class == repeat_c)
   ctrl_don_early_df <- ctrl_rep %>% filter(name %in% ctrl_don_early & rep_class == repeat_c)
-  
+
   cryp_don_early_df_rep <- rep_ranges(cryp_don_early_df, "cryptic")
   ctrl_don_early_df_rep <- rep_ranges(ctrl_don_early_df, "controls")
-  
+
   don_early_df <- merge(cryp_don_early_df_rep, ctrl_don_early_df_rep, by="position")
   don_early_df$n_cry <- length(cryp_don_early)
   don_early_df$n_ctrl <- length(ctrl_don_early)
-  
+
   don_early_df <- rowwise_fisher_test(
-    don_early_df, 
-    cryptic_col = "cryptic", 
-    set1_col = "controls", 
-    n_cry_col = "n_cry", 
+    don_early_df,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
     n_ctrl_col = "n_ctrl",
     pval_out = "pv",
     or_out = "OR"
   )
-  
+
   don_early_df$new_cate <- "Early"
   don_early_df$junc_type <- "donor"
-  
-  
-  
+
+
+
   # Late Acceptor
   cryp_acc_late_df <- cryp_rep %>% filter(name %in% cryp_acc_late & rep_class == repeat_c)
   ctrl_acc_late_df <- ctrl_rep %>% filter(name %in% ctrl_acc_late & rep_class == repeat_c)
-  
+
   cryp_acc_late_df_rep <- rep_ranges(cryp_acc_late_df, "cryptic")
   ctrl_acc_late_df_rep <- rep_ranges(ctrl_acc_late_df, "controls")
-  
+
   acc_late_df <- merge(cryp_acc_late_df_rep, ctrl_acc_late_df_rep, by="position")
   acc_late_df$n_cry <- length(cryp_acc_late)
   acc_late_df$n_ctrl <- length(ctrl_acc_late)
-  
+
   acc_late_df <- rowwise_fisher_test(
-    acc_late_df, 
-    cryptic_col = "cryptic", 
-    set1_col = "controls", 
-    n_cry_col = "n_cry", 
+    acc_late_df,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
     n_ctrl_col = "n_ctrl",
     pval_out = "pv",
     or_out = "OR"
   )
-  
+
   acc_late_df$new_cate <- "Late"
   acc_late_df$junc_type <- "acceptor"
-  
-  
-  
+
+
+
   # Late Donor
   cryp_don_late_df <- cryp_rep %>% filter(name %in% cryp_don_late & rep_class == repeat_c)
   ctrl_don_late_df <- ctrl_rep %>% filter(name %in% ctrl_don_late & rep_class == repeat_c)
-  
+
   cryp_don_late_df_rep <- rep_ranges(cryp_don_late_df, "cryptic")
   ctrl_don_late_df_rep <- rep_ranges(ctrl_don_late_df, "controls")
-  
+
   don_late_df <- merge(cryp_don_late_df_rep, ctrl_don_late_df_rep, by="position")
   don_late_df$n_cry <- length(cryp_don_late)
   don_late_df$n_ctrl <- length(ctrl_don_late)
-  
+
   don_late_df <- rowwise_fisher_test(
-    don_late_df, 
-    cryptic_col = "cryptic", 
-    set1_col = "controls", 
-    n_cry_col = "n_cry", 
+    don_late_df,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
     n_ctrl_col = "n_ctrl",
     pval_out = "pv",
     or_out = "OR"
   )
-  
+
   don_late_df$new_cate <- "Late"
   don_late_df$junc_type <- "donor"
-  
-  
+
+
   head(acc_early_df)
   head(don_early_df)
   head(acc_late_df)
   head(don_late_df)
-  
+
   final_df <- rbind(acc_early_df, don_early_df)
   final_df <- rbind(final_df, acc_late_df)
   final_df <- rbind(final_df, don_late_df)
   final_df$position <- final_df$position -250
 
-  
-  
+
+
   final_df$repeat_cat <- repeat_c
-  
+
   if(i == 1){
     repeats_df <- final_df
   } else {
-    repeats_df <- rbind(repeats_df, final_df) 
+    repeats_df <- rbind(repeats_df, final_df)
   }
-  
-  
-  
+
+
+
 }
 
 repeats_df2 <- repeats_df
@@ -1980,13 +1961,12 @@ donor <- repeats_df2 %>% filter(junc_type == "donor")
 acceptor <- acceptor %>%
   group_by(repeat_cat) %>%
   filter(sum(logOR, na.rm = TRUE) != 0) %>%
-  ungroup() 
+  ungroup()
 
 donor <- donor %>%
   group_by(repeat_cat) %>%
   filter(sum(logOR, na.rm = TRUE) != 0) %>%
-  ungroup() 
-
+  ungroup()
 
 
 
@@ -1997,11 +1977,11 @@ col_fun = colorRamp2(c(-4,0, 4), c("blue", "gray95", "red"))
 p1 <- repeats_heatmap(acceptor, title = "Acceptor", col_fun=col_fun)
 p2 <- repeats_heatmap(donor, title = "Donor", col_fun=col_fun)
 
-cowplot::plot_grid(plotlist = list(as.grob(p1),as.grob(p2)))
+repmasker_plot <- cowplot::plot_grid(plotlist = list(as.grob(p1),as.grob(p2)))
 
 ```
 
-Enrichment of repeats in the flanking regions of acceptor and donors compared to other introns 
+Enrichment of repeats in the flanking regions of acceptor and donors compared to other introns
 
 
 ```{r specific_simple_repeat}
@@ -2041,132 +2021,132 @@ rep_types <- unique(c(ctrl_rep$rep_type, cryp_rep$rep_type))
 
 
 for(i in 1:length(rep_types)){
-    
+
     repeat_c <- rep_types[i]
     print(repeat_c)
-    
+
     # Early Acceptor
     cryp_acc_early_df <- cryp_rep %>% filter(name %in% cryp_acc_early & rep_type == repeat_c)
     ctrl_acc_early_df <- ctrl_rep %>% filter(name %in% ctrl_acc_early & rep_type == repeat_c)
-    
+
     cryp_acc_early_df_rep <- rep_ranges(cryp_acc_early_df, "cryptic")
     ctrl_acc_early_df_rep <- rep_ranges(ctrl_acc_early_df, "controls")
-    
+
     acc_early_df <- merge(cryp_acc_early_df_rep, ctrl_acc_early_df_rep, by="position")
     acc_early_df$n_cry <- length(cryp_acc_early)
     acc_early_df$n_ctrl <- length(ctrl_acc_early)
-    
+
     acc_early_df <- rowwise_fisher_test(
-        acc_early_df, 
-        cryptic_col = "cryptic", 
-        set1_col = "controls", 
-        n_cry_col = "n_cry", 
+        acc_early_df,
+        cryptic_col = "cryptic",
+        set1_col = "controls",
+        n_cry_col = "n_cry",
         n_ctrl_col = "n_ctrl",
         pval_out = "pv",
         or_out = "OR"
     )
-    
+
     acc_early_df$new_cate <- "Early"
     acc_early_df$junc_type <- "acceptor"
-    
-    
-    
+
+
+
     # Early Donor
     cryp_don_early_df <- cryp_rep %>% filter(name %in% cryp_don_early & rep_type == repeat_c)
     ctrl_don_early_df <- ctrl_rep %>% filter(name %in% ctrl_don_early & rep_type == repeat_c)
-    
+
     cryp_don_early_df_rep <- rep_ranges(cryp_don_early_df, "cryptic")
     ctrl_don_early_df_rep <- rep_ranges(ctrl_don_early_df, "controls")
-    
+
     don_early_df <- merge(cryp_don_early_df_rep, ctrl_don_early_df_rep, by="position")
     don_early_df$n_cry <- length(cryp_don_early)
     don_early_df$n_ctrl <- length(ctrl_don_early)
-    
+
     don_early_df <- rowwise_fisher_test(
-        don_early_df, 
-        cryptic_col = "cryptic", 
-        set1_col = "controls", 
-        n_cry_col = "n_cry", 
+        don_early_df,
+        cryptic_col = "cryptic",
+        set1_col = "controls",
+        n_cry_col = "n_cry",
         n_ctrl_col = "n_ctrl",
         pval_out = "pv",
         or_out = "OR"
     )
-    
+
     don_early_df$new_cate <- "Early"
     don_early_df$junc_type <- "donor"
-    
-    
-    
+
+
+
     # Late Acceptor
     cryp_acc_late_df <- cryp_rep %>% filter(name %in% cryp_acc_late & rep_type == repeat_c)
     ctrl_acc_late_df <- ctrl_rep %>% filter(name %in% ctrl_acc_late & rep_type == repeat_c)
-    
+
     cryp_acc_late_df_rep <- rep_ranges(cryp_acc_late_df, "cryptic")
     ctrl_acc_late_df_rep <- rep_ranges(ctrl_acc_late_df, "controls")
-    
+
     acc_late_df <- merge(cryp_acc_late_df_rep, ctrl_acc_late_df_rep, by="position")
     acc_late_df$n_cry <- length(cryp_acc_late)
     acc_late_df$n_ctrl <- length(ctrl_acc_late)
-    
+
     acc_late_df <- rowwise_fisher_test(
-        acc_late_df, 
-        cryptic_col = "cryptic", 
-        set1_col = "controls", 
-        n_cry_col = "n_cry", 
+        acc_late_df,
+        cryptic_col = "cryptic",
+        set1_col = "controls",
+        n_cry_col = "n_cry",
         n_ctrl_col = "n_ctrl",
         pval_out = "pv",
         or_out = "OR"
     )
-    
+
     acc_late_df$new_cate <- "Late"
     acc_late_df$junc_type <- "acceptor"
-    
-    
-    
+
+
+
     # Late Donor
     cryp_don_late_df <- cryp_rep %>% filter(name %in% cryp_don_late & rep_type == repeat_c)
     ctrl_don_late_df <- ctrl_rep %>% filter(name %in% ctrl_don_late & rep_type == repeat_c)
-    
+
     cryp_don_late_df_rep <- rep_ranges(cryp_don_late_df, "cryptic")
     ctrl_don_late_df_rep <- rep_ranges(ctrl_don_late_df, "controls")
-    
+
     don_late_df <- merge(cryp_don_late_df_rep, ctrl_don_late_df_rep, by="position")
     don_late_df$n_cry <- length(cryp_don_late)
     don_late_df$n_ctrl <- length(ctrl_don_late)
-    
+
     don_late_df <- rowwise_fisher_test(
-        don_late_df, 
-        cryptic_col = "cryptic", 
-        set1_col = "controls", 
-        n_cry_col = "n_cry", 
+        don_late_df,
+        cryptic_col = "cryptic",
+        set1_col = "controls",
+        n_cry_col = "n_cry",
         n_ctrl_col = "n_ctrl",
         pval_out = "pv",
         or_out = "OR"
     )
-    
+
     don_late_df$new_cate <- "Late"
     don_late_df$junc_type <- "donor"
-    
-    
+
+
     head(acc_early_df)
     head(don_early_df)
     head(acc_late_df)
     head(don_late_df)
-    
+
     final_df <- rbind(acc_early_df, don_early_df)
     final_df <- rbind(final_df, acc_late_df)
     final_df <- rbind(final_df, don_late_df)
     final_df$position <- final_df$position -250
-    
-    
+
+
     final_df$repeat_cat <- repeat_c
-    
+
     if(i == 1){
         repeats_df <- final_df
     } else {
-        repeats_df <- rbind(repeats_df, final_df) 
+        repeats_df <- rbind(repeats_df, final_df)
     }
-    
+
 }
 
 repeats_df2 <- repeats_df
@@ -2199,84 +2179,58 @@ simple_plot_acc <- repeats_heatmap(acceptor, title = "Acceptor", col_fun=col_fun
 simple_plot_don <- repeats_heatmap(donor, title = "Donor", col_fun=col_fun)
 ```
 
-
 ```{r kmer sh-sy5y, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in SH-SY5Y
 print("2C - Kmers enrichment analysis in SH-SY5Y")
 
 kmer_size <- 6
-yg_motifs <- c('TGTGTG', 'GTGTGT', 'GTGTGC', 'CGTGTG', 'TGCGTG', 'TGTGCG')
-ya_motifs <- c('ATGTGT', 'TGTGTA', 'TGCATG', 'GTGTAT', 'TGTATG', 'GTATGT')
-aa_motifs <- c('AATGAA', 'TTGAAT', 'ATGAAT', 'GTGTGA', 'TGAATG', 'GAATGA', 'GTGAAT', 'GAATGT')
-all_motifs <- c(yg_motifs, ya_motifs, aa_motifs)
-categories <- c(rep("YG", 6), rep("YA", 6), rep("AA", 8))
-flank_size = 250
-flank_region = master_table %>% 
-      filter(new_cate %in% c("Early", "Late")) %>%
-    mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
-                               max_psi_be2 == "" ~ max_psi_sh,
-                               max_psi_sh == "" ~ max_psi_be2,
-                               max_psi_be2 == 'Medium' ~ max_psi_sh,
-                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>% 
-    filter(junc_cat != "exon_skip") %>% 
-    filter(cryptic == 'yes') %>% 
-    separate(paste_into_igv_junction,into = c("seqnames","og_start","og_end"),convert = TRUE,remove = FALSE) %>% 
-    mutate(start = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end - flank_size,
-                             junc_cat == "donor" & strand == "+" ~ og_start - flank_size,
-                             junc_cat == "acceptor" & strand == "-" ~ og_start - flank_size,
-                             junc_cat == "donor" & strand == "-" ~ og_end - flank_size)) %>% 
-    mutate(end = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end + flank_size,
-                           junc_cat == "donor" & strand == "+" ~ og_start + flank_size,
-                           junc_cat == "acceptor" & strand == "-" ~ og_start + flank_size,
-                           junc_cat == "donor" & strand == "-" ~ og_end + flank_size)) %>% 
-    mutate(name = snakecase::to_snake_case(paste(gene,junc_cat,paste_into_igv_junction,cryptic,new_cate,sep  = "_"))) %>% 
-    unique() %>% 
-    makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
 
-count_hexamers_granges <- function(granges_obj, motifs = all_motifs, genome = BSgenome.Hsapiens.UCSC.hg38) {
-    # Input validation
-    if (!is(granges_obj, "GRanges")) {
-        stop("Input must be a GRanges object")
-    }
-    
-    if (length(granges_obj) == 0) {
-        warning("Empty GRanges object provided")
-        return(NULL)
-    }
-    
-    # Extract sequences for all ranges at once (vectorized operation)
-    sequences <- getSeq(genome, granges_obj)
-    
-    # Handle strand information if present
-    if ("strand" %in% names(mcols(granges_obj)) || any(strand(granges_obj) != "*")) {
-        # Use strand information from GRanges object
-        minus_strand <- as.logical(strand(granges_obj) == "-")
-        sequences[minus_strand] <- reverseComplement(sequences[minus_strand])
-    }
-    
-    # Count motifs for each sequence (vectorized)
-    count_matrix <- sapply(motifs, function(motif) {
-        vcountPattern(motif, sequences, max.mismatch = 0)
-    })
-    
-    # Set row names and column names
-    rownames(count_matrix) <- names(granges_obj)
-    colnames(count_matrix) <- motifs
-    
-    return(count_matrix)
+count_kmers <- function(row) {
+  if (row[["junc_cat"]] == "exon_skip" || is.na(row[["paste_into_igv_junction_annotated"]])) {
+    return(NULL)
+  }
+
+  coords <- strsplit(row[["paste_into_igv_junction_annotated"]], "[:-]")[[1]]
+  seq <- getSeq(BSgenome.Hsapiens.UCSC.hg38, names = coords[1], start = as.numeric(coords[2]), end = as.numeric(coords[3]))
+  if (row[["strand"]] == "-") {
+    seq <- reverseComplement(seq)
+  }
+  counts <- oligonucleotideFrequency(seq, kmer_size)
+  #total_counts <- colSums(kmers2)
+
+  return(counts)
 }
 
-kmer_counts <- count_hexamers_granges(flank_region)
+master_table_filt <- master_table %>%
+  filter(new_cate %in% c("Early", "Late")) %>%
+  filter(junc_cat != "exon_skip") %>%
+  distinct(paste_into_igv_junction_annotated, .keep_all = T)
 
-# Convert back to data frame for existing analysis
-kmer_df <- as.data.frame(kmer_counts)
-kmer_df$type <- mcols(flank_region)$new_cate
-kmer_df$cryptic <- mcols(flank_region)$cryptic
 
+kmer_table <- apply(master_table_filt, 1, count_kmers)
+
+get_top_kmers_from_table <- function(kmer_table, topn=3, offset=0){
+  seq_counts <- rowSums(kmer_table > 0)
+  ranked <- rank(-seq_counts, ties.method="min")
+  ord <- order(ranked, names(seq_counts))
+  names(seq_counts)[ord][(1+offset):(topn+offset)]
+}
+
+top_kmers <- c(
+  get_top_kmers_from_table(apply(master_table_filt %>% filter(new_cate=="Early" & cryptic=="yes"), 1, count_kmers)),
+  get_top_kmers_from_table(apply(master_table_filt %>% filter(new_cate=="Late" & cryptic=="yes"), 1, count_kmers)),
+  get_top_kmers_from_table(apply(master_table_filt %>% filter(new_cate=="Early" & cryptic=="no"), 1, count_kmers), offset = 1),
+  get_top_kmers_from_table(apply(master_table_filt %>% filter(new_cate=="Late" & cryptic=="no"), 1, count_kmers))
+)
+
+kmer_df <- as.data.frame(t(kmer_table[top_kmers,]))
+
+kmer_df$type <- master_table_filt$new_cate
+kmer_df$cryptic <- master_table_filt$cryptic
 
 summary_counts <- kmer_df %>%
   group_by(type, cryptic) %>%
-  summarise(across(all_motifs, sum))
+  summarise(across(top_kmers, sum))
 
 means <- apply(summary_counts[, -c(1,2)], 1, mean)
 sds <- apply(summary_counts[, -c(1,2)], 1, sd)
@@ -2288,36 +2242,21 @@ sort_kmers_by_zscore <- function(kmers, z_scores) {
   kmers[order(z_scores[kmers], decreasing = TRUE)]
 }
 
-sort_categories_by_zscore <- function(kmers, z_scores) {
-  categories[order(z_scores[kmers], decreasing = TRUE)]
-}
-
-sorted_all_kmers <- sort_kmers_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
-sorted_categories <- sort_categories_by_zscore(all_motifs, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
-
-annotation <- HeatmapAnnotation(Motif = factor(sorted_categories, levels = c("YG", "YA", "AA")),
-                                #show_legend = c(F, F, F),
-                                col = list(Motif = c(YG = "#35590F", YA = "#4E72F7", AA = "#B22724")),
-                                which = "col")
-c <- Heatmap(heatmap_data[c("Early Cryptic","Late Cryptic") , sorted_all_kmers],
+sorted_all_kmers <- sort_kmers_by_zscore(top_kmers, heatmap_data["Early Cryptic",]+heatmap_data["Late Cryptic",])
+sorted_all_kmers <- c("TGTGTG", "GTGTGT", "TGTTTT", "CTTTCT", "TTCTCT", "TTTCTC", "GCCTGG", "GGCTGG", "CTCTGT", "CTGTGT", "CCAGCC", "GCCCAG")
+kmer_heatmap <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","Late Not cryptic") , sorted_all_kmers],
         cluster_columns = F,
         cluster_rows = F,
         show_row_names = T,
         show_column_names = T,
         show_row_dend = F,
-        bottom_annotation = annotation)
-        # col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
-        # show_heatmap_legend = FALSE)
-c
+        # bottom_annotation = annotation,
+        #col = colorRampPalette(brewer.pal(12, "RdPu"))(100),
+        show_heatmap_legend = T)
+kmer_heatmap
+
 
 ```
-
-
-```{r kmer barplot}
-
-```
-
-
 
 ```{r ug_dense sh-y5y, echo=FALSE, warning=FALSE, message=FALSE}
 #D. Density UG motifs by early-late in SH-SY5Y
@@ -2346,7 +2285,7 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-d <- master_table %>%
+ug_repeats <- master_table %>%
   filter(new_cate %in% c("Early", "Late")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
   geom_boxplot() +
@@ -2364,10 +2303,11 @@ d <- master_table %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
+ug_repeats
 
 #E. Density UG motifs by top-bottom in SH-SY5Y
 master_table$max_psi_sh <- factor(master_table$max_psi_sh, levels=c("Top", "Bottom"))
-e <- master_table %>%
+ug_repeats_max_psi <- master_table %>%
   filter(max_psi_sh %in% c("Top", "Bottom")) %>%
   ggplot(aes(x = cryptic, y = ug_density, fill = max_psi_sh)) +
   geom_boxplot() +
@@ -2385,11 +2325,34 @@ e <- master_table %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-d + e
+
 ```
 
 ```{r postar3_coverage_fraction_early and late}
 tdp_3 = rtracklayer::import('data/postar3_tardbp_reduced.bed')
+
+flank_size = 250
+flank_region = master_table %>%
+      filter(new_cate %in% c("Early", "Late")) %>%
+    mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
+                               max_psi_be2 == "" ~ max_psi_sh,
+                               max_psi_sh == "" ~ max_psi_be2,
+                               max_psi_be2 == 'Medium' ~ max_psi_sh,
+                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>%
+    filter(junc_cat != "exon_skip") %>%
+    filter(cryptic == 'yes') %>%
+    separate(paste_into_igv_junction,into = c("seqnames","og_start","og_end"),convert = TRUE,remove = FALSE) %>%
+    mutate(start = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end - flank_size,
+                             junc_cat == "donor" & strand == "+" ~ og_start - flank_size,
+                             junc_cat == "acceptor" & strand == "-" ~ og_start - flank_size,
+                             junc_cat == "donor" & strand == "-" ~ og_end - flank_size)) %>%
+    mutate(end = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end + flank_size,
+                           junc_cat == "donor" & strand == "+" ~ og_start + flank_size,
+                           junc_cat == "acceptor" & strand == "-" ~ og_start + flank_size,
+                           junc_cat == "donor" & strand == "-" ~ og_end + flank_size)) %>%
+    mutate(name = snakecase::to_snake_case(paste(gene,junc_cat,paste_into_igv_junction,cryptic,new_cate,sep  = "_"))) %>%
+    unique() %>%
+    makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
 
 coverage_numeric_tdp_flank <- create_coverage_vectors(flank_region, tdp_3)
 coverage_matrix_tdp<- do.call(rbind, coverage_numeric_tdp_flank) %>%
@@ -2398,9 +2361,9 @@ coverage_matrix_tdp<- do.call(rbind, coverage_numeric_tdp_flank) %>%
            ID_exon = flank_region$ID_exon) %>%
     dplyr::relocate(name,ID_exon)
 
-coverage_matrix_tdp %>%
+distance_plot <- coverage_matrix_tdp %>%
     mutate(cryptic = ifelse(grepl("_yes",name),"cryptic","alternative")) %>%
-    mutate(type = ifelse(grepl("acceptor",name),"acceptor","donor")) %>%
+    mutate(type = ifelse(grepl("acceptor",name),"Acceptor","Donor")) %>%
     mutate(timing = gsub(".*_","",name)) %>%
     reshape2::melt(id.vars = c("name","cryptic","timing","type","ID_exon")) %>%
     mutate(pos = parse_number(as.character(variable))) %>%
@@ -2425,14 +2388,15 @@ coverage_matrix_tdp %>%
     ggplot(aes(x = pos, y = smoothed_weight,color = timing)) +
     geom_line(size = 1.6) +
     facet_wrap(~type) +
-    theme_bw() +
+    theme_classic() +
+    guides(color="none") +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
     ylab("Fraction of junctions bound by TDP-43 Postar3") +
     geom_vline(xintercept = 0,linetype = 'dotted') +
     xlab("Distance from cryptic splice site (bp)") +
     scale_color_manual(values = c("#de53b0" ,   "#173dd3")) +
-    theme(text = element_text(size = 18))
-
+    theme(text = element_text(size = plot_text_size))
+distance_plot
 ```
 
 
@@ -2446,35 +2410,6 @@ overlaps <- distanceToNearest(exact_splice_site, tdp_3)
 print("2F - Distance iCLIP TDP43 binding site SH-SY5Y")
 df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
 
-f1 <- df_iclip %>%
-  filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>%
-  filter(junc_cat != "exon_skip") %>%
-  filter(abs(dist) <= 1000) %>%
-  #filter(cryptic!="yes")%>%
-  ggplot(aes(x = dist, fill = cryptic)) +
-  geom_density(alpha = 0.5, adjust = 0.1) +
-  coord_cartesian(xlim=c(-150,150))+
-  scale_fill_manual(values = c("seagreen2", "darkorchid")) +
-  guides(fill = "none") +
-  labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size))
-
-f1
-
-overlaps_exact = overlaps %>% 
-    as.data.frame()
-
-overlaps_exact$gene = exact_splice_site$gene
-overlaps_exact$junc_cat = exact_splice_site$junc_cat
-overlaps_exact$new_cate = exact_splice_site$new_cate
-
-overlaps_exact %>% 
-    ggplot(aes(x = distance, color = new_cate)) + 
-    geom_density()
-```
-
-```{r binding_sites_heatmap}
 # Calculate total counts for each TDP43 sensitivity group
 total_counts <- df_iclip %>%
   group_by(tdp43_sensitivity_sh, cryptic) %>%
@@ -2490,8 +2425,8 @@ heatmap_data <- df_iclip %>%
   mutate(percentage = round(count / total * 100, 0)) %>%
   select(-count, -total) %>%
   pivot_wider(
-    names_from = cryptic, 
-    values_from = percentage, 
+    names_from = cryptic,
+    values_from = percentage,
     values_fill = 0
   ) %>%
   column_to_rownames(var = "tdp43_sensitivity_sh")
@@ -2500,21 +2435,22 @@ heatmap_plot <- heatmap_data %>%
   rownames_to_column(var = "tdp43_sensitivity_sh") %>%
   pivot_longer(cols = c("yes", "no"), names_to = "Cryptic", values_to = "Percentage")
 heatmap_plot$tdp43_sensitivity_sh <- factor(heatmap_plot$tdp43_sensitivity_sh, levels=c("Late","Early"))
-ggplot(heatmap_plot, aes(x = Cryptic, y = tdp43_sensitivity_sh, fill = Percentage)) +
+sites_heatmap <- ggplot(heatmap_plot, aes(x = Cryptic, y = tdp43_sensitivity_sh, fill = Percentage)) +
   geom_tile() +
   geom_text(aes(label = paste0(Percentage, "%")), vjust = 0.5, hjust = 0.5) +
   scale_fill_gradient(low="saddlebrown", high="palegreen1") +
-  labs(title = "", 
-       y = "TDP43 sensitivity", 
+  labs(title = "",
+       y = "TDP43 sensitivity",
        x = "Cryptic") +
   scale_x_discrete(labels=c("Alternative splicing", "Cryptic splicing"))+
   guides(fill="none") +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
+sites_heatmap
 ```
 
 ```{r rnamaps_figure}
-#G. RNA maps 
+#G. RNA maps
 early_donors <- readDNAStringSet("data/maxent/donors_early_combined.fa")
 late_donors <- readDNAStringSet("data/maxent/donors_late_combined.fa")
 
@@ -2549,8 +2485,8 @@ g
 ```{r fpr_early_late_max_min}
 
 summary_post =fread('data/cryptic_detection_summary_long_version.csv')
-cryptic_early_late = master_table %>% 
-    filter(cryptic == 'yes') %>% 
+cryptic_early_late = master_table %>%
+    filter(cryptic == 'yes') %>%
     filter(new_cate %in% c("Early","Late"))
 
 early_late_post = generate_summary_table(summary_post,
@@ -2563,14 +2499,14 @@ early_late_plots = make_final_plot(early_late_post,
                                       fisher_timing,
                                       category_column = 'new_cate',
                                       color_choices = c("#de53b0", "#173dd3"))
-early_late_plots$detection_plot + 
-          ggtitle('Early/Late Detection Rate') + 
+early_late_plots$detection_plot +
+          ggtitle('Early/Late Detection Rate') +
     theme(text = element_text(size = 18)) +
         guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 
 
-early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
+selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
     theme(text = element_text(size = 18)) +
         theme(text = element_text(size = 18)) +
         guides(x = guide_axis(n.dodge = 2)) +
@@ -2585,19 +2521,19 @@ early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
 
 summary_post =fread('data/cryptic_detection_summary_long_version.csv')
 
-master_table %>% 
+detection_plot<-master_table %>%
     mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
                                max_psi_be2 == "" ~ max_psi_sh,
                                max_psi_sh == "" ~ max_psi_be2,
                                max_psi_be2 == 'Medium' ~ max_psi_sh,
-                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>% 
-    filter(!is.na(new_max)) %>% 
-    left_join(summary_post) %>% 
-    filter(new_cate %in% c("Early","Late")) %>% 
-    filter(new_max %in% c("Top","Bottom")) %>% 
-    filter(fpr_value <= 0.1) %>% 
-    filter(!is.na(group)) %>% 
-    ggplot(aes(x = new_max, y =frac_ob_tdp_path,fill = new_cate)) + 
+                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>%
+    filter(!is.na(new_max)) %>%
+    left_join(summary_post) %>%
+    filter(new_cate %in% c("Early","Late")) %>%
+    filter(new_max %in% c("Top","Bottom")) %>%
+    filter(fpr_value <= 0.1) %>%
+    filter(!is.na(group)) %>%
+    ggplot(aes(x = new_max, y =frac_ob_tdp_path,fill = new_cate)) +
     geom_boxplot() +
     # facet_wrap(~group,scales = 'free')  +
     stat_summary(fun.data = give.n, geom = "text",
@@ -2619,17 +2555,17 @@ master_table %>%
 
 ```{r NMDSensNewCate_chx}
 
-new_cate_nmd_sens = wide_chx %>% 
-    distinct(paste_into_igv_junction,chx_effect) %>% 
-    left_join(master_table) %>% 
-    filter(!is.na(new_cate)) %>% 
-    filter(new_cate != "") %>% 
-    filter(junction_for_clustering == 'yes') %>% 
-    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>% 
-    group_by(chx_effect,new_cate) %>% 
+new_cate_nmd_sens = wide_chx %>%
+    distinct(paste_into_igv_junction,chx_effect) %>%
+    left_join(master_table) %>%
+    filter(!is.na(new_cate)) %>%
+    filter(new_cate != "") %>%
+    filter(junction_for_clustering == 'yes') %>%
+    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>%
+    group_by(chx_effect,new_cate) %>%
     reframe(n = n_distinct(paste_into_igv_junction))
 
-ggplot(new_cate_nmd_sens) +
+new_cate_nmd_plot <- ggplot(new_cate_nmd_sens) +
     aes(x = new_cate, fill = chx_effect, weight = n, by = as.factor(new_cate)) +
     geom_bar() +
     geom_text(
@@ -2637,36 +2573,36 @@ ggplot(new_cate_nmd_sens) +
         stat = "prop",
         position = position_stack(.5)
     ) +
-    theme_classic() + 
+    theme_classic() +
     labs(y = 'N junctions',
          x = element_blank(),
          fill = 'Cycloheximide treatment') +
-    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
+    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) +
     theme(legend.position = 'bottom') +
     theme(text = element_text(size = 18))
 
-new_cate_nmd_sens %>% 
-    filter(chx_effect != "PSI > 95% at baseline") %>% 
-    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>% 
-    column_to_rownames("new_cate") %>% 
-    as.matrix() %>% 
+new_cate_nmd_sens %>%
+    filter(chx_effect != "PSI > 95% at baseline") %>%
+    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>%
+    column_to_rownames("new_cate") %>%
+    as.matrix() %>%
     rstatix::pairwise_fisher_test()
 
 ```
 
 ```{r NMDSensNewCate_upf1}
 
-new_cate_nmd_sens_upf1 = wide_chx %>% 
-    distinct(paste_into_igv_junction,chx_effect) %>% 
-    left_join(master_table) %>% 
-    filter(!is.na(new_cate)) %>% 
-    filter(new_cate != "") %>% 
-    filter(junction_for_clustering == 'yes') %>% 
-    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>% 
-    group_by(chx_effect,new_cate) %>% 
+new_cate_nmd_sens_upf1 = wide_chx %>%
+    distinct(paste_into_igv_junction,chx_effect) %>%
+    left_join(master_table) %>%
+    filter(!is.na(new_cate)) %>%
+    filter(new_cate != "") %>%
+    filter(junction_for_clustering == 'yes') %>%
+    mutate(chx_effect = ifelse(chx_effect == "Dark cryptic","NMD rescued",chx_effect)) %>%
+    group_by(chx_effect,new_cate) %>%
     reframe(n = n_distinct(paste_into_igv_junction))
 
-ggplot(new_cate_nmd_sens) +
+new_cate_nmd_plot2 <-ggplot(new_cate_nmd_sens) +
     aes(x = new_cate, fill = chx_effect, weight = n, by = as.factor(new_cate)) +
     geom_bar() +
     geom_text(
@@ -2674,18 +2610,18 @@ ggplot(new_cate_nmd_sens) +
         stat = "prop",
         position = position_stack(.5)
     ) +
-    theme_classic() + 
+    theme_classic() +
     labs(y = 'N junctions',
          x = element_blank(),
          fill = 'Cycloheximide treatment') +
-    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
-    theme(legend.position = 'bottom') 
+    scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) +
+    theme(legend.position = 'bottom')
 
-new_cate_nmd_sens %>% 
-    filter(chx_effect != "PSI > 95% at baseline") %>% 
-    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>% 
-    column_to_rownames("new_cate") %>% 
-    as.matrix() %>% 
+ new_cate_nmd_sens %>%
+    filter(chx_effect != "PSI > 95% at baseline") %>%
+    pivot_wider(names_from = 'chx_effect',values_from = 'n') %>%
+    column_to_rownames("new_cate") %>%
+    as.matrix() %>%
     rstatix::pairwise_fisher_test()
 
 ```
@@ -2703,16 +2639,16 @@ new_cate_nmd_sens %>%
 
 compendium_events = fread('data/compendium_cryptics.csv')
 
-bind_table = master_table %>% 
-    distinct(paste_into_igv_junction,gene,strand) %>% 
-    dplyr::rename(gene_name = gene) %>% 
-    rbind((compendium_events %>% distinct(gene_name,paste_into_igv_junction,strand))) %>% 
-    dplyr::rename(junctions_coords = paste_into_igv_junction) %>% 
-    unique() %>% 
-    group_by(junctions_coords) %>% 
-    mutate(gene_name = paste0(gene_name, collapse = ",")) %>% 
-    ungroup() %>% 
-    select(-strand) %>% 
+bind_table = master_table %>%
+    distinct(paste_into_igv_junction,gene,strand) %>%
+    dplyr::rename(gene_name = gene) %>%
+    rbind((compendium_events %>% distinct(gene_name,paste_into_igv_junction,strand))) %>%
+    dplyr::rename(junctions_coords = paste_into_igv_junction) %>%
+    unique() %>%
+    group_by(junctions_coords) %>%
+    mutate(gene_name = paste0(gene_name, collapse = ",")) %>%
+    ungroup() %>%
+    select(-strand) %>%
     unique()
 
 
@@ -2732,17 +2668,17 @@ tpr_value_cord = "NYGC\nALS Spinal Cord"
 
 )
 
-chx_insensitive = 
-    chx_slope_plot_table$filtered_table %>% 
-    filter(color_gene_name == 'NMD rescued') %>% 
+chx_insensitive =
+    chx_slope_plot_table$filtered_table %>%
+    filter(color_gene_name == 'NMD rescued') %>%
     pull(paste_into_igv_junction) %>% unique()
 
-smg1_insensitive = smg1_slope_plot_table_cyto$filtered_table %>% 
-    filter(color_gene_name == 'non-NMD rescued') %>% 
+smg1_insensitive = smg1_slope_plot_table_cyto$filtered_table %>%
+    filter(color_gene_name == 'non-NMD rescued') %>%
     pull(paste_into_igv_junction) %>% unique()
 
-upf1_insensitive = upf1_slope_plot_table$filtered_table %>% 
-    filter(color_gene_name == 'NMD rescued') %>% 
+upf1_insensitive = upf1_slope_plot_table$filtered_table %>%
+    filter(color_gene_name == 'NMD rescued') %>%
     pull(paste_into_igv_junction) %>% unique()
 
 combined_effect = c(chx_insensitive,smg1_insensitive,upf1_insensitive)
@@ -2753,11 +2689,11 @@ combine_events(chx_slope_plot_table$filtered_table,smg1_slope_plot_table_cyto$fi
 
 #rimod_detection <- read_csv("data/rimod_junctions_predictive.csv")
 
-rimod_detection %>% 
-    filter(fpr_value < 0.1) %>% 
-    left_join(smg1_slope_plot_table_cyto$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name)) %>% 
-    filter(!is.na(color_gene_name)) %>% 
-    ggplot(aes(x = color_gene_name, y= auc)) + 
+rimod_detection %>%
+    filter(fpr_value < 0.1) %>%
+    left_join(smg1_slope_plot_table_cyto$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name)) %>%
+    filter(!is.na(color_gene_name)) %>%
+    ggplot(aes(x = color_gene_name, y= auc)) +
     geom_boxplot() +
             stat_summary(fun.data = give.n, geom = "text",
                      fun.y = median,
@@ -2767,10 +2703,10 @@ rimod_detection %>%
     formula = value ~ chx_rescue         # Explicit formula to avoid ambiguity
   )
 
-tpr_across_ds_plot_table %>% 
-    filter(tpr_value_cord >= 0.1) %>% 
-    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>% 
-    ggplot(aes(x = nmd_stable, y = tpr_value_cord)) + 
+tpr_across_ds_plot_table %>%
+    filter(tpr_value_cord >= 0.1) %>%
+    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>%
+    ggplot(aes(x = nmd_stable, y = tpr_value_cord)) +
     geom_boxplot() +
         stat_summary(fun.data = give.n, geom = "text",
                      fun.y = median,
@@ -2780,10 +2716,10 @@ tpr_across_ds_plot_table %>%
     formula = value ~ chx_rescue         # Explicit formula to avoid ambiguity
   )
 
-tpr_across_ds_plot_table %>% 
-    filter(tpr_value_rimod >= 0.1) %>% 
-    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>% 
-    ggplot(aes(x = nmd_stable, y = tpr_value_rimod)) + 
+tpr_across_ds_plot_table %>%
+    filter(tpr_value_rimod >= 0.1) %>%
+    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>%
+    ggplot(aes(x = nmd_stable, y = tpr_value_rimod)) +
     geom_boxplot() +
         stat_summary(fun.data = give.n, geom = "text",
                      fun.y = median,
@@ -2793,10 +2729,10 @@ tpr_across_ds_plot_table %>%
     formula = value ~ chx_rescue         # Explicit formula to avoid ambiguity
   )
 
-tpr_across_ds_plot_table %>% 
-    filter(tpr_value_ftd_cortex >= 0.1) %>% 
-    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>% 
-    ggplot(aes(x = nmd_stable, y = tpr_value_ftd_cortex)) + 
+tpr_across_ds_plot_table %>%
+    filter(tpr_value_ftd_cortex >= 0.1) %>%
+    mutate(nmd_stable = ifelse(paste_into_igv_junction %in% chx_insensitive,"NMD-stable","other")) %>%
+    ggplot(aes(x = nmd_stable, y = tpr_value_ftd_cortex)) +
     geom_boxplot() +
         stat_summary(fun.data = give.n, geom = "text",
                      fun.y = median,
@@ -2850,19 +2786,19 @@ maxc_type <- maxc_al %>%
   mutate(gene = gene_name) %>%
   filter(gene_name != "SETD5") %>%
   left_join(master_table, by = "paste_into_igv_junction") %>%
-  filter(!is.na(tdp43_sensitivity_sh)) %>% 
+  filter(!is.na(tdp43_sensitivity_sh)) %>%
   mutate(group = ifelse(grepl("FT", sample_name_ari), "FTD",
                         ifelse(grepl("HC", sample_name_ari), "HC",
-                               "H2O"))) %>% 
+                               "H2O"))) %>%
   group_by(gene_name) %>%
   filter(sum(n_cryptic) > 0) %>%
-  ungroup() %>% 
+  ungroup() %>%
     filter(group != "H2O")
 
 maxc_type %>%
   filter(!is.na(new_cate)) %>%
   filter(gene_name != "SETD5") %>%
-  #filter(n_cryptic>0) %>% 
+  #filter(n_cryptic>0) %>%
   #filter(detected == "Yes") %>%
   filter(group != "H2O") %>%
   ggplot(aes(x = new_cate, y = n_cryptic)) +
@@ -2877,7 +2813,7 @@ ggsave("~/Desktop/grouped_panel.png", width = 8, height = 4)
 
 maxc_earli <- maxc_type %>%
   filter(new_cate == "Early") %>%
-  filter(gene_name != "SETD5") %>% 
+  filter(gene_name != "SETD5") %>%
   ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
   geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") + #position = position_dodge(width = 0.8)) +
   #facet_grid(facets = vars(gene_name)) +
@@ -2888,7 +2824,7 @@ maxc_earli <- maxc_type %>%
   theme_bw()
 maxc_early <- maxc_type %>%
   filter(new_cate == "Early") %>%
-  filter(gene_name != "SETD5") %>% 
+  filter(gene_name != "SETD5") %>%
   ggplot(aes(x = sample_name_ari, y = fraction_cryptic)) +
   geom_bar(aes(fill = gene_name), stat = "identity", position = "stack", color="black") +#position = position_dodge(width = 0.8)) +
   #facet_grid(facets = vars(gene_name)) +
@@ -2925,18 +2861,18 @@ maxc_early / maxc_intermediate / maxc_late #/ maxc_na
 ```
 
 ```{r}
-data = maxc_type %>% 
-    distinct(sample_name_ari,new_cate,pc_cryptic,gene_name,group)  %>% 
-    filter(!is.na(new_cate)) %>% 
+data = maxc_type %>%
+    distinct(sample_name_ari,new_cate,pc_cryptic,gene_name,group)  %>%
+    filter(!is.na(new_cate)) %>%
     arrange(desc(group),sample_name_ari,new_cate)
 # Define new_cate as an ordered factor
 data$new_cate <- factor(data$new_cate, levels = c("Early", "Intermediate", "Late"))
 
 
-heatmap_matrix = data %>% 
-    select(-group,-new_cate) %>% 
-    pivot_wider(names_from = sample_name_ari, values_from = pc_cryptic) %>% 
-  column_to_rownames("gene_name") %>% 
+heatmap_matrix = data %>%
+    select(-group,-new_cate) %>%
+    pivot_wider(names_from = sample_name_ari, values_from = pc_cryptic) %>%
+  column_to_rownames("gene_name") %>%
     as.matrix()
 # Row annotation with an ordered factor
 row_ha <- rowAnnotation(
@@ -2946,10 +2882,10 @@ row_ha <- rowAnnotation(
 
 # Column annotation (sample group)
 column_ha <- HeatmapAnnotation(
-  group = data$group[match(colnames(heatmap_matrix), data$sample_name_ari)], 
+  group = data$group[match(colnames(heatmap_matrix), data$sample_name_ari)],
   col = list(group = c("FTD" = "red", "HC" = "blue"))
 )
-ro <- order(factor(data$new_cate[match(rownames(heatmap_matrix), data$gene_name)], 
+ro <- order(factor(data$new_cate[match(rownames(heatmap_matrix), data$gene_name)],
                           levels = c("Early", "Intermediate", "Late")))
 Heatmap(
   heatmap_matrix,
@@ -2967,37 +2903,40 @@ Heatmap(
 
 
 ```{r}
-summary_post %>% 
-    filter(fpr_value <=0.1 & value_tdp_path >=5) %>% 
-    select(group,paste_into_igv_junction,frac_ob_tdp_path,group,gene_name) %>% 
-    pivot_wider(names_from = 'group', values_from = 'frac_ob_tdp_path') %>% 
-    filter(!is.na(`Motor Cortex`) & !is.na(Cord)) %>% 
-    mutate(motor_rank = rank(`Motor Cortex`)) %>% 
-    mutate(cord_rank = rank(Cord)) %>% 
-    ggplot(aes(x = motor_rank, y = cord_rank)) + 
-    geom_point() + 
-    geom_text_repel(aes(label = gene_name)) + 
-    geom_abline() + 
+summary_post %>%
+    filter(fpr_value <=0.1 & value_tdp_path >=5) %>%
+    select(group,paste_into_igv_junction,frac_ob_tdp_path,group,gene_name) %>%
+    pivot_wider(names_from = 'group', values_from = 'frac_ob_tdp_path') %>%
+    filter(!is.na(`Motor Cortex`) & !is.na(Cord)) %>%
+    mutate(motor_rank = rank(`Motor Cortex`)) %>%
+    mutate(cord_rank = rank(Cord)) %>%
+    ggplot(aes(x = motor_rank, y = cord_rank)) +
+    geom_point() +
+    geom_text_repel(aes(label = gene_name)) +
+    geom_abline() +
     stat_cor(method = 'spearman')
 
-deseq2_normalized_salmon %>% 
-    filter(symbol %in% c("FIRRE","EPB41L4A","KCNIP1")) %>% 
-    filter(variable %in% nygc_metadata$sample) %>% 
+deseq2_normalized_salmon %>%
+    filter(symbol %in% c("FIRRE","EPB41L4A","KCNIP1")) %>%
+    filter(variable %in% nygc_metadata$sample) %>%
     left_join(nygc_metadata %>% select(sample,group,tdp_proteinopathy,
-                                       rna_tissue_source_simplified),by = c("variable" = 'sample')) %>% 
-    filter(!is.na(group)) %>% 
+                                       rna_tissue_source_simplified),by = c("variable" = 'sample')) %>%
+    filter(!is.na(group)) %>%
     ggplot(aes(x = group, y = value,fill = group)) +
     geom_boxplot() +
     facet_wrap(~symbol, scales = 'free' )
 ```
 
 ```{r}
-# make figure - gives error so commenitng out for now
-#row1 <- cowplot::plot_grid(ss_strength_plot, cons_score_plot, nrow=1,label_size = 16, labels=c("A","B"), rel_widths = c(1,2))
-#row2 <- cowplot::plot_grid(symmetry, grid.grabExpr(draw(kmer_heatmap)), nrow=1,label_size = 16, labels=c("C","D"), rel_widths = c(1,2))
-#donors_logo <- magick::image_read_pdf(here::here('main_fig_plus_files',"donors_logo.pdf"), density = 300)
-#row3 <- cowplot::plot_grid(ug_repeats, g, nrow=1,label_size = 16, labels=c("E","F"), rel_widths = c(1,2))
-#row4 <- cowplot::plot_grid(f1, sites_heatmap, nrow=1,label_size = 16, labels=c("G","H", "I"), rel_widths = c(2,1))
+label_size = 16
+row1 <- cowplot::plot_grid(ss_strength_plot, cons_score_plot, nrow=1,label_size = label_size, labels=c("A","B"), rel_widths = c(1,2))
+row2 <- cowplot::plot_grid(repmasker_plot, symmetry, nrow=1,label_size = label_size, labels=c("C","D"), rel_widths = c(2,1))
+row3 <- cowplot::plot_grid(grid.grabExpr(draw(kmer_heatmap)), ug_repeats, nrow=1,label_size = label_size, labels=c("E","F"), rel_widths = c(2,1))
+#donors_logo <- magick::image_read_pdf(here::here('data',"donors_logo.pdf"), density = 300)
+row4 <- cowplot::plot_grid(distance_plot, sites_heatmap, nrow=1,label_size = label_size, labels=c("G","H"), rel_widths = c(2,1))
+row5 <- cowplot::plot_grid(selectivity_plot, detection_plot, nrow=1,label_size = label_size, labels=c("I", "J"), rel_widths = c(1,1))
+row6 <- cowplot::plot_grid(new_cate_nmd_plot, new_cate_nmd_plot2, nrow=1,label_size = label_size, labels=c("K","L"), rel_widths = c(1,1))
 
-#fig2 <- cowplot::plot_grid( row1, row2, row3, row4, nrow=4,  label_size = 16, labels=c("","","",""))
+fig2 <- cowplot::plot_grid( row1, row2, row3, row4, row5, row6, nrow=6)
+#ggsave(filename = "~/Downloads/fig4.pdf", plot = fig2, width = 16, height = 30, units = "in", dpi = 300)
 ```
