@@ -1,7 +1,7 @@
 ---
-title: "supplementary_fig"
-author: "MZ; AM; ALB"
-date: "2024-05-22"
+title: "TDP-43 CE biology supplementary figures"
+author: "MZ;AM;ALB"
+date: "2025-08-20"
 output: html_document
 ---
 
@@ -23,17 +23,19 @@ library(RColorBrewer)
 library(data.table)
 library(ggstats)
 library(ggrepel)
+library(openxlsx)
+library(dplyr)
 source(here::here("scripts/odds_ratio_plots.R"))
 source(here::here('scripts/trial_nmd_plots.R'))
-
 
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
 plot_text_size <- 10
 ```
 
-
-```{r upset_plot_compendium}
+## Supplementary Figure 1. 
+### A. 
+```{r upset_plot_compendium, echo = FALSE}
 compendium_events = fread('data/compendium_cryptics.csv')
 
 compendium_events = compendium_events %>% 
@@ -65,12 +67,8 @@ upset(binary_matrix,
       sets.bar.color = "grey30")
 ```
 
-
-
-```{r tdp_correlation_n_cryptics}
-library(openxlsx)
-library(dplyr)
-
+### B.
+```{r tdp_correlation_n_cryptics, echo = FALSE}
 # Load all sheets
 xlsx_file <- "data/deseq2_outputs_compendium.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
@@ -104,9 +102,8 @@ compendium_events %>%
     stat_cor()
 ```
 
-# Sample numbers of the post-mortem datasets
-
-```{r}
+### C. Sample numbers of the post-mortem datasets
+```{r, echo = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 meta_nygc = fread('data/metadta_nygc.csv')
 library(dplyr)
@@ -148,7 +145,6 @@ combined_table <- bind_rows(table1, table2, table3) %>%
          `Patients (n)` = n_patients)
 
 # Display with kable
-
 meta_rimod %>% 
     mutate(tdp_proteinopathy = case_when(genotype %in% c("C9orf72","GRN")~ "FTLD-TDP",
                                          genotype == 'control' ~ "Control",
@@ -159,7 +155,6 @@ meta_rimod %>%
               n_patients = n_distinct(sample),
               .groups = 'drop')
     
-
 meta_nygc %>%  
     filter(grepl("Cord", rna_tissue_source_simplified)|rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal",'Cortex_Motor')) %>% 
     filter(tdp_proteinopathy %in% c("Control","FTLD-TAU","FTLD-FUS","FTLD-TDP",c("Control","ALS-TDP","ALS-non-TDP"))) %>% 
@@ -168,13 +163,10 @@ meta_nygc %>%
     group_by(case_control) %>% 
             summarize(n_sample = n_distinct(sample_id_rna), 
               n_patients = n_distinct(external_subject_id))
-
 ```
 
-
-# Sequencing features of post-mortem datasets
-
-```{r sequencing_features_rimod_vs_nygc}
+### D. Sequencing features of post-mortem datasets
+```{r sequencing_features_rimod_vs_nygc, echo = FALSE}
 source("scripts/box_plot_helper.R")
 meta_rimod = fread("data/metadata_rimod.csv")
 meta_nygc = fread('data/metadta_nygc.csv')
@@ -191,8 +183,6 @@ rimod_stats = meta_rimod %>%
     left_join(lib_r %>% select(Sample,RNAseq_STAR_uniquely_mapped),by = c("sample" = "Sample")) %>% 
     dplyr::rename(library_size = RNAseq_STAR_uniquely_mapped) %>% 
     distinct(age_at_death,tdp_proteinopathy,post_mortem_interval_in_hours,rin,dataset,library_size) 
-
-
 
 nygc_stats_frontal = meta_nygc %>% 
     filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal")) %>% 
@@ -218,7 +208,6 @@ nygc_stats_als_motor = meta_nygc %>%
     left_join(library_nygc, by = c("sample" = "V1")) %>% 
     dplyr::rename(library_size = V2)
 
-
 nygc_stats_cord = meta_nygc %>% 
     filter(grepl("Cord",rna_tissue_source_simplified)) %>% 
     filter(tdp_proteinopathy %in% c("Control","ALS-TDP","ALS-non-TDP")) %>% 
@@ -230,8 +219,6 @@ nygc_stats_cord = meta_nygc %>%
     mutate(sample = gsub(".final","",sample)) %>% 
     left_join(library_nygc, by = c("sample" = "V1")) %>% 
     dplyr::rename(library_size = V2)
-
-
 
 combined_data <- nygc_stats_als_motor %>%
     select(-sample) %>%
@@ -257,14 +244,10 @@ size_of_lib = size_of_lib  +  theme(text = element_text(size = 18),
                                     axis.text.x = element_text(size = 10),plot.subtitle  = element_text(size = 10)) +
         scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))  
 ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
-
 ```
 
-
-
-# Does baseline gene expression drive detection rate?
-
-```{r nygc_gene_expression_detection_rate}
+### E.Does baseline gene expression drive detection rate?
+```{r nygc_gene_expression_detection_rate, echo = FALSE}
 id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
 
 summary_post <- fread("data/cryptic_detection_summary_long_version.csv")
@@ -278,14 +261,10 @@ nygc_metadata = fread("data/metadta_nygc.csv") %>%
     filter(rna_tissue_source_simplified %in% c("Cortex_Frontal","Cortex_Temporal","Cortex_Motor") |
                grepl("Cord",rna_tissue_source_simplified)) 
 
-
 cryptic_genes = summary_post %>% 
     left_join(id_to_ens,by = c("gene_name")) 
 
 tpm_cal = fread('data/cryptic_genes_nygc_tpm.csv.gz')
-
-
-    
 
 norm_expresion = tpm_cal %>% 
     filter(Gene_Id %in% cryptic_genes$gene_id) %>% 
@@ -297,18 +276,16 @@ norm_expresion = tpm_cal %>%
     group_by(Gene_Id,group,tdp_proteinopathy) %>% 
     summarize(mean_expr = mean(TPM)) 
 
-
 plot_nygc = norm_expresion %>% 
     left_join(cryptic_genes %>% filter(fpr_value <= 0.1) %>% 
                   select(gene_id,gene_name,group,frac_ob_tdp_path),
               by = c("Gene_Id" = "gene_id", "group")) %>% 
     filter(!is.na(frac_ob_tdp_path)) %>% 
     unique()
-
 ```
 
-
-```{r rimod_gene}
+### F.
+```{r rimod_gene, echo = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 
 rimod_vst = fread("data/rimod_ftd_tpm.csv")
@@ -328,7 +305,6 @@ rimod_norm = rimod_vst %>%
     filter(!is.na(frac_ob_tdp_path)) %>% 
     unique() 
 
-
 rbind(rimod_norm,plot_nygc) %>% 
     filter(tdp_proteinopathy == 'Control') %>% 
     ggplot(aes(x = mean_expr,
@@ -344,8 +320,6 @@ rbind(rimod_norm,plot_nygc) %>%
     theme_bw() +
     theme(text = element_text(size = 18))
 
-
-
 rbind(rimod_norm,plot_nygc) %>% 
     filter(tdp_proteinopathy %in% c("RiMOD FTD TDP","FTLD-TDP","ALS-TDP")) %>% 
     ggplot(aes(x = mean_expr,
@@ -360,13 +334,9 @@ rbind(rimod_norm,plot_nygc) %>%
     xlab("Mean TPM in TDP-43 path tissue") + 
     theme_bw() +
     theme(text = element_text(size = 18))
-
-
 ```
 
-
-# Are cryptics which are selective only in cortex/cord due to gene expression?
-
+### G. Are cryptics which are selective only in cortex/cord due to gene expression?
 ```{r cord only vs cortex}
 source('scripts/rank_plot.R')
 
@@ -385,7 +355,6 @@ not_in_the_cord = cryptic_genes %>%
   mutate(total_count = rowSums(across(where(is.logical)))) %>% 
     filter(Cord == FALSE & total_count == 3) %>% 
     left_join(cryptic_genes %>% distinct(gene_name,gene_id)) 
-
 
 only_in_the_cord = cryptic_genes %>%
   filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%

@@ -1,7 +1,7 @@
 ---
 title: "TDP-43 cryptic exon biology main figures"
 author: "MZ;AM;ALB"
-date: "2024-05-06"
+date: "2025-08-20"
 output: html_document
 ---
 
@@ -49,8 +49,8 @@ plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
 plot_text_size <- 18
 ```
 
-### Figure 1. ADD TITLE
-## A. Cryptic compendium and recurrent cryptics
+## Figure 1. ADD TITLE
+### A. Cryptic compendium and recurrent cryptics
 ```{r overall dataset}
 compendium_events = fread('data/compendium_cryptics.csv')
 
