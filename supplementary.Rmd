@@ -25,8 +25,11 @@ library(ggstats)
 library(ggrepel)
 library(openxlsx)
 library(dplyr)
+library(knitr)
 source(here::here("scripts/odds_ratio_plots.R"))
 source(here::here('scripts/trial_nmd_plots.R'))
+source(here::here('scripts/rank_plot.R'))
+source(here::here("scripts/box_plot_helper.R"))
 
 plot_sensitivity_colors <- c("Early" = "#de53b0", "Late" = "#1331a7", "Intermediate" = "steelblue")
 plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "steelblue")
@@ -35,7 +38,7 @@ plot_text_size <- 10
 
 ## Supplementary Figure 1. 
 ### A. 
-```{r upset_plot_compendium, echo = FALSE}
+```{r upset_plot_compendium, echo = FALSE, warning = FALSE}
 compendium_events = fread('data/compendium_cryptics.csv')
 
 compendium_events = compendium_events %>% 
@@ -68,7 +71,7 @@ upset(binary_matrix,
 ```
 
 ### B.
-```{r tdp_correlation_n_cryptics, echo = FALSE}
+```{r tdp_correlation_n_cryptics, echo = FALSE, warning = FALSE}
 # Load all sheets
 xlsx_file <- "data/deseq2_outputs_compendium.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
@@ -103,11 +106,9 @@ compendium_events %>%
 ```
 
 ### C. Sample numbers of the post-mortem datasets
-```{r, echo = FALSE}
+```{r, echo = FALSE, warning = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 meta_nygc = fread('data/metadta_nygc.csv')
-library(dplyr)
-library(knitr)
 
 # Create the three tables
 table1 <- meta_nygc %>%  
@@ -166,8 +167,7 @@ meta_nygc %>%
 ```
 
 ### D. Sequencing features of post-mortem datasets
-```{r sequencing_features_rimod_vs_nygc, echo = FALSE}
-source("scripts/box_plot_helper.R")
+```{r sequencing_features_rimod_vs_nygc, echo = FALSE, warning = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 meta_nygc = fread('data/metadta_nygc.csv')
 lib_r = fread("data/library_stats_rimod.csv")
@@ -246,8 +246,8 @@ size_of_lib = size_of_lib  +  theme(text = element_text(size = 18),
 ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
 ```
 
-### E.Does baseline gene expression drive detection rate?
-```{r nygc_gene_expression_detection_rate, echo = FALSE}
+### E. Does baseline gene expression drive detection rate?
+```{r nygc_gene_expression_detection_rate, echo = FALSE, warning = FALSE}
 id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
 
 summary_post <- fread("data/cryptic_detection_summary_long_version.csv")
@@ -285,7 +285,7 @@ plot_nygc = norm_expresion %>%
 ```
 
 ### F.
-```{r rimod_gene, echo = FALSE}
+```{r rimod_gene, echo = FALSE, warning = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 
 rimod_vst = fread("data/rimod_ftd_tpm.csv")
@@ -337,9 +337,7 @@ rbind(rimod_norm,plot_nygc) %>%
 ```
 
 ### G. Are cryptics which are selective only in cortex/cord due to gene expression?
-```{r cord only vs cortex}
-source('scripts/rank_plot.R')
-
+```{r cord only vs cortex, echo = FALSE, warning = FALSE}
 not_in_the_cord = cryptic_genes %>%
   filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%
   filter(value_tdp_path >= 5) %>%
@@ -397,7 +395,6 @@ my_df = norm_expresion %>%
     select(-mean_expr) %>% 
     pivot_wider(names_from = 'group',
                 values_from = 'log10_mean')
-    
 
 motor_only_cord_expression = create_rank_plot(
   data = my_df,
@@ -417,12 +414,10 @@ cord_only_motor_expression = create_rank_plot(
 cord_only_motor_expression + 
     ggtitle('Gene expression of spinal cord specific cryptic in motor cortex') +
     theme(plot.title = element_text(size = 15))
-
 ```
 
-# Are the bulk identified junctions also present in FACs sorted nuclei?
-
-```{r}
+### H. Are the bulk identified junctions also present in FACs sorted nuclei?
+```{r, echo = FALSE, warning = FALSE}
 data_summary = fread('data/liu_overlap.csv')
 ggplot(data_summary, aes(x = group, y = proportion, fill = direction)) +
   geom_bar(stat = "identity") +
@@ -439,13 +434,10 @@ scale_fill_manual(values = c("#BF5B17","#386CB0")) +
   scale_y_continuous(labels = scales::percent) + 
     theme(legend.position = 'bottom') +
     theme(text = element_text(size = 18),plot.title = element_text(size = 15))
-
-
 ```
 
-# How does library depth vary in compendium datasets?
-
-```{r uniquely_mapped_compendium}
+# I. How does library depth vary in compendium datasets?
+```{r uniquely_mapped_compendium, echo = FALSE, warning = FALSE}
 two = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Compendium')
 tardbp_results = fread('data/tardbp_kd_level_compendium.csv')
 compendium_events = fread('data/compendium_cryptics.csv')
@@ -453,15 +445,12 @@ n_junc_per = compendium_events %>%
     group_by(comparison) %>% 
     summarise(n_cryptic_junc = n_distinct(paste_into_igv_junction))
 
-
-
 for_lm = two %>% 
     group_by(dataset) %>% 
     summarize(avg_depth = mean(uniquely_mapped)) %>% 
     left_join(n_junc_per, by = c("dataset" = 'comparison')) %>% 
     left_join(tardbp_results,by = c("dataset" = 'comparison')) %>% 
     separate(dataset,remove = FALSE, into = c(NA,"cell_type"))
-
 
 lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>% 
     broom::tidy()

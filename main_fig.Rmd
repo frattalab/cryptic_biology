@@ -70,7 +70,6 @@ c_tbl = compendium_events %>%
     mutate(found = TRUE) %>%
     pivot_wider(names_from = 'plot_comparison',values_from = 'found',values_fill = FALSE) %>%
     tibble::column_to_rownames('paste_into_igv_junction') %>% as.matrix()
-
 ```
 
 ```{r}
@@ -2614,15 +2613,10 @@ bind_table = master_table %>%
 
 ```{r tpr nmd sens}
 facet_labels <- c(
-
 tpr_value_rimod = "  RiMOD\nFTLD Frontal Cortex",
-
 tpr_value_ftd_cortex = " NYGC\nFTLD Frontal\nTemporal Cortex",
-
 tpr_value_als_cortex = "NYGC\nALS Motor Cortex",
-
 tpr_value_cord = "NYGC\nALS Spinal Cord"
-
 )
 
 chx_insensitive =
