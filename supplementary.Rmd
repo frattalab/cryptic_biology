@@ -749,9 +749,7 @@ prop_sh %>%
       theme(text = element_text(size = 15)) +
         theme(axis.title.x  = element_text(size = 13),
           axis.text.x  = element_text(size = 11)) 
-```
 
-```{r de_late_early_be2, echo = FALSE, warning = FALSE}
 diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
 master_table = as.data.table(master_table)
 fold_cut = 0
