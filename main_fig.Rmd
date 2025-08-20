@@ -49,9 +49,8 @@ plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
 plot_text_size <- 18
 ```
 
-
-## Cryptic compendium and recurrent cryptics
-
+### Figure 1. ADD TITLE
+## A. Cryptic compendium and recurrent cryptics
 ```{r overall dataset}
 compendium_events = fread('data/compendium_cryptics.csv')
 
@@ -93,7 +92,6 @@ tardbp_results <- purrr::map2_dfr(dfs, sheet_names, ~{
   }
 })
 
-
 # View result
 tardbp_results = tardbp_results %>%
     left_join(compendium_events %>% distinct(comparison,plot_comparison))
@@ -108,8 +106,6 @@ for(i in 1:ncol(c_tbl)) {
         overlap_matrix[i,j] <- sum(c_tbl[,i] & c_tbl[,j])
     }
 }
-
-
 
 # Create annotation colors (optional)
 # Scale the colors based on the values in level of KD
@@ -132,7 +128,6 @@ rownames(tardbp_results) = tardbp_results$plot_comparison
 tardbp_results = tardbp_results %>%
     select(-comparison,-plot_comparison)
 
-
 tardbp_results <- tardbp_results[rownames(ordered_matrix), , drop = FALSE]
 # Create the heatmap with the ordered matrix
 pheatmap(ordered_matrix * 100,
@@ -146,10 +141,9 @@ pheatmap(ordered_matrix * 100,
          annotation_names_row = TRUE,
          annotation_row = tardbp_results,
          annotation_colors = annotation_colors)
-
 ```
 
-
+## B. Number of datasets in which CEs are found
 ```{r appearnace of most frequent}
 compendium_events %>%
     mutate(gene_name_new = ifelse(grepl("^ENS", gene_name), NA_character_, gene_name)) %>%
@@ -178,17 +172,54 @@ compendium_events %>%
     ) +
     labs(x = element_blank(), y = element_blank()) +
     theme(axis.text = element_text(size = 12))
-
-
 ```
 
-
-## Cryptic compendium expression in post-mortem
-
-
-```{r overlap_biomarker_indataset}
+## C. FPR across datasets
+```{r fpr_compendium}
 summary_post = fread("data/summary_metrics_post_mortem.csv")
 
+fpr_across_ds_plot_table = summary_post %>%
+    left_join(compendium_events %>%
+    distinct(n_significant_data,paste_into_igv_junction)) %>%
+        mutate(bind_n = case_when(n_significant_data <= 3 ~ "1-3",
+                              n_significant_data >= 4 & n_significant_data <= 6 ~ "4-6",
+                              TRUE ~ "7-10")) %>%
+    filter(!is.na(n_significant_data)) %>%
+    mutate(plot_name = case_when(paste_into_igv_junction == "chr12:131992230-132005077" ~ 'EP400',
+                                 paste_into_igv_junction == 'chr10:3099352-3099557' ~ 'PFKP',
+                                 # paste_into_igv_junction == 'chr1:1709640-1719358' ~ "CDK11A",
+                                 # paste_into_igv_junction == 'chr2:3458515-3460263' ~ 'TRAPPC12',
+                                 paste_into_igv_junction == 'chr6:16585907-16589446' ~ 'ATXN1')) %>%
+    unique() %>%
+    # group_by(paste_into_igv_junction) %>%
+    # mutate(plot_name = ifelse(value == max(value),plot_name, NA_character_)) %>%
+    ungroup()
+
+fpr_across_ds_plot_table %>%
+    ggplot(aes(x = bind_n,
+               y = fpr_value,
+               fill = group)) +
+    geom_boxplot(outliers = FALSE) +
+    ylab("False positive rate TDP-43 proteinopathy vs not") +
+    xlab("N datasets cryptic detected") +
+    theme_bw() +
+    scale_fill_manual(values = c("#4A5240","#ACD7E5","#5F4BB6","#EF7F7F"),
+                      name = "") +
+    scale_color_manual(values = c("#4A5240","#ACD7E5","#5F4BB6","#EF7F7F"),
+                  name = "") +
+    theme(legend.position = 'bottom') +
+    geom_point(pch = 21, data = fpr_across_ds_plot_table %>% filter(!is.na(plot_name)),position = position_dodge2(width = 0.75)) +
+    geom_text_repel(aes(label = plot_name,color = group),min.segment.length = 0,position = position_dodge2(width = 0.9)) +
+    geom_hline(yintercept = 0.1, linetype = 'dotted') +
+    scale_y_continuous(
+        labels = percent_format(),
+    ) +
+    theme(axis.text = element_text(size = 12))
+```
+
+## D. Cryptic compendium expression in post-mortem
+```{r overlap_biomarker_indataset}
+summary_post = fread("data/summary_metrics_post_mortem.csv")
 
 not_in_the_cord = summary_post %>%
     filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
@@ -273,9 +304,6 @@ paste0(genes_everywhere$gene_name,collapse = "\n")
 
 paste0(genes_not_in_cord$gene_name,collapse = "\n")
 
-
-
-
 gg_euler +
     # Expand the plot limits to add more space on the left
     xlim(-0.5, 1.5) +  # Extend left side from 0 to -0.5
@@ -308,67 +336,14 @@ gg_euler +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA),
           plot.margin = margin(60, 20, 20, 60, "pt"))  # Add extra margin on left (60pt)
-
 ```
 
-
-
-
-```{r fpr_compendium}
-summary_post = fread("data/summary_metrics_post_mortem.csv")
-
-fpr_across_ds_plot_table = summary_post %>%
-    left_join(compendium_events %>%
-    distinct(n_significant_data,paste_into_igv_junction)) %>%
-        mutate(bind_n = case_when(n_significant_data <= 3 ~ "1-3",
-                              n_significant_data >= 4 & n_significant_data <= 6 ~ "4-6",
-                              TRUE ~ "7-10")) %>%
-    filter(!is.na(n_significant_data)) %>%
-    mutate(plot_name = case_when(paste_into_igv_junction == "chr12:131992230-132005077" ~ 'EP400',
-                                 paste_into_igv_junction == 'chr10:3099352-3099557' ~ 'PFKP',
-                                 # paste_into_igv_junction == 'chr1:1709640-1719358' ~ "CDK11A",
-                                 # paste_into_igv_junction == 'chr2:3458515-3460263' ~ 'TRAPPC12',
-                                 paste_into_igv_junction == 'chr6:16585907-16589446' ~ 'ATXN1')) %>%
-    unique() %>%
-    # group_by(paste_into_igv_junction) %>%
-    # mutate(plot_name = ifelse(value == max(value),plot_name, NA_character_)) %>%
-    ungroup()
-
-fpr_across_ds_plot_table %>%
-    ggplot(aes(x = bind_n,
-               y = fpr_value,
-               fill = group)) +
-    geom_boxplot(outliers = FALSE) +
-    ylab("False positive rate TDP-43 proteinopathy vs not") +
-    xlab("N datasets cryptic detected") +
-    theme_bw() +
-    scale_fill_manual(values = c("#4A5240","#ACD7E5","#5F4BB6","#EF7F7F"),
-                      name = "") +
-    scale_color_manual(values = c("#4A5240","#ACD7E5","#5F4BB6","#EF7F7F"),
-                  name = "") +
-    theme(legend.position = 'bottom') +
-    geom_point(pch = 21, data = fpr_across_ds_plot_table %>% filter(!is.na(plot_name)),position = position_dodge2(width = 0.75)) +
-    geom_text_repel(aes(label = plot_name,color = group),min.segment.length = 0,position = position_dodge2(width = 0.9)) +
-    geom_hline(yintercept = 0.1, linetype = 'dotted') +
-    scale_y_continuous(
-        labels = percent_format(),
-    ) +
-    theme(axis.text = element_text(size = 12))
-
-
-
-```
-
-
-
-## NMD
-
+### Figure 2. NMD
 ```{r makewidechx}
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 big_data_chx = big_data_chx %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
-
 
 wide_chx = big_data_chx |>
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
@@ -382,7 +357,6 @@ wide_chx = big_data_chx |>
                                   TRUE ~ "non-NMD rescued")) %>%
     left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
-
 
 chx_dark = wide_chx |>
     filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued" & Cycloheximide_Control < 0.1) |>
@@ -398,7 +372,6 @@ big_data_upf1 = big_data_upf1 %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
-
 wide_upf1 = big_data_upf1 |>
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
@@ -412,7 +385,6 @@ wide_upf1 = big_data_upf1 |>
     left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
-
 upf1_dark = wide_upf1 |>
     filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued" & ctrl_UPF1 < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
@@ -421,8 +393,7 @@ wide_upf1 = wide_upf1 %>%
     mutate(upf1_effect = ifelse(paste_into_igv_junction %in% upf1_dark, "Dark cryptic",upf1_effect))
 ```
 
-## NMDi all slope plots
-
+## A. NMDi all slope plots
 ```{r slopeplot_all, echo=FALSE, warning=FALSE, message=FALSE}
 gene_list_slope = c("STMN2",
                     "KCNQ2",
@@ -437,8 +408,6 @@ gene_list_slope = c("STMN2",
                     "UNC13A",
                     'CYFIP2',
                     "SYNE1")
-
-
 
 input_list = c("Control_Control",
                 "Cycloheximide_Control",
@@ -478,7 +447,6 @@ upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1,
                 "TDP43_UPF1"),nmd_label = 'UPF1 KD',
                true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
 
-
 psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups.parquet")
 
 psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
@@ -506,17 +474,13 @@ pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
                                         nmd_label = 'SMG1i',
                                         true_dark_junctions = true_dark_selective)
 
-
 ggarrange(chx_slope_plot_table$plot,upf1_slope_plot_table$plot,pseudo_bulk_plot_slope$plot,nrow = 1)
-
 ```
-
 
 ```{r makewidesmg1}
 big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
-
 
 wide_smg1 = big_data_smg1 |>
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
@@ -531,7 +495,6 @@ wide_smg1 = big_data_smg1 |>
     left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
-
 smg1_dark = wide_smg1 |>
     filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
@@ -540,8 +503,7 @@ wide_smg1 = wide_smg1 %>%
     mutate(smg1_effect = ifelse(paste_into_igv_junction %in% smg1_dark, "Dark cryptic",smg1_effect))
 ```
 
-### Are NMD sensitive events up/downregulated?
-
+## Are NMD sensitive events up/downregulated?
 ```{r nmd_up_down_sh_fractionation}
 nuc_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
         mutate(ensgene =  gsub("\\..*","",gene_id))
@@ -552,7 +514,6 @@ cyto_kd = fread("data/nuc_cyto/deseq2_results_cyto_kd.csv") %>%
 pseudo_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
             mutate(ensgene =  gsub("\\..*","",gene_id))
 
-
 nuc_kd = nuc_kd %>%
     left_join(wide_smg1,by = c("ensgene")) %>%
     filter(!is.na(smg1_effect))  %>%
@@ -561,7 +522,6 @@ nuc_kd = nuc_kd %>%
     ungroup() %>%
     mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
     mutate(fraction = 'nuclear RNA')
-
 
 cyto_kd = cyto_kd %>%
     left_join(wide_smg1,by = c("ensgene")) %>%
@@ -598,12 +558,9 @@ nuc_kd %>%
                        p.adjust.method = "BH",
                        size = 10) +
     theme(legend.position = 'bottom')
-
-
 ```
 
 ```{r nmd_up_down_sh_chx}
-
 chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
 
 chx_nmd_effect = chx_rna_full %>%
@@ -2687,7 +2644,7 @@ combine_events(chx_slope_plot_table$filtered_table,smg1_slope_plot_table_cyto$fi
                upf1_slope_plot_table$filtered_table,
                column = 'paste_into_igv_junction')
 
-#rimod_detection <- read_csv("data/rimod_junctions_predictive.csv")
+rimod_detection <- read_csv("data/rimod_junctions_predictive.csv")
 
 rimod_detection %>%
     filter(fpr_value < 0.1) %>%
