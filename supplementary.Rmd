@@ -26,6 +26,8 @@ library(ggrepel)
 library(openxlsx)
 library(dplyr)
 library(knitr)
+library(GenomicRanges)
+library(ggridges)
 source(here::here("scripts/odds_ratio_plots.R"))
 source(here::here('scripts/trial_nmd_plots.R'))
 source(here::here('scripts/rank_plot.R'))
@@ -36,9 +38,9 @@ plot_psi_colors <- c("Top" = "#388f78", "Bottom" = "#de9e4a", "Intermediate" = "
 plot_text_size <- 10
 ```
 
-## Supplementary Figure 1. 
+## Supplementary Figure 1 
 ### A. 
-```{r upset_plot_compendium, echo = FALSE, warning = FALSE}
+```{r upset_plot_compendium, echo = FALSE, warning = FALSE, message = FALSE}
 compendium_events = fread('data/compendium_cryptics.csv')
 
 compendium_events = compendium_events %>% 
@@ -71,7 +73,7 @@ upset(binary_matrix,
 ```
 
 ### B.
-```{r tdp_correlation_n_cryptics, echo = FALSE, warning = FALSE}
+```{r tdp_correlation_n_cryptics, echo = FALSE, warning = FALSE, message = FALSE}
 # Load all sheets
 xlsx_file <- "data/deseq2_outputs_compendium.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
@@ -247,7 +249,7 @@ ggarrange(plotlist = list(age,rin,pmi,size_of_lib),ncol = 2,nrow = 2)
 ```
 
 ### E. Does baseline gene expression drive detection rate?
-```{r nygc_gene_expression_detection_rate, echo = FALSE, warning = FALSE}
+```{r nygc_gene_expression_detection_rate, echo = FALSE, warning = FALSE, message = FALSE}
 id_to_ens = fread("data/gencode.v42_geneid_genename.tsv")
 
 summary_post <- fread("data/cryptic_detection_summary_long_version.csv")
@@ -285,7 +287,7 @@ plot_nygc = norm_expresion %>%
 ```
 
 ### F.
-```{r rimod_gene, echo = FALSE, warning = FALSE}
+```{r rimod_gene, echo = FALSE, warning = FALSE, message = FALSE}
 meta_rimod = fread("data/metadata_rimod.csv")
 
 rimod_vst = fread("data/rimod_ftd_tpm.csv")
@@ -337,7 +339,7 @@ rbind(rimod_norm,plot_nygc) %>%
 ```
 
 ### G. Are cryptics which are selective only in cortex/cord due to gene expression?
-```{r cord only vs cortex, echo = FALSE, warning = FALSE}
+```{r cord only vs cortex, echo = FALSE, warning = FALSE, message = FALSE}
 not_in_the_cord = cryptic_genes %>%
   filter(fpr_value <= 0.1 & tpr_value >= 0.1) %>%
   filter(value_tdp_path >= 5) %>%
@@ -417,7 +419,7 @@ cord_only_motor_expression +
 ```
 
 ### H. Are the bulk identified junctions also present in FACs sorted nuclei?
-```{r, echo = FALSE, warning = FALSE}
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
 data_summary = fread('data/liu_overlap.csv')
 ggplot(data_summary, aes(x = group, y = proportion, fill = direction)) +
   geom_bar(stat = "identity") +
@@ -456,261 +458,9 @@ lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>%
     broom::tidy()
 ```
 
-# Is library depth stable throughout the 2 dose-dependent curves
-
-```{r uniquely_mapped_curves}
-one = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Curves')
-    
-sushi_curve = plot_significant_comparisons(one %>% filter(comparison == 'SH-SY5Y curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
-sushi_curve = sushi_curve + geom_jitter(width = 0.2) + 
-    scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
-                       limits = c(30*10^6,80*10^6))  +
-     xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-        scale_x_discrete(labels = c("0", "0.0125", "0.0187", "0.0210", "0.0250", "0.0750")) +
-      theme_classic() +
-  theme(text = element_text(size = 15)) +
-    theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11))
-
-
-
-
-sk_curvecurve = plot_significant_comparisons(one %>% filter(comparison == 'SK-N-BE(2) curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads")
-
-sk_curvecurve = sk_curvecurve + 
-    geom_jitter(width = 0.2) + 
-    scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
-                       limits = c(30*10^6,80*10^6))  +
-    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-    scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
-      theme_classic() +
-  theme(text = element_text(size = 15)) +
-    theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11))
-
-ggarrange(plotlist = list(sushi_curve,sk_curvecurve)) 
-
-
-
-
-```
-
-
-
-# Genes changed by UPF1 KD are not the same ones changed by TDP-43 KD
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-###top50_upf1 - load this table!!
-results_table_upf1vsctrl <- read.csv(here::here("data/results_table_upf1_vs_ctrl.csv"))
-results_table_UPF1_ctrl <- read.csv(here::here("data/results_table_UPF1_ctrl.csv"))
-
-results_table_upf1vsctrl_filtered <- results_table_upf1vsctrl %>%
-  filter(log2FoldChange > 1 | log2FoldChange < -1) %>%
-  filter(!is.na(symbol))
-
-results_table_UPF1_ctrl_filtered <- results_table_UPF1_ctrl %>%
-  filter(symbol %in% results_table_upf1vsctrl_filtered$symbol) %>%
-  filter(!is.na(symbol))
-
-results_table_upf1vsctrl_filtered_2 <- results_table_upf1vsctrl_filtered %>%
-  filter(symbol %in% results_table_UPF1_ctrl_filtered$symbol)
-
-ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2FoldChange), y = 0, fill = log2FoldChange)) +
-  geom_tile() +
-  geom_tile(data = results_table_UPF1_ctrl_filtered, aes(x = symbol, y = -1, fill = log2FoldChange)) +
-  theme_classic() +
-  colorspace::scale_fill_continuous_diverging() +
-  theme(axis.text.x = element_text(angle = 90))
-```
-
-
-# TARDBP RNA-seq levels in 2 curves
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-
-normal_counts_sh <- read.csv(here::here('data', 'normed_counts_sh.csv'))
-normal_counts_sk <- read.csv(here::here('data', 'normed_counts_sk.csv'))
-
-print("S3A - levels from DeSeq in SH and SK")
-b <- normal_counts_sh[,c(2:19,21)] %>% 
-  dplyr::filter(symbol == "TARDBP") %>%
-  pivot_longer(c(1:18)) %>%
-  mutate(group = gsub("^[^_]+_|_[^_]+$", "", name)) %>%
-  ggplot(aes(x = group, y = value)) +
-  geom_boxplot(alpha = 0.1, show.legend = F) +
-  geom_point(position = position_dodge2(width = 1), show.legend = F) +
-  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-  ylab('TDP-43 Counts per million') +
-  theme_classic() +
-  theme(text = element_text(size = 15)) +
-    theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11))
-
-d <- normal_counts_sk[,c(2:25,27)] %>% 
-  dplyr::filter(symbol == "TARDBP") %>%
-  pivot_longer(c(1:24)) %>%
-  mutate(group = gsub("^[^_]+_|_[^_]+$", "", name)) %>%
-  ggplot(aes(x = group, y = value)) +
-  geom_boxplot(alpha = 0.1, show.legend = F) +
-  geom_point(position = position_dodge2(width = 1), show.legend = F) +
-  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-  ylab('TDP-43 Counts per million') +
-  scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
-  theme_classic() +
-  theme(text = element_text(size = 15)) +
-        theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11))
-b + d
-```
-
-# How do cryptics with early/late/events change in their fc over time? 
-```{r de_late_early_sh}
-master_table <- read.csv(here::here("data/master_table.csv"))
-master_table <- master_table %>%
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
-    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
-                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
-                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
-                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
-                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
-                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
-        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
-
-
-diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
-diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
-master_table = as.data.table(master_table)
-fold_cut = 0
-diff_plt_sh = diff_expr_sh %>% 
-    left_join(unique(master_table[junction_for_clustering == 'yes' & cryptic == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_sh)]),by = c("symbol" = 'gene')) %>% 
-    filter(symbol != "RNA5-8SN2") %>% 
-    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj > 0.05 | is.na(padj),"N.S.",fc_direction)) %>% 
-    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(is.na(tdp43_sensitivity_sh),'Non-splicing',tdp43_sensitivity_sh)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) %>% 
-    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == 'Not found','Non-splicing',tdp43_sensitivity_sh)) 
-
-sh_d_gene = diff_plt_sh %>% 
-    group_by(source,tdp43_sensitivity_sh) %>% 
-    summarize(denom = n_distinct(symbol)) %>% 
-    group_by(tdp43_sensitivity_sh) %>% 
-    mutate(denom=max(denom,na.rm=TRUE)) %>% ungroup()
-
-diff_plt_sh %>% 
-    group_by(tdp43_sensitivity_sh, fc_direction, sig_de, source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(sh_d_gene) %>% 
-    mutate(prop = n_genes / denom) %>% 
-    ggplot(aes(x = tdp43_sensitivity_sh, 
-               y = prop, 
-               fill = sig_de)) + 
-    geom_col(position = 'dodge')  +
-    # geom_text(aes(label = n_genes), 
-    #           position = position_dodge(width = 0.9), 
-    #           vjust = -0.5, 
-    #           size = 4) + # Adding white text on top of the bars
-    facet_wrap(~source) + 
-    theme_classic() + 
-    ylab("Proportion of genes") + 
-    xlab(element_blank()) + 
-    theme(legend.position = 'bottom') 
-
-
-prop_sh = diff_plt_sh %>% 
-    group_by(tdp43_sensitivity_sh, sig_de, source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(sh_d_gene) %>% 
-    mutate(prop = n_genes / denom)
-
-prop_sh %>% 
-    mutate(tdp43_sensitivity_sh = glue::glue('{tdp43_sensitivity_sh} - {denom} genes')) %>% 
-
-    complete(tdp43_sensitivity_sh, nesting(source, sig_de),
-             fill = list(prop = 0,n_genes = 0)) %>% 
-    mutate(source = as.factor(source)) %>% 
-    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
-    geom_point() + 
-    geom_line() + 
-    facet_wrap(~tdp43_sensitivity_sh) +
-    scale_color_manual(labels = c("Downregulated","N.S." ,"Upregulated"), values = c("blue","grey", "red")) +
-    ggpubr::theme_pubr() + 
-    scale_y_continuous(labels = scales::percent_format()) +
-    ylab("Proportion of genes") +
-    guides(color = guide_legend(title = "Differential expression",title.position='top',title.hjust = 0.5)) +
-    theme(legend.position = 'bottom') +
-    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-      theme(text = element_text(size = 15)) +
-        theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11)) 
-
-
-
-
-    
-
-
-```
-
-```{r de_late_early_be2}
-diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
-master_table = as.data.table(master_table)
-fold_cut = 0
-diff_expr_sk = diff_expr_sk %>% 
-    left_join(unique(master_table[junction_for_clustering == 'yes' & cryptic == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_be2)]),by = c("symbol" = 'gene')) %>% 
-    filter(symbol != "RNA5-8SN2") %>% 
-    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
-    mutate(sig_de = ifelse(padj > 0.05 | is.na(padj),"N.S.",fc_direction)) %>% 
-    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'Non-splicing',tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','Non-splicing',tdp43_sensitivity_be2)) %>% 
-    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == 'Not found','Non-splicing',tdp43_sensitivity_be2)) 
-
-be_d_gene = diff_expr_sk %>% 
-    group_by(source,tdp43_sensitivity_be2) %>% 
-    summarize(denom = n_distinct(symbol)) %>% 
-    group_by(tdp43_sensitivity_be2) %>% 
-    mutate(denom=max(denom,na.rm=TRUE)) %>% ungroup()
-
-
-prop_sk = diff_expr_sk %>% 
-    group_by(tdp43_sensitivity_be2, sig_de, source) %>% 
-    summarize(n_genes = n_distinct(symbol)) %>% 
-    ungroup() %>% 
-    left_join(be_d_gene) %>% 
-    mutate(prop = n_genes / denom)
-
-prop_sk %>% 
-    mutate(tdp43_sensitivity_be2 = glue::glue('{tdp43_sensitivity_be2} - {denom} genes')) %>% 
-
-    complete(tdp43_sensitivity_be2, nesting(source, sig_de),
-             fill = list(prop = 0,n_genes = 0)) %>% 
-    mutate(source = as.factor(source)) %>% 
-    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
-    geom_point() + 
-    geom_line() + 
-    facet_wrap(~tdp43_sensitivity_be2) +
-    scale_color_manual(labels = c("Downregulated","N.S." ,"Upregulated"), values = c("blue","grey", "red")) +
-    ggpubr::theme_pubr() + 
-    scale_y_continuous(labels = scales::percent_format()) +
-    ylab("Proportion of genes") +
-    guides(color = guide_legend(title = "Differential expression",title.position='top',title.hjust = 0.5)) +
-    theme(legend.position = 'bottom') +
-      scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
-    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-          theme(text = element_text(size = 15)) +
-        theme(axis.title.x  = element_text(size = 13),
-          axis.text.x  = element_text(size = 11))
-
-
-```
-
-# Poison exon expression in NMD
-
-```{r}
-library(ggridges)
+## Supplementary Figure 2
+### A. Poison exon expression in NMD
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
 chx_control = fread('data/chx_control.csv')
 upf1_control = fread('data/upf1_control.csv')
 smg1_control_cyto = fread("data/smg1_control_cyto.csv")
@@ -718,18 +468,11 @@ smg1_control_nuc = fread("data/smg1_control_nuc.csv")
 smg1_control_bulk = fread("data/smg1_control_bulk.csv")
 
 # https://github.com/HudsonAlpha/poison_exon_variant_analysis
-
 poison_intron = rtracklayer::import('data/poison_exon_containing_introns.bed')
 poison_casette = rtracklayer::import('data/poison_exon_cassettes.bed')
 
-library(GenomicRanges)
-
 result <- subtract(poison_intron, poison_casette)
 result = unlist(result)
-
-
-
-
 
 data_cyto <- result %>% 
   as.data.table() %>% 
@@ -740,7 +483,6 @@ data_cyto <- result %>%
                                            probability_changing)) %>% 
   filter(!is.na(gene_name)) %>% 
   mutate(dataset = "SH-SY5Y\nSMG1-11j inhibitor\nCytoplasm")
-
 
 data_nuc <- result %>% 
     as.data.table() %>% 
@@ -784,7 +526,6 @@ data_chx <- result %>%
 
 all_data_sets_nmdi <- rbind(data_cyto, data_nuc, data_smg1_bulk,data_upf1,data_chx)
 
-
 all_data_sets_nmdi %>% 
     filter(probability_changing > 0.9) %>% 
     mutate(dataset = fct_relevel(dataset,"SH-SY5Y\nSMG1-11j inhibitor\nCytoplasm","SH-SY5Y\nSMG1-11j inhibitor\nNucleus",'SH-SY5Y\nSMG1-11j inhibitor\nPseudo-bulk')) %>% 
@@ -800,8 +541,6 @@ all_data_sets_nmdi %>%
     scale_x_continuous(labels = scales::percent) + 
     geom_vline(xintercept = 0, linetype = 'dotted')
 
-
-
 all_data_sets_nmdi %>% 
     mutate(sig = probability_changing > 0.9) %>% 
     ggplot(aes(x = mean_dpsi_per_lsv_junction, 
@@ -814,16 +553,10 @@ all_data_sets_nmdi %>%
     geom_hline(yintercept = -log10(0.1)) +
     geom_vline(xintercept = 0,linetype = 'dotted')  +
     xlab("Delta PSI NMDi vs Control")
-
-
 ```
 
-# UPF1 and TDP-43 levels in NMD experiments
-
-```{r}
-library(openxlsx)
-library(dplyr)
-
+### B. UPF1 and TDP-43 levels in NMD experiments
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
 # Load all sheets
 xlsx_file <- "data/NMD_deseq_chx_upf1.xlsx"
 sheet_names <- getSheetNames(xlsx_file)
@@ -873,11 +606,232 @@ deseq_nmd_results %>%
 
 ```
 
+### C. Genes changed by UPF1 KD are not the same ones changed by TDP-43 KD
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+###top50_upf1 - load this table!!
+results_table_upf1vsctrl <- read.csv(here::here("data/results_table_upf1_vs_ctrl.csv"))
+results_table_UPF1_ctrl <- read.csv(here::here("data/results_table_UPF1_ctrl.csv"))
 
-# Spaghetti plot for APA events in SH-SY5Y and SK-N-BE(2)
+results_table_upf1vsctrl_filtered <- results_table_upf1vsctrl %>%
+  filter(log2FoldChange > 1 | log2FoldChange < -1) %>%
+  filter(!is.na(symbol))
+
+results_table_UPF1_ctrl_filtered <- results_table_UPF1_ctrl %>%
+  filter(symbol %in% results_table_upf1vsctrl_filtered$symbol) %>%
+  filter(!is.na(symbol))
+
+results_table_upf1vsctrl_filtered_2 <- results_table_upf1vsctrl_filtered %>%
+  filter(symbol %in% results_table_UPF1_ctrl_filtered$symbol)
+
+ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2FoldChange), y = 0, fill = log2FoldChange)) +
+  geom_tile() +
+  geom_tile(data = results_table_UPF1_ctrl_filtered, aes(x = symbol, y = -1, fill = log2FoldChange)) +
+  theme_classic() +
+  colorspace::scale_fill_continuous_diverging() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+## Supplementary Figure 3
+### A. TARDBP RNA-seq levels in 2 curves
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+normal_counts_sh <- read.csv(here::here('data', 'normed_counts_sh.csv'))
+normal_counts_sk <- read.csv(here::here('data', 'normed_counts_sk.csv'))
+
+b <- normal_counts_sh[,c(2:19,21)] %>% 
+  dplyr::filter(symbol == "TARDBP") %>%
+  pivot_longer(c(1:18)) %>%
+  mutate(group = gsub("^[^_]+_|_[^_]+$", "", name)) %>%
+  ggplot(aes(x = group, y = value)) +
+  geom_boxplot(alpha = 0.1, show.legend = F) +
+  geom_point(position = position_dodge2(width = 1), show.legend = F) +
+  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+  ylab('TDP-43 Counts per million') +
+  theme_classic() +
+  theme(text = element_text(size = 15)) +
+    theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
+
+d <- normal_counts_sk[,c(2:25,27)] %>% 
+  dplyr::filter(symbol == "TARDBP") %>%
+  pivot_longer(c(1:24)) %>%
+  mutate(group = gsub("^[^_]+_|_[^_]+$", "", name)) %>%
+  ggplot(aes(x = group, y = value)) +
+  geom_boxplot(alpha = 0.1, show.legend = F) +
+  geom_point(position = position_dodge2(width = 1), show.legend = F) +
+  xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+  ylab('TDP-43 Counts per million') +
+  scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
+  theme_classic() +
+  theme(text = element_text(size = 15)) +
+        theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
+b + d
+```
+
+### B. How do cryptics with early/late/events change in their fc over time? 
+```{r de_late_early_sh, echo = FALSE, warning = FALSE, message = FALSE}
+master_table <- read.csv(here::here("data/master_table.csv"))
+master_table <- master_table %>%
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == "","Not found",tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == "","Not found",tdp43_sensitivity_sh)) %>% 
+    mutate(new_cate = case_when(tdp43_sensitivity_be2 == "Not found" ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_sh == "Not found" ~ tdp43_sensitivity_be2,
+                                tdp43_sensitivity_sh == tdp43_sensitivity_be2 ~ tdp43_sensitivity_sh,
+                                tdp43_sensitivity_be2 != 'Late' & tdp43_sensitivity_sh == 'Early' ~ 'Early',
+                                tdp43_sensitivity_be2 != 'Early' & tdp43_sensitivity_sh == 'Late' ~ 'Late',
+                                tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>% 
+        mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate)) 
+
+diff_expr_sh <- read.csv(here::here('data', 'diff_expr_sh.csv'))
+diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
+master_table = as.data.table(master_table)
+fold_cut = 0
+diff_plt_sh = diff_expr_sh %>% 
+    left_join(unique(master_table[junction_for_clustering == 'yes' & cryptic == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_sh)]),by = c("symbol" = 'gene')) %>% 
+    filter(symbol != "RNA5-8SN2") %>% 
+    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
+    mutate(sig_de = ifelse(padj > 0.05 | is.na(padj),"N.S.",fc_direction)) %>% 
+    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_sh,fc_direction,sig_de,source) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(is.na(tdp43_sensitivity_sh),'Non-splicing',tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == '','Non-splicing',tdp43_sensitivity_sh)) %>% 
+    mutate(tdp43_sensitivity_sh = ifelse(tdp43_sensitivity_sh == 'Not found','Non-splicing',tdp43_sensitivity_sh)) 
+
+sh_d_gene = diff_plt_sh %>% 
+    group_by(source,tdp43_sensitivity_sh) %>% 
+    summarize(denom = n_distinct(symbol)) %>% 
+    group_by(tdp43_sensitivity_sh) %>% 
+    mutate(denom=max(denom,na.rm=TRUE)) %>% ungroup()
+
+diff_plt_sh %>% 
+    group_by(tdp43_sensitivity_sh, fc_direction, sig_de, source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(sh_d_gene) %>% 
+    mutate(prop = n_genes / denom) %>% 
+    ggplot(aes(x = tdp43_sensitivity_sh, 
+               y = prop, 
+               fill = sig_de)) + 
+    geom_col(position = 'dodge')  +
+    # geom_text(aes(label = n_genes), 
+    #           position = position_dodge(width = 0.9), 
+    #           vjust = -0.5, 
+    #           size = 4) + # Adding white text on top of the bars
+    facet_wrap(~source) + 
+    theme_classic() + 
+    ylab("Proportion of genes") + 
+    xlab(element_blank()) + 
+    theme(legend.position = 'bottom') 
+
+prop_sh = diff_plt_sh %>% 
+    group_by(tdp43_sensitivity_sh, sig_de, source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(sh_d_gene) %>% 
+    mutate(prop = n_genes / denom)
+
+prop_sh %>% 
+    mutate(tdp43_sensitivity_sh = glue::glue('{tdp43_sensitivity_sh} - {denom} genes')) %>% 
+
+    complete(tdp43_sensitivity_sh, nesting(source, sig_de),
+             fill = list(prop = 0,n_genes = 0)) %>% 
+    mutate(source = as.factor(source)) %>% 
+    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
+    geom_point() + 
+    geom_line() + 
+    facet_wrap(~tdp43_sensitivity_sh) +
+    scale_color_manual(labels = c("Downregulated","N.S." ,"Upregulated"), values = c("blue","grey", "red")) +
+    ggpubr::theme_pubr() + 
+    scale_y_continuous(labels = scales::percent_format()) +
+    ylab("Proportion of genes") +
+    guides(color = guide_legend(title = "Differential expression",title.position='top',title.hjust = 0.5)) +
+    theme(legend.position = 'bottom') +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+      theme(text = element_text(size = 15)) +
+        theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11)) 
+
+diff_expr_sk <- read.csv(here::here('data', 'diff_expr_sk.csv'))
+master_table = as.data.table(master_table)
+fold_cut = 0
+diff_expr_sk = diff_expr_sk %>% 
+    left_join(unique(master_table[junction_for_clustering == 'yes' & cryptic == 'yes',.(gene,last_exon,cryptic,tdp43_sensitivity_be2)]),by = c("symbol" = 'gene')) %>% 
+    filter(symbol != "RNA5-8SN2") %>% 
+    mutate(fc_direction = ifelse(log2FoldChange > 0, "up","down")) %>%
+    mutate(sig_de = ifelse(padj > 0.05 | is.na(padj),"N.S.",fc_direction)) %>% 
+    distinct(symbol,last_exon,cryptic,tdp43_sensitivity_be2,fc_direction,sig_de,source) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(is.na(tdp43_sensitivity_be2),'Non-splicing',tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == '','Non-splicing',tdp43_sensitivity_be2)) %>% 
+    mutate(tdp43_sensitivity_be2 = ifelse(tdp43_sensitivity_be2 == 'Not found','Non-splicing',tdp43_sensitivity_be2)) 
+
+be_d_gene = diff_expr_sk %>% 
+    group_by(source,tdp43_sensitivity_be2) %>% 
+    summarize(denom = n_distinct(symbol)) %>% 
+    group_by(tdp43_sensitivity_be2) %>% 
+    mutate(denom=max(denom,na.rm=TRUE)) %>% ungroup()
+
+prop_sk = diff_expr_sk %>% 
+    group_by(tdp43_sensitivity_be2, sig_de, source) %>% 
+    summarize(n_genes = n_distinct(symbol)) %>% 
+    ungroup() %>% 
+    left_join(be_d_gene) %>% 
+    mutate(prop = n_genes / denom)
+
+prop_sk %>% 
+    mutate(tdp43_sensitivity_be2 = glue::glue('{tdp43_sensitivity_be2} - {denom} genes')) %>% 
+
+    complete(tdp43_sensitivity_be2, nesting(source, sig_de),
+             fill = list(prop = 0,n_genes = 0)) %>% 
+    mutate(source = as.factor(source)) %>% 
+    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
+    geom_point() + 
+    geom_line() + 
+    facet_wrap(~tdp43_sensitivity_be2) +
+    scale_color_manual(labels = c("Downregulated","N.S." ,"Upregulated"), values = c("blue","grey", "red")) +
+    ggpubr::theme_pubr() + 
+    scale_y_continuous(labels = scales::percent_format()) +
+    ylab("Proportion of genes") +
+    guides(color = guide_legend(title = "Differential expression",title.position='top',title.hjust = 0.5)) +
+    theme(legend.position = 'bottom') +
+      scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+          theme(text = element_text(size = 15)) +
+        theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
+```
+
+### C. Is library depth stable throughout the 2 dose-dependent curves
+```{r uniquely_mapped_curves, echo = FALSE, warning = FALSE}
+one = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Curves')
+    
+sushi_curve = plot_significant_comparisons(one %>% filter(comparison == 'SH-SY5Y curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads") 
+sushi_curve = sushi_curve + geom_jitter(width = 0.2) + 
+    scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
+                       limits = c(30*10^6,80*10^6))  +
+     xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+        scale_x_discrete(labels = c("0", "0.0125", "0.0187", "0.0210", "0.0250", "0.0750")) +
+      theme_classic() +
+  theme(text = element_text(size = 15)) +
+    theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
+
+sk_curvecurve = plot_significant_comparisons(one %>% filter(comparison == 'SK-N-BE(2) curve'),column_name =  "uniquely_mapped", ylab_chosen =  "Uniquely mapped reads")
+
+sk_curvecurve = sk_curvecurve + 
+    geom_jitter(width = 0.2) + 
+    scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6),
+                       limits = c(30*10^6,80*10^6))  +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+    scale_x_discrete(labels = c("0", "0.02", "0.03", "0.04", "0.05", "0.075", "0.1", "1")) +
+      theme_classic() +
+  theme(text = element_text(size = 15)) +
+    theme(axis.title.x  = element_text(size = 13),
+          axis.text.x  = element_text(size = 11))
+
+ggarrange(plotlist = list(sushi_curve,sk_curvecurve)) 
+```
+
+### D. Spaghetti plot for APA events in SH-SY5Y and SK-N-BE(2)
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-
-
 shsy5y_papa = fread("data/shsy5y_papa_curve.csv")
 
 sh_plot = shsy5y_papa |>
@@ -909,8 +863,6 @@ sh_plot = shsy5y_papa |>
     xlab(element_blank()) +
     theme(legend.position = 'none') +
     scale_y_continuous(labels = scales::percent_format()) 
-
-
 
 sknbe2_papa = fread("data/sknbe2_papa_curve.csv")
 
@@ -946,16 +898,11 @@ be2_plot = sknbe2_papa %>%
         theme(axis.title.x  = element_text(size = 13),
           axis.text.x  = element_text(size = 11))
 
-
-
 ggarrange(plotlist = list(sh_plot,be2_plot),nrow = 2)
-
 ```
 
-
-# UPF1 NMD sensitivity by early/late status
-
-```{r}
+### E. UPF1 NMD sensitivity by early/late status
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 big_data_upf1 = big_data_upf1 %>% 
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
@@ -1007,9 +954,7 @@ new_cate_nmd_sens_upf1 %>%
     rstatix::pairwise_fisher_test()
 ```
 
-
-# SMG1i NMD sensitivity by early/late status
-
+### F. SMG1i NMD sensitivity by early/late status
 ```{r}
 gene_list_slope = c("STMN2", 
                     "KCNQ2", 
@@ -1049,7 +994,6 @@ pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
 big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>% 
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
-
 
 wide_smg1 = big_data_smg1 |> 
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
@@ -1106,7 +1050,6 @@ new_cate_nmd_sens_smg1 %>%
 ```
 
 # UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
-
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 summary_post = fread("data/summary_metrics_post_mortem.csv")
 
@@ -1142,11 +1085,9 @@ fisher_result_upf1 = run_fisher_test(upf1_summary_rest)
 upf1_plots = make_final_plot(upf1_summary_rest,fisher_result_upf1)
 upf1_plots$detection_plot + ggtitle('UPF1 junctions')
 upf1_plots$selectivity_plot + ggtitle('UPF1 junctions')
-
 ```
 
 # NMD association with detection frequency across KDs - UPF1 + SMG1i
-
 ```{r}
 # Step 2: Get unique junctions with their category classification
 df = compendium_events %>%
@@ -1165,12 +1106,9 @@ df = compendium_events %>%
     unique()
 xtabs(n_bucket ~ color_gene_name + group,data = df) %>% 
     prop.table(margin = 2)
-
 ```
 
-
-
-### Supplementary figure 3 - NMD
+### NMD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 # reading in the master table again for debug, can remove later
 master_table <- read.csv(here::here("data/master_table.csv"))
@@ -1188,7 +1126,6 @@ big_data_chx = big_data_chx %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE)
 
-
 wide_chx = big_data_chx |> 
     select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
     pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
@@ -1201,7 +1138,6 @@ wide_chx = big_data_chx |>
                                   TRUE ~ "non-NMD rescued")) %>% 
     left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
     mutate(ensgene =  gsub("\\..*","",gene_id))
-
 
 chx_dark = wide_chx |> 
     filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |> 
@@ -1236,7 +1172,6 @@ ggplot(sk_nmd_sens) +
          fill = 'Cycloheximide treatment') +
     scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) + 
     theme(legend.position = 'bottom') 
-
 
 sk_nmd_sens %>% 
     filter(chx_effect != "PSI > 95% at baseline") %>% 
@@ -1280,20 +1215,9 @@ new_cate_nmd_sens %>%
     rstatix::pairwise_fisher_test()
 ```
 
-
-
-### Supplementary figure 4 - features SH-SY5Y
-
-A. Conservation score for CE in SK-N-BE(2)
-B. Conservation score for non-CE in SK-N-BE(2)
-C. Kmers enrichment analysis in SK-N-BE(2)
-D. Density UG motifs by early-late in SK-N-BE(2)
-E. Density UG motifs by top-bottom in  SK-N-BE(2)
-F. Distance iCLIP TDP43 binding site SK-N-BE(2)
-G. RNA maps based on figure F
-H. 5'ss CE vs normal
-I. 3'ss CE vs normal
-
+## Supplementary figure 4 - features SH-SY5Y
+### A. Conservation score for CE in SK-N-BE(2)
+### B. Conservation score for non-CE in SK-N-BE(2)
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 print("2A and 2B")
 
@@ -1361,7 +1285,7 @@ b <- cons_score_df_not_cryptic %>%
 a + b
 ```
 
-
+### C. Kmers enrichment analysis in SK-N-BE(2)
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #C. Kmers enrichment analysis in  SK-N-BE(2)
 print("2C")
@@ -1433,6 +1357,12 @@ c <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late Cryptic","
 c
 ```
 
+### D. Density UG motifs by early-late in SK-N-BE(2)
+### E. Density UG motifs by top-bottom in  SK-N-BE(2)
+### F. Distance iCLIP TDP43 binding site SK-N-BE(2)
+### G. RNA maps based on figure F
+### H. 5'ss CE vs normal
+### I. 3'ss CE vs normal
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 #D. Density UG motifs by early-late in  SK-N-BE(2)
 print("2D and 2E")
