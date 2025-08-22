@@ -459,6 +459,229 @@ lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>%
 ```
 
 ## Supplementary Figure 2
+
+## Are NMD sensitive events up/downregulated?
+```{r makewidesmg1}
+gene_list_slope = c("STMN2",
+                    "KCNQ2",
+                    "ATG4B",
+                    "HDGFL2",
+                    "KCNQ2",
+                    "ACTL6B",
+                    "GPSM2",
+                    "AKT3",
+                    "HDGFL2",
+                    "PKN1",
+                    "UNC13A",
+                    'CYFIP2',
+                    "SYNE1")
+
+data_summary_full = fread('data/cryptic_detection_summary_long_version.csv')
+
+true_dark_selective = data_summary_full %>%
+    filter(true_dark == TRUE) %>%
+    filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
+    pull(paste_into_igv_junction) %>%
+    unique()
+
+psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups.parquet")
+
+psi_all_groups = psi_all_groups   %>%  dplyr::rename(.id = comparison)
+
+pseudo_bulk_plot_slope = slope_plot_nmd(psi_all_groups,
+                                        gene_list = gene_list_slope,
+                                        input_list =  c("nt_ctrl",
+                                                        "nt_nmd",
+                                                        "dox_ctrl",
+                                                        "dox_nmd"),
+                                        nmd_label = 'SMG1i',
+                                        true_dark_junctions = true_dark_selective)
+
+big_data_smg1 = pseudo_bulk_plot_slope$filtered_table %>%
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+wide_smg1 = big_data_smg1 |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_smg1 = nt_ctrl < 0.05 &  dox_ctrl > 0.1) |>
+    mutate(smg1_cryptic = nt_ctrl < 0.05 &  dox_nmd > 0.1) |>
+    mutate(smg1_effect = case_when((dox_nmd - dox_ctrl) > 0.1 ~ "NMD rescued",
+                                  dox_ctrl > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
+    mutate(ensgene =  gsub("\\..*","",gene_id))
+
+smg1_dark = wide_smg1 |>
+    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |>
+    pull(paste_into_igv_junction) |> unique()
+
+wide_smg1 = wide_smg1 %>%
+    mutate(smg1_effect = ifelse(paste_into_igv_junction %in% smg1_dark, "Dark cryptic",smg1_effect))
+```
+
+```{r nmd_up_down_sh_fractionation}
+nuc_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
+        mutate(ensgene =  gsub("\\..*","",gene_id))
+
+cyto_kd = fread("data/nuc_cyto/deseq2_results_cyto_kd.csv") %>%
+            mutate(ensgene =  gsub("\\..*","",gene_id))
+
+pseudo_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
+            mutate(ensgene =  gsub("\\..*","",gene_id))
+
+nuc_kd = nuc_kd %>%
+    left_join(wide_smg1,by = c("ensgene")) %>%
+    filter(!is.na(smg1_effect))  %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(dox_nmd)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    mutate(fraction = 'nuclear RNA')
+
+cyto_kd = cyto_kd %>%
+    left_join(wide_smg1,by = c("ensgene")) %>%
+    filter(!is.na(smg1_effect))  %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(dox_nmd)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    mutate(fraction = 'cytoplasmic RNA')
+
+facet_labels <- c("Low expressed (PSI < 46%)", "High expressed (PSI > 46%)")
+names(facet_labels) <- unique(nuc_kd$bin_max)
+
+nuc_kd %>%
+    rbind(cyto_kd) %>%
+    group_by(smg1_effect,bin_max) %>%
+    mutate(n = n_distinct(paste_into_igv_junction)) %>%
+    mutate(x = glue::glue('{smg1_effect}\nn = {n}')) %>%
+    ggplot(aes(x = x,
+               y = log2FoldChange,
+               fill = fraction)) +
+    geom_hline(yintercept = 0, linetype = 'dotted') +
+    geom_boxplot(position = position_dodge(preserve = "single")) +
+    theme_classic() +
+    labs(fill = 'Subcellular fraction') +
+    xlab(element_blank()) +
+    scale_fill_manual(values = c("lightblue", "moccasin")) +
+    ylab("Log2 Fold Change after TDP-43 KD") +
+    facet_wrap(~bin_max, labeller = labeller(bin_max = facet_labels),scales = 'free_x') +
+    theme(text = element_text(size = 18)) +
+    stat_compare_means(hide.ns = TRUE,
+                       method = "wilcox.test",
+                       label = "p.signif",
+                       p.adjust.method = "BH",
+                       size = 10) +
+    theme(legend.position = 'bottom')
+```
+
+```{r nmd_up_down_sh_chx}
+chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
+
+chx_nmd_effect = chx_rna_full %>%
+    left_join(wide_chx) %>%
+    filter(!is.na(chx_effect)) %>%
+    filter(experiment == "Control_TDP43KD|Control_Control") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    ggplot(aes(x = bin_max,
+               y = log2fold_change,fill = chx_effect)) +
+    geom_hline(yintercept = 0,linetype = 'dotted') +
+    geom_boxplot(position = position_dodge(preserve = "single")) +
+    stat_summary(fun.data = give.n,
+                 geom = "text",
+                 fun.y = median,
+                 position = position_dodge(width = 0.75),color = 'white',) +
+    theme_classic() +
+    xlab(element_blank()) +
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
+    ylab("Log2 Fold Change TDP-43 KD") +
+    labs(fill = 'NMD sensitivity') +
+    theme(text  = element_text(size = 18)) +
+    theme(legend.position = "bottom")
+chx_nmd_effect
+```
+
+```{r nmd_up_down_chx}
+chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
+big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
+
+wide_chx = big_data_chx |>
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |>
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>%
+    unique() %>%
+    mutate(normal_cryptic_chx = Control_Control < 0.05 &  Control_TDP43KD > 0.1) |>
+    mutate(chx_cryptic = Control_Control < 0.05 &  Cycloheximide_TDP43KD > 0.1) |>
+    mutate(chx_effect = case_when((Cycloheximide_TDP43KD - Control_TDP43KD) > 0.05 ~ "NMD rescued",
+                                  Control_TDP43KD > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>%
+    left_join(big_data_chx %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>%
+    mutate(ensgene =  gsub("\\..*","",gene_id))
+
+chx_dark = wide_chx |>
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued") |>
+    pull(paste_into_igv_junction) |> unique()
+
+wide_chx = wide_chx %>%
+    mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
+
+chx_rna_full %>%
+    left_join(wide_chx) %>%
+    filter(!is.na(chx_effect)) %>%
+    filter(experiment == "Control_TDP43KD|Control_Control") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    ggplot(aes(x = bin_max,
+               y = log2fold_change,fill = chx_effect)) +
+    geom_hline(yintercept = 0,linetype = 'dotted') +
+    geom_boxplot(position = position_dodge(preserve = "single")) +
+    # stat_summary(fun.data = give.n,
+    #              geom = "text",
+    #              fun.y = median,
+    #              position = position_dodge(width = 0.75)) +
+    theme_classic() +
+    xlab("Max PSI NMDi + TDP-43 KD") +
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
+    ylab("Log2 Fold Change TDP-43 KD SH-SY5Y")
+```
+
+```{r nmd_up_down_upf1}
+upf1_rna_full = fread(here::here('data',"upf1_all_gene_expression.csv"))
+
+upf1_nmd_effect = upf1_rna_full %>%
+    left_join(wide_upf1) %>%
+    filter(!is.na(upf1_effect)) %>%
+    filter(experiment == "ctrlctrl_ctrlTDP43") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(TDP43_UPF1)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    ggplot(aes(x = bin_max,
+               y = log2fold_change,fill = upf1_effect)) +
+    geom_hline(yintercept = 0,linetype = 'dotted') +
+    geom_boxplot(position = position_dodge(preserve = "single")) +
+    stat_summary(fun.data = give.n,
+                 geom = "text",
+                 fun.y = median,
+                 position = position_dodge(width = 0.75),color = 'white') +
+    theme_classic() +
+    xlab(element_blank()) +
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
+    ylab("Log2 Fold Change TDP-43 KD") +
+    theme(legend.position = 'none') +
+    theme(text  = element_text(size = 18))
+upf1_nmd_effect
+```
+
+
 ### A. Poison exon expression in NMD
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 chx_control = fread('data/chx_control.csv')
@@ -629,6 +852,62 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
   theme_classic() +
   colorspace::scale_fill_continuous_diverging() +
   theme(axis.text.x = element_text(angle = 90))
+```
+
+### D. Sensitivity/Detection rate of cryptics in tissue by localization?
+```{r sensitivity_by_localization, echo=FALSE,warning=FALSE,message=FALSE}
+my_table = cryptic_rpkm %>%
+    left_join(annotated_rpkm) %>%
+    mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>%
+    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>%
+    mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>%
+    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
+                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>%
+    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
+                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>%
+    mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
+                                         log2rpkm_cytoshift < 0.5 ~ "unshifted"))
+
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'baseline_localization')
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'baseline_localization')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'baseline_localization',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('Localization at baseline'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization at baseline'))
+
+#nmd localization
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'nmd_localization')
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_localization')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'nmd_localization',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('Localization under NMDi'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization under NMDi'))
+
+#effective of NMD inhibition on localization
+nmd_localization_effect = generate_summary_table(summary_post,
+                       my_table,
+                       category_column = 'nmd_cytoshift')
+
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'nmd_cytoshift')
+
+nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
+                                                fisher_nmd_localization_effect,
+                                                category_column = 'nmd_cytoshift',
+                                        color_choices = c("lightblue","moccasin"))
+print(nmd_localization_effect_plots$detection_plot + ggtitle('NMDi effect on localization'))
+print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on localization'))
 ```
 
 ## Supplementary Figure 3
