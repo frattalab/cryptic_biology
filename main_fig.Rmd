@@ -49,7 +49,7 @@ plot_inframe_colors <- c("In-frame" = "darkslategray", "Out-frame" = "tan2")
 plot_text_size <- 18
 ```
 
-## Figure 1. ADD TITLE
+## Figure 1. Cryptic compendium
 ### A. Cryptic compendium and recurrent cryptics
 ```{r overall dataset, echo=FALSE,warning=FALSE,message=FALSE}
 compendium_events = fread('data/compendium_cryptics.csv')
@@ -1099,6 +1099,8 @@ sh_nmd_sens %>%
     as.matrix() %>%
     rstatix::pairwise_fisher_test()
 ```
+
+### G. heatmap for nmd vs not in curves
 
 ## Figure 4 - Features
 ### A. Splice site strength

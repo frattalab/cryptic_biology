@@ -438,7 +438,7 @@ scale_fill_manual(values = c("#BF5B17","#386CB0")) +
     theme(text = element_text(size = 18),plot.title = element_text(size = 15))
 ```
 
-# I. How does library depth vary in compendium datasets?
+### I. How does library depth vary in compendium datasets?
 ```{r uniquely_mapped_compendium, echo = FALSE, warning = FALSE}
 two = readxl::read_excel('data/compendium_library_depth.xlsx', sheet = 'Compendium')
 tardbp_results = fread('data/tardbp_kd_level_compendium.csv')
@@ -459,9 +459,8 @@ lm(n_cryptic_junc ~ log2FoldChange*avg_depth,data = for_lm) %>%
 ```
 
 ## Supplementary Figure 2
-
-## Are NMD sensitive events up/downregulated?
-```{r makewidesmg1}
+### A. Are NMD sensitive events up/downregulated?
+```{r makewidesmg1, echo = FALSE, warning = FALSE, message = FALSE}
 gene_list_slope = c("STMN2",
                     "KCNQ2",
                     "ATG4B",
@@ -522,7 +521,8 @@ wide_smg1 = wide_smg1 %>%
     mutate(smg1_effect = ifelse(paste_into_igv_junction %in% smg1_dark, "Dark cryptic",smg1_effect))
 ```
 
-```{r nmd_up_down_sh_fractionation}
+### B. 
+```{r nmd_up_down_sh_fractionation, echo = FALSE, warning = FALSE, message = FALSE}
 nuc_kd = fread("data/nuc_cyto/deseq2_results_nuc_kd.csv") %>%
         mutate(ensgene =  gsub("\\..*","",gene_id))
 
@@ -578,36 +578,8 @@ nuc_kd %>%
     theme(legend.position = 'bottom')
 ```
 
-```{r nmd_up_down_sh_chx}
-chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
-
-chx_nmd_effect = chx_rna_full %>%
-    left_join(wide_chx) %>%
-    filter(!is.na(chx_effect)) %>%
-    filter(experiment == "Control_TDP43KD|Control_Control") %>%
-    group_by(ensgene) %>%
-    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
-    ungroup() %>%
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
-    ggplot(aes(x = bin_max,
-               y = log2fold_change,fill = chx_effect)) +
-    geom_hline(yintercept = 0,linetype = 'dotted') +
-    geom_boxplot(position = position_dodge(preserve = "single")) +
-    stat_summary(fun.data = give.n,
-                 geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75),color = 'white',) +
-    theme_classic() +
-    xlab(element_blank()) +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
-    ylab("Log2 Fold Change TDP-43 KD") +
-    labs(fill = 'NMD sensitivity') +
-    theme(text  = element_text(size = 18)) +
-    theme(legend.position = "bottom")
-chx_nmd_effect
-```
-
-```{r nmd_up_down_chx}
+### C. 
+```{r nmd_up_down_chx, echo = FALSE, warning = FALSE, message = FALSE}
 chx_rna_full = fread(here::here('data',"chx_all_experiments_deseq2.csv"))
 big_data_chx <- read.csv(here::here('data','nmd_or_not.csv'))
 
@@ -651,10 +623,54 @@ chx_rna_full %>%
     xlab("Max PSI NMDi + TDP-43 KD") +
     scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
     ylab("Log2 Fold Change TDP-43 KD SH-SY5Y")
+
+chx_nmd_effect = chx_rna_full %>%
+    left_join(wide_chx) %>%
+    filter(!is.na(chx_effect)) %>%
+    filter(experiment == "Control_TDP43KD|Control_Control") %>%
+    group_by(ensgene) %>%
+    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
+    ungroup() %>%
+    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
+    ggplot(aes(x = bin_max,
+               y = log2fold_change,fill = chx_effect)) +
+    geom_hline(yintercept = 0,linetype = 'dotted') +
+    geom_boxplot(position = position_dodge(preserve = "single")) +
+#    stat_summary(fun.data = give.n,
+#                 geom = "text",
+#                 fun.y = median,
+#                 position = position_dodge(width = 0.75),color = 'white',) +
+    theme_classic() +
+    xlab(element_blank()) +
+    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
+    ylab("Log2 Fold Change TDP-43 KD") +
+    labs(fill = 'NMD sensitivity') +
+    theme(text  = element_text(size = 18)) +
+    theme(legend.position = "bottom")
+chx_nmd_effect
 ```
 
-```{r nmd_up_down_upf1}
+### D. 
+```{r nmd_up_down_upf1, echo = FALSE, warning = FALSE, message = FALSE}
 upf1_rna_full = fread(here::here('data',"upf1_all_gene_expression.csv"))
+
+big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
+big_data_upf1 = big_data_upf1 %>% 
+    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
+             convert = TRUE)
+
+wide_upf1 = big_data_upf1 |> 
+    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
+    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
+                values_fn = max) %>% 
+    unique() %>% 
+    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
+    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
+    mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.05 ~ "NMD rescued",
+                                  TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
+                                  TRUE ~ "non-NMD rescued")) %>% 
+    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
+    mutate(ensgene =  gsub("\\..*","",gene_id)) 
 
 upf1_nmd_effect = upf1_rna_full %>%
     left_join(wide_upf1) %>%
@@ -668,10 +684,10 @@ upf1_nmd_effect = upf1_rna_full %>%
                y = log2fold_change,fill = upf1_effect)) +
     geom_hline(yintercept = 0,linetype = 'dotted') +
     geom_boxplot(position = position_dodge(preserve = "single")) +
-    stat_summary(fun.data = give.n,
-                 geom = "text",
-                 fun.y = median,
-                 position = position_dodge(width = 0.75),color = 'white') +
+#    stat_summary(fun.data = give.n,
+#                 geom = "text",
+#                 fun.y = median,
+#                 position = position_dodge(width = 0.75),color = 'white') +
     theme_classic() +
     xlab(element_blank()) +
     scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
@@ -681,8 +697,7 @@ upf1_nmd_effect = upf1_rna_full %>%
 upf1_nmd_effect
 ```
 
-
-### A. Poison exon expression in NMD
+### E. Poison exon expression in NMD
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 chx_control = fread('data/chx_control.csv')
 upf1_control = fread('data/upf1_control.csv')
@@ -778,7 +793,7 @@ all_data_sets_nmdi %>%
     xlab("Delta PSI NMDi vs Control")
 ```
 
-### B. UPF1 and TDP-43 levels in NMD experiments
+### F. UPF1 and TDP-43 levels in NMD experiments
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 # Load all sheets
 xlsx_file <- "data/NMD_deseq_chx_upf1.xlsx"
@@ -829,7 +844,7 @@ deseq_nmd_results %>%
 
 ```
 
-### C. Genes changed by UPF1 KD are not the same ones changed by TDP-43 KD
+### G. Genes changed by UPF1 KD are not the same ones changed by TDP-43 KD
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ###top50_upf1 - load this table!!
 results_table_upf1vsctrl <- read.csv(here::here("data/results_table_upf1_vs_ctrl.csv"))
@@ -854,8 +869,57 @@ ggplot(data = results_table_upf1vsctrl_filtered_2, aes(x = reorder(symbol, log2F
   theme(axis.text.x = element_text(angle = 90))
 ```
 
-### D. Sensitivity/Detection rate of cryptics in tissue by localization?
+### H. Sensitivity/Detection rate of cryptics in tissue by localization?
 ```{r sensitivity_by_localization, echo=FALSE,warning=FALSE,message=FALSE}
+sj_star_counts = arrow::read_parquet('data/nuc_cyto/star_splice_junctioncounts.parquet')
+
+cryptics =(pseudo_bulk_plot_slope$filtered_table %>%
+                                             ungroup() %>%
+                                             filter(mean_psi_per_lsv_junction >= 0.10))$paste_into_igv_junction
+
+cryptic_rpkm = sj_star_counts %>%
+    filter(paste_into_igv_junction %in% cryptics) %>%
+    # left_join(librar_sizes) %>%
+    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>%
+    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>%
+    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,color_gene_name,gene_name))  %>%
+    filter(tdp_kd == 'dox') %>%
+    group_by(paste_into_igv_junction,nmdi,compartment) %>%
+    summarise(mean_rpkm = mean(rpkm),color_gene_name,gene_name) %>%
+    unique() %>%
+    pivot_wider(names_from = c('compartment','nmdi'),
+                values_from = 'mean_rpkm',
+                values_fill = 0) %>%
+    ungroup() %>%
+    left_join(pseudo_bulk_plot_slope$filtered_table %>% distinct(paste_into_igv_junction,lsv_id)) %>%
+    ungroup()
+
+these_lsv = pseudo_bulk_plot_slope$filtered_table %>%
+        ungroup() %>%
+        pull(lsv_id)
+
+ann_junctions = psi_all_groups %>%
+    filter(de_novo_junctions == 0) %>%
+    filter(lsv_id %in% these_lsv) %>%
+    ungroup() %>%
+    distinct(lsv_id,paste_into_igv_junction) %>%
+    dplyr::rename(annotated_junction = paste_into_igv_junction)
+
+annotated_rpkm = sj_star_counts %>%
+    filter(paste_into_igv_junction %in% ann_junctions$annotated_junction) %>%
+    # left_join(librar_sizes) %>%
+    # mutate(rpkm = (uniquely_mapping / `Uniquely mapped`) * 10^6) %>%
+    mutate(rpkm = (uniquely_mapping / exonic_reads) * 10^6) %>%
+    filter(tdp_kd == 'dox') %>%
+    left_join(ann_junctions,by = c('paste_into_igv_junction' = "annotated_junction")) %>%
+    group_by(lsv_id,nmdi,compartment) %>%
+    summarise(mean_rpkm = mean(rpkm),lsv_id) %>%
+    unique() %>%
+    pivot_wider(names_from = c('compartment','nmdi'),
+                values_from = 'mean_rpkm',
+                values_fill = 0,
+                names_prefix = 'annotated_')
+
 my_table = cryptic_rpkm %>%
     left_join(annotated_rpkm) %>%
     mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>%
@@ -1182,24 +1246,6 @@ ggarrange(plotlist = list(sh_plot,be2_plot),nrow = 2)
 
 ### E. UPF1 NMD sensitivity by early/late status
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
-big_data_upf1 = big_data_upf1 %>% 
-    separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
-             convert = TRUE)
-
-wide_upf1 = big_data_upf1 |> 
-    select(paste_into_igv_junction,.id,mean_psi_per_lsv_junction,color_gene_name) |> 
-    pivot_wider(names_from = '.id',values_from = 'mean_psi_per_lsv_junction',
-                values_fn = max) %>% 
-    unique() %>% 
-    mutate(normal_cryptic_upf1 = ctrl_ctrl < 0.05 &  TDP43_ctrl > 0.1) |> 
-    mutate(upf1_cryptic = ctrl_ctrl < 0.05 &  TDP43_UPF1 > 0.1) |> 
-    mutate(upf1_effect = case_when((TDP43_UPF1 - TDP43_ctrl) > 0.05 ~ "NMD rescued",
-                                  TDP43_ctrl > 0.94 ~ "PSI > 95% at baseline",
-                                  TRUE ~ "non-NMD rescued")) %>% 
-    left_join(big_data_upf1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
-    mutate(ensgene =  gsub("\\..*","",gene_id)) 
-
 new_cate_nmd_sens_upf1 = wide_upf1 %>% 
     distinct(paste_into_igv_junction,upf1_effect) %>% 
     left_join(master_table) %>% 
@@ -1234,7 +1280,7 @@ new_cate_nmd_sens_upf1 %>%
 ```
 
 ### F. SMG1i NMD sensitivity by early/late status
-```{r}
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
 gene_list_slope = c("STMN2", 
                     "KCNQ2", 
                     "ATG4B", 
@@ -1287,7 +1333,6 @@ wide_smg1 = big_data_smg1 |>
     left_join(big_data_smg1 %>% distinct(paste_into_igv_junction,gene_name,gene_id)) %>% 
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
-
 smg1_dark = wide_smg1 |> 
     filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & smg1_effect == "NMD rescued" & nt_nmd < 0.1) |> 
     pull(paste_into_igv_junction) |> unique()
@@ -1328,7 +1373,7 @@ new_cate_nmd_sens_smg1 %>%
     rstatix::pairwise_fisher_test()
 ```
 
-# UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective
+### G. ??? UPF1 KD & SMG1 KD NMD-insentive events are more likely to be detected, they are not more likely to be selective ???
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 summary_post = fread("data/summary_metrics_post_mortem.csv")
 
@@ -1366,7 +1411,7 @@ upf1_plots$detection_plot + ggtitle('UPF1 junctions')
 upf1_plots$selectivity_plot + ggtitle('UPF1 junctions')
 ```
 
-# NMD association with detection frequency across KDs - UPF1 + SMG1i
+### NMD association with detection frequency across KDs - UPF1 + SMG1i
 ```{r}
 # Step 2: Get unique junctions with their category classification
 df = compendium_events %>%
