@@ -459,7 +459,7 @@ sj_star_counts %>%
 ```
 
 ### C. Localization of cryptic isoform compare to localization of parent gene in KD and after NMDi
-```{r, echo=FALSE,warning=FALSE,message=FALSE}
+```{r localization_comparison, echo=FALSE,warning=FALSE,message=FALSE}
 cryptics =(pseudo_bulk_plot_slope$filtered_table %>%
                                              ungroup() %>%
                                              filter(mean_psi_per_lsv_junction >= 0.10))$paste_into_igv_junction
@@ -579,7 +579,7 @@ wide_smg1 = big_data_smg1 |>
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 smg1_dark = wide_smg1 |>
-    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE  & nt_nmd < 0.1) |>
+    filter(normal_cryptic_smg1 == FALSE & smg1_cryptic == TRUE & (smg1_effect == "NMD rescued" | color_gene_name == "NMD rescued") & nt_nmd < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
 
 wide_smg1 = wide_smg1 %>%
@@ -615,7 +615,7 @@ wide_upf1 = big_data_upf1 |>
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 upf1_dark = wide_upf1 |>
-    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & upf1_effect == "NMD rescued" & ctrl_UPF1 < 0.1) |>
+    filter(normal_cryptic_upf1 == FALSE & upf1_cryptic == TRUE & (upf1_effect == "NMD rescued" | color_gene_name == "NMD rescued")  & ctrl_UPF1 < 0.1) |>
     pull(paste_into_igv_junction) |> unique()
 
 wide_upf1 = wide_upf1 %>%
@@ -628,7 +628,7 @@ wide_upf1 = wide_upf1 %>%
 ```
 
 
-```{r, make_wide_chx echo=FALSE,warning=FALSE,message=FALSE}
+```{r make_wide_chx, echo=FALSE,warning=FALSE,message=FALSE}
 big_data_chx = chx_slope_plot_table$filtered_table %>%
     separate(paste_into_igv_junction,remove = FALSE,into = c("chr",'start','end'),
              convert = TRUE) %>% 
@@ -647,7 +647,7 @@ wide_chx = big_data_chx |>
     mutate(ensgene =  gsub("\\..*","",gene_id))
 
 chx_dark = wide_chx |>
-    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & chx_effect == "NMD rescued" & Cycloheximide_Control < 0.1) |>
+    filter(normal_cryptic_chx == FALSE & chx_cryptic == TRUE & (chx_effect == "NMD rescued" | color_gene_name == "NMD rescued") & Cycloheximide_Control < 0.1)  %>% 
     pull(paste_into_igv_junction) |> unique()
 
 #We need to ensure that dark cryptics are called NMD rescued by default. And because of the psi's getting double counts stuff we need to ensure that any nmd calling junction is always nmd called
