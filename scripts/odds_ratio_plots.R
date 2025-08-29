@@ -88,7 +88,7 @@ run_fisher_test = function(summary_table, category_column = "color_gene_name"){
                     as.matrix()
             })
         )
-    
+
     detection_nested$fisher = purrr::map(detection_nested$crosstab, ~ broom::tidy(fisher.test(.x)))
     detection_nested = detection_nested %>% distinct(group,fisher) %>% unnest(fisher) %>% mutate(rate = 'detection')
     
