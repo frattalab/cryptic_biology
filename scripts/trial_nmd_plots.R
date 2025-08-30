@@ -11,14 +11,14 @@ slope_plot_nmd <- function(big_data, gene_list, input_list = c("Control_Control"
 big_data_filtereds <- big_data %>%
     filter(.id %in% input_list) %>% 
   group_by(lsv_junc) %>%
-  dplyr::filter(n() == 4) %>% #???
+  dplyr::filter(n() == 4) %>% #Only junctions that are 
   dplyr::filter(de_novo_junctions == 1) %>%
-  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[1]] < 0.05) %>%
-  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[2]] < 0.05) %>%
+  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[1]] < 0.05) %>% #control has a PSI less than 5%
+  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[2]] < 0.05) %>% #control with NMDi has a PSI less than 5%
   #dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[3]] < 0.05) %>% 
-  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[4]] > 0.1) %>%
+  dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[4]] > 0.1) %>% #KD with NMDi has a PSI greater than 10%
   dplyr::filter((mean_psi_per_lsv_junction[.id == input_list[3]] - mean_psi_per_lsv_junction[.id == input_list[1]] > 0.05 |
-           mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[1]] > 0.05)) %>%
+           mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[1]] > 0.05)) %>% #KD is more than 5% higher than control OR KD with NMDi is more than 5% higher
   #dplyr::filter(mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[3]] > 0) %>%# &
     mutate(color_gene_name = as.character(ifelse(
         mean_psi_per_lsv_junction[.id == input_list[4]] - mean_psi_per_lsv_junction[.id == input_list[3]] > 0.1 |
@@ -100,8 +100,8 @@ ploss = big_data_filtereds %>%
   theme_classic() +
   theme(text = element_text(size = 18))
 ploss = ploss + 
-    geom_point(data = true_dark_table,color = 'black') + 
-    geom_line(data = true_dark_table, aes(group = lsv_junc), color = 'black',alpha = 0.3)
+    geom_point(data = true_dark_table,color = '#4A4747') + 
+    geom_line(data = true_dark_table, aes(group = lsv_junc), color = '#4A4747',alpha = 0.3)
 plot(ploss)
 
 return_list = list(ploss,big_data_filtereds)
