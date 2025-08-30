@@ -623,31 +623,6 @@ chx_rna_full %>%
     xlab("Max PSI NMDi + TDP-43 KD") +
     scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
     ylab("Log2 Fold Change TDP-43 KD SH-SY5Y")
-
-chx_nmd_effect = chx_rna_full %>%
-    left_join(wide_chx) %>%
-    filter(!is.na(chx_effect)) %>%
-    filter(experiment == "Control_TDP43KD|Control_Control") %>%
-    group_by(ensgene) %>%
-    mutate(max_psi = max(Cycloheximide_TDP43KD)) %>%
-    ungroup() %>%
-    mutate(bin_max = cut_interval(max_psi,n = 2)) %>%
-    ggplot(aes(x = bin_max,
-               y = log2fold_change,fill = chx_effect)) +
-    geom_hline(yintercept = 0,linetype = 'dotted') +
-    geom_boxplot(position = position_dodge(preserve = "single")) +
-#    stat_summary(fun.data = give.n,
-#                 geom = "text",
-#                 fun.y = median,
-#                 position = position_dodge(width = 0.75),color = 'white',) +
-    theme_classic() +
-    xlab(element_blank()) +
-    scale_fill_manual(values = c("#0D1821","#3288BD","#D53E4F","#BFCC94")) +
-    ylab("Log2 Fold Change TDP-43 KD") +
-    labs(fill = 'NMD sensitivity') +
-    theme(text  = element_text(size = 18)) +
-    theme(legend.position = "bottom")
-chx_nmd_effect
 ```
 
 ### D. 
