@@ -348,9 +348,9 @@ gene_list_slope = c("STMN2",
                     "ACTL6B", 
                     "HDGFL2",
                     "UNC13A",
-                    'ERMARD',
                     "KDM1B",
-                    "ATP1A3")
+                    "NFKB1",
+                    "CORO7-PAM16")
 
 input_list = c("Control_Control",
                 "Cycloheximide_Control",
@@ -365,7 +365,7 @@ data_summary_full = fread('data/cryptic_detection_summary_long_version.csv')
 
 true_dark_selective = data_summary_full %>%
     filter(true_dark == TRUE) %>%
-    # filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
+    filter(fpr_value <= 0.1 & value_tdp_path >=5) %>%
     pull(paste_into_igv_junction) %>%
     unique()
 
@@ -741,6 +741,69 @@ arranged_plots_sel <- grid.arrange(
 chx_summary_postmortem %>% 
     select()
 ```
+
+
+### E. Dark cryptics are often not dark and very few dark cryptics are selective or detected in tissue
+
+```{r}
+library(reshape2)
+selective_any = summary_post %>%
+    filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
+    filter(value_tdp_path >=5) %>% 
+    pull(paste_into_igv_junction)
+
+df = wide_chx %>% 
+    distinct(chx_effect,paste_into_igv_junction) %>% 
+    full_join(wide_upf1 %>% distinct(upf1_effect,paste_into_igv_junction)) %>% 
+    full_join(wide_smg1 %>% distinct(smg1_effect,paste_into_igv_junction)) %>% 
+    melt(id.var = 'paste_into_igv_junction') %>% 
+    left_join(summary_post %>% distinct(paste_into_igv_junction,true_dark)) %>% 
+    filter(value == "Dark cryptic") %>% 
+    mutate(true_dark = ifelse(is.na(true_dark),FALSE,true_dark)) %>% 
+    group_by(variable) %>% 
+    mutate(n_total = n_distinct(paste_into_igv_junction),
+           n_true_dark = sum(true_dark)) %>% 
+    ungroup() %>% 
+    filter(paste_into_igv_junction %in% selective_any & true_dark == TRUE) %>% 
+    group_by(variable) %>% 
+    mutate(n_selective_anywhere = sum(true_dark)) %>% 
+    distinct(variable, n_total,n_true_dark,n_selective_anywhere) 
+
+
+# Map variable → custom facet label
+facet_labels <- tibble(
+    variable = c("chx_effect", "upf1_effect", "smg1_effect"),
+    facet     = c("SH-SY5Y CHX", "i3 Cortical UPF1 KD", "SH-SY5Y SMG1i")
+)
+
+# Pivot to long and join facet labels
+df_long <- df %>%
+    left_join(facet_labels, by = "variable") %>%
+    pivot_longer(cols = c(n_total, n_true_dark, n_selective_anywhere),
+                 names_to = "stage", values_to = "count") %>%
+    mutate(
+        stage = factor(stage,
+                       levels = c("n_total", "n_true_dark", "n_selective_anywhere"),
+                       labels = c("Total", "True Dark", "Selective\nTDP-43 proteinopathy")),
+        facet = factor(facet, levels = c("SH-SY5Y CHX", "i3 Cortical UPF1 KD", "SH-SY5Y SMG1i")) # enforce order
+    )
+ggplot(df_long,
+       aes(x = stage, stratum = stage, alluvium = variable, y = count,
+           fill = stage)) +
+    geom_flow(stat = "alluvium", lode.guidance = "forward") +
+    geom_stratum(width = 0.3) +
+    geom_text(stat = "stratum", aes(label = count), size = 8, color = "black", vjust = -0.5) +
+    facet_wrap(~ facet, scales = "free_y") +
+    theme_minimal() +
+    labs(x = NULL, y = "N dark cryptic junctions") +
+    scale_fill_manual(values = c("#4A4747","black","#34113F")) +
+    theme(legend.position = 'none') +
+    theme(text = element_text(size = 18)) 
+
+
+```
+
+
 
 ## Figure 3. Dose-response curves in SH-SY5Y and SK-N-BE(2)
 ### A. Levels of TDP-43 in SH-SY5Y and SK-N-BE(2) cells
