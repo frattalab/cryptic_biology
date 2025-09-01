@@ -517,11 +517,9 @@ baseline_rpkm_plot = cryptic_rpkm %>%
     mutate(plot_name = ifelse(log2rpkm_baseline == max(log2rpkm_baseline) &gene_name %in% gene_list_slope ,gene_name,NA_character_)) %>%
     ggplot(aes(x = log2_annotated, y = log2rpkm_baseline)) +
     geom_rect(aes(xmin = -Inf, xmax = 0, ymin = -Inf, ymax = 0), fill = "lightblue", alpha = 0.2, inherit.aes = FALSE) +  # Bottom-left
-    # geom_rect(aes(xmin = 0, xmax = Inf, ymin = -Inf, ymax = 0), fill = "lightgreen", alpha = 0.2, inherit.aes = FALSE)  +# Bottom-right
-    # geom_rect(aes(xmin = -Inf, xmax = 0, ymin = 0, ymax = Inf), fill = "mistyrose", alpha = 0.2, inherit.aes = FALSE)   +# Top-left
     geom_rect(aes(xmin = 0, xmax = Inf, ymin = 0, ymax = Inf), fill = "moccasin", alpha = 0.2, inherit.aes = FALSE)     +# Top-right
     geom_point() +
-    geom_smooth(method = 'lm',colour = 'black') +
+    geom_smooth(method = 'lm',colour = 'black',se = FALSE) +
     stat_cor(  method = "spearman",cor.coef.name = c("rho"),p.accuracy = 0.001,size = 6) +
     facet_wrap(~color_gene_name) +
     theme_classic() +
@@ -545,14 +543,14 @@ nmdi_rpkm_plot = cryptic_rpkm %>%
     # geom_rect(aes(xmin = -Inf, xmax = 0, ymin = 0, ymax = Inf), fill = "mistyrose", alpha = 0.2, inherit.aes = FALSE)   +# Top-left
     geom_rect(aes(xmin = 0, xmax = Inf, ymin = 0, ymax = Inf), fill = "moccasin", alpha = 0.2, inherit.aes = FALSE)     +# Top-right
     geom_point() +
-    geom_smooth(method = 'lm',color = 'black') +
+    geom_smooth(method = 'lm',colour = 'black',se = FALSE) +
     stat_cor(  method = "spearman",cor.coef.name = c("rho"),p.accuracy = 0.001,size = 6) +
     facet_wrap(~color_gene_name) +
     theme_classic() +
     geom_hline(yintercept = 0,linetype = 'dotted') +
     geom_vline(xintercept = 0,linetype = 'dotted') +
-    ylab('Log2 Nuclear / Cytoplasmic cryptic junction RPKM\nNMDi') +
-    xlab('Log2 Nuclear / Cytoplasmic annotated junction RPKM\nNMDi') +
+    ylab('Log2 Nuclear / Cytoplasmic cryptic junction RPKM NMDi') +
+    xlab('Log2 Nuclear / Cytoplasmic annotated junction RPKM NMDi') +
     geom_text_repel(aes(label = plot_name),bg.colour = 'white') +
     theme(text = element_text(size = 18))
 
@@ -705,7 +703,7 @@ smg1_detection <- smg1_detection_plots$detection_plot +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
     guides(x = guide_axis(n.dodge = 2)) +
-    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5)) 
 
 # Bottom row: keep x-axis labels and ticks, use dodge position for overlapping labels
 chx_selectivity <- chx_detection_plots$selectivity_plot +
@@ -720,7 +718,7 @@ upf1_selectivity <- upf1_detection_plots$selectivity_plot +
     theme(text = element_text(size = 18),
           plot.title = element_text(size = 15)) +
     guides(x = guide_axis(n.dodge = 2)) +
-    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5)) 
 
 smg1_selectivity <- smg1_detection_plots$selectivity_plot +
     ggtitle('SMG1i Selectivity Rate') +
@@ -731,15 +729,14 @@ smg1_selectivity <- smg1_detection_plots$selectivity_plot +
 
 arranged_plots_detect <- grid.arrange(
     chx_detection, upf1_detection, smg1_detection,
-    ncol = 3, nrow = 1
+    ncol = 1, nrow = 3
 )
 arranged_plots_sel <- grid.arrange(
     chx_selectivity, upf1_selectivity, smg1_selectivity,
-    ncol = 3, nrow = 1
+    ncol = 1, nrow = 3
 )
 
-chx_summary_postmortem %>% 
-    select()
+
 ```
 
 
@@ -986,7 +983,10 @@ GG <- big_data_filtereds_early_late_sh %>%
                    paste0(round(avg_tdp_level_sh,0),rep("%",5))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_sh) +
-  theme_classic()
+  theme_classic()+
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+          theme(text = element_text(size = 18))
+
 
 avg_be2_qpcr = levels_dz_qpcr %>%
   filter(experiment == "new_new") %>%
@@ -1025,7 +1025,11 @@ HH = big_data_filtereds_early_late_be2 %>%
                    paste0(round(avg_be2_qpcr,0),rep("%",7))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_be2) +
-  theme_classic()
+  theme_classic() +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+          theme(text = element_text(size = 18))
+
+
 GG + HH
 ```
 
@@ -1095,7 +1099,9 @@ master_table %>%
     stat_cor() +
     xlab("Max PSI in SH-SY5Y") +
     ylab("Max PSI in SK-N-BE(2)") +
-    theme_classic()
+    theme_classic() +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) 
 ```
 
 ### F. Early-lateness and NMD
@@ -2193,32 +2199,32 @@ selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Sele
 
 ```{r detection_rate_early_late_max_min}
 summary_post =fread('data/cryptic_detection_summary_long_version.csv')
+cryptic_min_max = master_table %>%
+    filter(cryptic == 'yes') %>%
+    filter(max_psi_sh %in% c("Bottom","Top"))
 
-detection_plot<-master_table %>%
-    mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
-                               max_psi_be2 == "" ~ max_psi_sh,
-                               max_psi_sh == "" ~ max_psi_be2,
-                               max_psi_be2 == 'Medium' ~ max_psi_sh,
-                               max_psi_sh == 'Medium' ~ max_psi_be2)) %>%
-    filter(!is.na(new_max)) %>%
-    left_join(summary_post) %>%
-    filter(new_cate %in% c("Early","Late")) %>%
-    filter(new_max %in% c("Top","Bottom")) %>%
-    filter(fpr_value <= 0.1) %>%
-    filter(!is.na(group)) %>%
-    ggplot(aes(x = new_max, y =frac_ob_tdp_path,fill = new_cate)) +
-    geom_boxplot() +
-    # facet_wrap(~group,scales = 'free')  +
-    stat_summary(fun.data = give.n, geom = "text",
-                                  fun.y = median,
-                                  position = position_dodge(width = 0.75),color = 'white') +
-  stat_compare_means(label = "p.signif",size = 15,label.y.npc = 'middle') +
-    theme_classic() +
-    scale_fill_manual(values = c("#de53b0","#173dd3")) +
-    # scale_fill_manual(values = plot_psi_colors) +
+early_late_post = generate_summary_table(summary_post,
+                       cryptic_min_max,
+                            category_column = 'max_psi_sh',
+                               detected_threshold_for_observed = 2,
+        detected_threshold_for_bio = 5,
+        selective_fpr_threshold = 0.01,
+        selective_tpr_threshold = 0.1)
+fisher_timing = run_fisher_test(early_late_post,
+                                category_column = 'max_psi_sh')
+
+early_late_plots = make_final_plot(early_late_post,
+                                      fisher_timing,
+                                      category_column = 'max_psi_sh',
+                                      color_choices = c("blue", "orange"))
+
+
+selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
     theme(text = element_text(size = 18)) +
-    ylab("Fraction samples observed") +
-    ggtitle('FPR <= 0.1')
+        theme(text = element_text(size = 18)) +
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+selectivity_plot
 ```
 
 ### Does NMD sensitivity determine early/lateness?

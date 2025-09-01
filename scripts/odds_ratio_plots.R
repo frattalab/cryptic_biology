@@ -154,9 +154,11 @@ make_final_plot = function(summary_table,
                   position = position_dodge(width = 0.9), 
                   vjust = -0.5, 
                   size = 3.5) +
-        geom_text(data = det_fish, aes(y = p_y_pos, label = p_label,x = group),inherit.aes = FALSE, 
+        geom_text(data = det_fish, 
+                  aes(y = p_y_pos, label = p_label,x = group),
+                  inherit.aes = FALSE, 
                   position = position_dodge(width = 0.9),
-                  vjust = -0.5,
+                  vjust = "middle",
                   size = 10,
                   fontface = "bold") +
         labs(title = "Detection Rate by Group",
@@ -203,7 +205,7 @@ make_final_plot = function(summary_table,
                   size = 3.5) +
         geom_text(data = sel_fish, aes(y = p_y_pos, label = p_label,x = group),inherit.aes = FALSE, 
                   position = position_dodge(width = 0.9),
-                  vjust = -0.5,
+                  vjust = "middle",
                   size = 10,
                   fontface = "bold") +
         labs(title = "Selectivity Rate by Group",
