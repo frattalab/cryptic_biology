@@ -898,24 +898,29 @@ annotated_rpkm = sj_star_counts %>%
 my_table = cryptic_rpkm %>%
     left_join(annotated_rpkm) %>%
     mutate(log2rpkm_nmd = log2((nucleus_nmd  + 0.001)/ (cytosol_nmd  + 0.001))) %>%
-    mutate(log2rpkm_baseline = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>%
+    mutate(log2rpkm_nmd_parent = log2((annotated_nucleus_nmd  + 0.001)/ (annotated_cytosol_nmd  + 0.001))) %>%
+
+    mutate(log2rpkm_baseline_cryptic = log2((nucleus_ctrl + 0.001)/ (cytosol_ctrl +0.001))) %>%
+    mutate(log2rpkm_baseline_parent = log2((annotated_nucleus_ctrl + 0.001)/ ( annotated_cytosol_ctrl   +0.001))) %>%
     mutate(log2rpkm_cytoshift = log2((cytosol_nmd + 0.001)/ (cytosol_ctrl +0.001))) %>%
-    mutate(baseline_localization = case_when(log2rpkm_baseline >= 0 ~ "cytoplasmic",
-                                             log2rpkm_baseline <= 0 ~ "nuclear")) %>%
-    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "cytoplasmic",
-                                         log2rpkm_nmd <= 0 ~ "nuclear")) %>%
+    mutate(baseline_localization_cryptic = case_when(log2rpkm_baseline_cryptic >= 0 ~ "nuclear",
+                                             log2rpkm_baseline_cryptic <= 0 ~ "cytoplasmic")) %>%
+    mutate(baseline_localization_parent = case_when(log2rpkm_baseline_parent >= 0 ~ "nuclear",
+                                             log2rpkm_baseline_parent <= 0 ~ "cytoplasmic")) %>%
+    mutate(nmd_localization = case_when(log2rpkm_nmd >= 0 ~ "nuclear",
+                                         log2rpkm_nmd <= 0 ~ "cytoplasmic")) %>%
     mutate(nmd_cytoshift = case_when(log2rpkm_cytoshift >= 0.5 ~ "cytoplasmic shift NMDi",
                                          log2rpkm_cytoshift < 0.5 ~ "unshifted"))
 
 nmd_localization_effect = generate_summary_table(summary_post,
                        my_table,
-                       category_column = 'baseline_localization')
+                       category_column = 'baseline_localization_cryptic')
 
-fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'baseline_localization')
+fisher_nmd_localization_effect = run_fisher_test(nmd_localization_effect,category_column = 'baseline_localization_cryptic')
 
 nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
                                                 fisher_nmd_localization_effect,
-                                                category_column = 'baseline_localization',
+                                                category_column = 'baseline_localization_cryptic',
                                         color_choices = c("lightblue","moccasin"))
 print(nmd_localization_effect_plots$detection_plot + ggtitle('Localization at baseline'))
 print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('Localization at baseline'))
@@ -948,6 +953,30 @@ nmd_localization_effect_plots = make_final_plot(nmd_localization_effect,
 print(nmd_localization_effect_plots$detection_plot + ggtitle('NMDi effect on localization'))
 print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on localization'))
 ```
+
+
+```{r}
+my_table %>% 
+    left_join(summary_post) %>% 
+    filter(fpr_value < 0.1) %>% 
+    as.data.table() %>% 
+    select(color_gene_name, auc:n_samples_tdp_path,paste_into_igv_junction,gene_name,smg1_effect,log2rpkm_nmd:true_dark) %>% 
+    ggplot(aes(x = baseline_localization_cryptic, y = frac_ob_tdp_path, fill = baseline_localization_cryptic)) + 
+    geom_boxplot() + 
+    facet_wrap(~color_gene_name+group,scales = 'free',nrow = 2) + 
+    stat_compare_means(  hide.ns = TRUE,label = 'p.signif',size = 8,label.x.npc = 'middle',label.y.npc = 'middle') + 
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) + 
+    theme_classic() +    
+    labs(fill = 'Baseline cryptic localisation') +
+    xlab(element_blank()) +
+    scale_fill_manual(values = c("lightblue", "moccasin")) + 
+    ylab("Fraction of TDP-43 proteinopathy tissue event detected") + 
+    theme(legend.position = 'bottom') + theme(text = element_text(size = 20))
+
+
+```
+
+
 
 ## Supplementary Figure 3
 ### A. TARDBP RNA-seq levels in 2 curves

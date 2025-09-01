@@ -17,12 +17,12 @@ generate_summary_table <- function(
     
     # Step 1: Get detected and selective junctions from postmortem summary
     detected_junctions <- summary_post %>% 
-        filter(n_samples_tdp_path >= detected_threshold_for_observed) %>% 
+        filter(value_tdp_path >= detected_threshold_for_observed) %>% 
         select(paste_into_igv_junction, group) %>% 
         mutate(detected = TRUE)
     
     selective_junctions <- summary_post %>% 
-        filter(n_samples_tdp_path >= detected_threshold_for_bio) %>% 
+        filter(value_tdp_path >= detected_threshold_for_bio) %>% 
         filter(fpr_value <= selective_fpr_threshold & tpr_value >= selective_tpr_threshold) %>% 
         select(paste_into_igv_junction, group) %>% 
         mutate(selective = TRUE)
@@ -65,6 +65,8 @@ generate_summary_table <- function(
         mutate(detection_rate = n_detected / n_type) %>% 
         mutate(selectivity_rate = n_selective / n_detected)
         
+    
+
         
     return(complete_junction_dataset)
     
@@ -129,7 +131,7 @@ make_final_plot = function(summary_table,
             p.value < 0.001 ~ "***",
             p.value < 0.01 ~ "**",
             p.value < 0.05 ~ "*",
-            TRUE ~ "ns"
+            TRUE ~ ""
         )) 
     
 
@@ -178,7 +180,7 @@ make_final_plot = function(summary_table,
             p.value < 0.001 ~ "***",
             p.value < 0.01 ~ "**",
             p.value < 0.05 ~ "*",
-            TRUE ~ "ns"
+            TRUE ~ ""
         )) 
     
     sel_plot_data <- summary_table %>% 
