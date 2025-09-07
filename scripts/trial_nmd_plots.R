@@ -102,7 +102,7 @@ ploss = big_data_filtereds %>%
 ploss = ploss + 
     geom_point(data = true_dark_table,color = '#4A4747') + 
     geom_line(data = true_dark_table, aes(group = lsv_junc), color = '#4A4747',alpha = 0.3)
-plot(ploss)
+#plot(ploss)
 
 return_list = list(ploss,big_data_filtereds)
 names(return_list) = c('plot','filtered_table')

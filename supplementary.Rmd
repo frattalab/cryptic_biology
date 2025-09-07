@@ -955,7 +955,7 @@ print(nmd_localization_effect_plots$selectivity_plot+ ggtitle('NMDi effect on lo
 ```
 
 
-```{r}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 my_table %>% 
     left_join(summary_post) %>% 
     filter(fpr_value < 0.1) %>% 
@@ -1416,7 +1416,7 @@ upf1_plots$selectivity_plot + ggtitle('UPF1 junctions')
 ```
 
 ### NMD association with detection frequency across KDs - UPF1 + SMG1i
-```{r}
+```{r,  echo=FALSE, warning=FALSE, message=FALSE}
 # Step 2: Get unique junctions with their category classification
 df = compendium_events %>%
     distinct(n_significant_data,paste_into_igv_junction) %>% 
@@ -1475,7 +1475,7 @@ wide_chx = wide_chx %>%
     mutate(chx_effect = ifelse(paste_into_igv_junction %in% chx_dark, "Dark cryptic",chx_effect))
 ```
 
-```{r LateEarlyBE2}
+```{r LateEarlyBE2, echo=FALSE, warning=FALSE, message=FALSE}
 sk_nmd_sens = wide_chx %>% 
     distinct(paste_into_igv_junction,chx_effect) %>% 
     left_join(master_table) %>% 
@@ -1509,7 +1509,7 @@ sk_nmd_sens %>%
     rstatix::pairwise_fisher_test()
 ```
 
-```{r NMDSensNewCate}
+```{r NMDSensNewCate, echo=FALSE, warning=FALSE, message=FALSE}
 new_cate_nmd_sens = wide_chx %>% 
     distinct(paste_into_igv_junction,chx_effect) %>% 
     left_join(master_table) %>% 
@@ -1545,10 +1545,7 @@ new_cate_nmd_sens %>%
 
 ## Supplementary figure 4 - features SH-SY5Y
 ### A. Conservation score for CE in SK-N-BE(2)
-### B. Conservation score for non-CE in SK-N-BE(2)
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-print("2A and 2B")
-
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
     return("***")
@@ -1592,7 +1589,11 @@ a <- cons_score_df_cryptic %>%
   #facet_wrap(facets = vars(cryptic)) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
+a
+```
 
+### B. Conservation score for non-CE in SK-N-BE(2)
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 b <- cons_score_df_not_cryptic %>% 
   ggplot(aes(x = category, y = cons_score, fill = tdp43_sensitivity_be2)) +
   geom_boxplot() +
@@ -1610,14 +1611,11 @@ b <- cons_score_df_not_cryptic %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-a + b
+b
 ```
 
 ### C. Kmers enrichment analysis in SK-N-BE(2)
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-#C. Kmers enrichment analysis in  SK-N-BE(2)
-print("2C")
-
 kmer_size <- 6
 yg_motifs <- c('GTGTGT', 'TGTGTG', 'CGTGTG', 'TGCGTG', 'TGTGCG', 'GTGTGC')
 ya_motifs <- c('ATGTGT', 'GTATGT', 'GTGTAT', 'TGTGTA', 'TGTATG', 'TGCATG')
@@ -1686,14 +1684,7 @@ c
 ```
 
 ### D. Density UG motifs by early-late in SK-N-BE(2)
-### E. Density UG motifs by top-bottom in  SK-N-BE(2)
-### F. Distance iCLIP TDP43 binding site SK-N-BE(2)
-### G. RNA maps based on figure F
-### H. 5'ss CE vs normal
-### I. 3'ss CE vs normal
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-#D. Density UG motifs by early-late in  SK-N-BE(2)
-print("2D and 2E")
 sequences <- sapply(seq_along(master_table$paste_into_igv_junction_annotated), function(i) {
   coord <- master_table$paste_into_igv_junction_annotated[i]
   chr <- sub("^(.*):.*$", "\\1", coord)
@@ -1736,8 +1727,11 @@ d <- master_table %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
+d
+```
 
-#E. Density UG motifs by top-bottom in  SK-N-BE(2)
+### E. Density UG motifs by top-bottom in  SK-N-BE(2)
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
 master_table$max_psi_be2 <- factor(master_table$max_psi_be2, levels=c("Top", "Bottom"))
 e <- master_table %>% 
   filter(max_psi_be2 %in% c("Top", "Bottom")) %>%
@@ -1757,14 +1751,15 @@ e <- master_table %>%
   ) +
   theme_classic() +
   theme(text = element_text(size = plot_text_size))
-d + e
+e
+```
 
-#F. Distance iCLIP TDP43 binding site  SK-N-BE(2)
-print("2F")
-df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
-df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
+### F. Distance iCLIP TDP43 binding site SK-N-BE(2) - not working
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
+#df_iclip <- read.csv(here::here('data', 'all_events.closest_tdp_bind.bed'), sep="\t")
+#df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 
-# f <- df_iclip %>% 
+#f <- df_iclip %>% 
 #   filter(tdp43_sensitivity_be2 %in% c("Early", "Late")) %>%
 #   filter(abs(dist) <= 1000) %>%
 #   ggplot(aes(x = dist, fill = tdp43_sensitivity_be2)) +
@@ -1777,10 +1772,12 @@ df_iclip$tdp_len <- df_iclip$end - df_iclip$start + 1
 #   labs(x = 'Distance to the nearest TDP-binding site', y = 'Density') +  
 #   theme_classic() +
 #   theme(text = element_text(size = plot_text_size))
-# 
-# f
+ 
+#f
+```
 
-#G. RNA maps based on figure F
+### G. RNA maps based on figure F
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
 early_donors <- readDNAStringSet("data/maxent/donors_early_be2.fa")
 late_donors <- readDNAStringSet("data/maxent/donors_late_be2.fa")
 
@@ -1808,8 +1805,10 @@ g2 <- ggplot() +
   )
 g <- g1 / g2
 g
+```
 
-#H. 5'ss CE vs normal
+### H. 5'ss CE vs normal
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_sh.csv'))
 h <- df_5ss_strength %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
@@ -1822,8 +1821,11 @@ h <- df_5ss_strength %>%
   theme_minimal() +
   theme(legend.position = "top") +
   guides(color = "none")
+h
+```
 
-#I. 3'ss CE vs normal
+### I. 3'ss CE vs normal
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_sh.csv'))
 i <- df_3ss_strength %>%
   filter(tdp43_sensitivity_sh %in% c("Early", "Late")) %>% 
@@ -1836,5 +1838,5 @@ i <- df_3ss_strength %>%
   theme_minimal() +
   theme(legend.position = "top") +
   guides(color = "none")
-h + i
+i
 ```

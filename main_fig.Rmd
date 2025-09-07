@@ -30,6 +30,7 @@ library(pdftools)
 library(cowplot)
 library(ggplotify)
 library(circlize)
+library(reshape2)
 library(openxlsx)
 source(here::here('scripts','odds_ratio_plots.R'))
 source(here::here('scripts','trial_nmd_plots.R'))
@@ -739,11 +740,8 @@ arranged_plots_sel <- grid.arrange(
 
 ```
 
-
 ### E. Dark cryptics are often not dark and very few dark cryptics are selective or detected in tissue
-
-```{r}
-library(reshape2)
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
 selective_any = summary_post %>%
     filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
     filter(value_tdp_path >=5) %>% 
@@ -945,7 +943,7 @@ ggarrange(e, f, common.legend = TRUE, legend = 'bottom')
 ```
 
 ### C. Spaghetti plot
-```{r late_early_spaghetti_plot, echo = FALSE, warning=FALSE}
+```{r late_early_spaghetti_plot, echo = FALSE, warning=FALSE, message=FALSE}
 list_gene = c("STMN2", "UNC13A", "HDGFL2", "AARS1","RANBP1",'PHF2')
 
 avg_tdp_level_sh = levels_sy5y_qpcr %>%
@@ -2167,7 +2165,7 @@ g
 
 
 # FIGURES REMOVED OR TO BE FINISHED - please check
-```{r fpr_early_late_max_min}
+```{r fpr_early_late_max_min, echo=FALSE, warning=FALSE, message=FALSE}
 summary_post =fread('data/cryptic_detection_summary_long_version.csv')
 cryptic_early_late = master_table %>%
     filter(cryptic == 'yes') %>%
@@ -2183,41 +2181,13 @@ early_late_plots = make_final_plot(early_late_post,
                                       fisher_timing,
                                       category_column = 'new_cate',
                                       color_choices = c("#de53b0", "#173dd3"))
-early_late_plots$detection_plot +
+
+detection_plot <- early_late_plots$detection_plot +
           ggtitle('Early/Late Detection Rate') +
     theme(text = element_text(size = 18)) +
         guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-
-
-selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
-    theme(text = element_text(size = 18)) +
-        theme(text = element_text(size = 18)) +
-        guides(x = guide_axis(n.dodge = 2)) +
-    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-```
-
-```{r detection_rate_early_late_max_min}
-summary_post =fread('data/cryptic_detection_summary_long_version.csv')
-cryptic_min_max = master_table %>%
-    filter(cryptic == 'yes') %>%
-    filter(max_psi_sh %in% c("Bottom","Top"))
-
-early_late_post = generate_summary_table(summary_post,
-                       cryptic_min_max,
-                            category_column = 'max_psi_sh',
-                               detected_threshold_for_observed = 2,
-        detected_threshold_for_bio = 5,
-        selective_fpr_threshold = 0.01,
-        selective_tpr_threshold = 0.1)
-fisher_timing = run_fisher_test(early_late_post,
-                                category_column = 'max_psi_sh')
-
-early_late_plots = make_final_plot(early_late_post,
-                                      fisher_timing,
-                                      category_column = 'max_psi_sh',
-                                      color_choices = c("blue", "orange"))
-
+detection_plot
 
 selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
     theme(text = element_text(size = 18)) +
@@ -2225,6 +2195,43 @@ selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Sele
         guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 selectivity_plot
+```
+
+```{r detection_rate_early_late_max_min,  echo=FALSE, warning=FALSE, message=FALSE}
+summary_post =fread('data/cryptic_detection_summary_long_version.csv')
+cryptic_min_max = master_table %>%
+    filter(cryptic == 'yes') %>%
+    filter(max_psi_sh %in% c("Bottom","Top"))
+
+bottomtop_post = generate_summary_table(summary_post,
+                       cryptic_min_max,
+                            category_column = 'max_psi_sh',
+                               detected_threshold_for_observed = 2,
+        detected_threshold_for_bio = 5,
+        selective_fpr_threshold = 0.01,
+        selective_tpr_threshold = 0.1)
+fisher_timing_tb = run_fisher_test(bottomtop_post,
+                                category_column = 'max_psi_sh')
+
+bottomtop_plots = make_final_plot(bottomtop_post,
+                                      fisher_timing_tb,
+                                      category_column = 'max_psi_sh',
+                                      color_choices = c("blue", "orange"))
+
+
+detection_plot_bottomtop <- bottomtop_plots$detection_plot +
+          ggtitle('Top/Bottom Detection Rate') +
+    theme(text = element_text(size = 18)) +
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+detection_plot_bottomtop
+
+selectivity_plot_bottomtop <- bottomtop_plots$selectivity_plot + ggtitle('Top/Bottom Selectivity Rate') +
+    theme(text = element_text(size = 18)) +
+        theme(text = element_text(size = 18)) +
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+selectivity_plot_bottomtop
 ```
 
 ### Does NMD sensitivity determine early/lateness?
