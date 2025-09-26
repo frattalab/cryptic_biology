@@ -1910,7 +1910,7 @@ simple_plot_don <- repeats_heatmap(donor, title = "Donor", col_fun=col_fun)
 
 Enrichment of repeats in the flanking regions of acceptor and donors compared to exons of different inclusion rates
 
-```{r}
+```{r exon inclusion rate vs LINE elements}
 ## refer to scripts/plot_exon_different_inclusion_OR.r for analyses
 filtered_output = fread('data/logodds_against_different_exon_types.csv')
 filtered_output %>% 
@@ -1922,12 +1922,12 @@ filtered_output %>%
                                             "1_25___In_frame.fa_rm.bed" ~ "1-25%",
                                             "25_85___In_frame.fa_rm.bed" ~ "25-85%",
                                             "85_99___In_frame.fa_rm.bed" ~ "85-99%")) %>% 
-    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type,linetype = timing)) + 
-    facet_grid(rows = vars(repeat_cat),col = vars(junc_type)) +
+    ggplot(aes(x = position, y = logOR, color = timing)) + 
+    facet_grid(rows = vars(exon_inclusion_type),col = vars(junc_type)) +
     geom_line(size = 1.3) + 
     theme_classic() +
-    ggtitle("In-frame") + 
-    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
+    scale_color_manual(values = c("#de53b0", "#173dd3")) +
+    theme(legend.position = 'bottom')
 
 ```
 
