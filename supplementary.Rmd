@@ -145,7 +145,8 @@ combined_table <- bind_rows(table1, table2, table3) %>%
   dplyr::rename(`Proteinopathy` = tdp_proteinopathy,
          `Tissue Source` = rna_tissue_source_simplified,
          `Samples (n)` = n_sample,
-         `Patients (n)` = n_patients)
+         `Patients (n)` = n_patients) %>% 
+    mutate(group = "NYGC")
 
 # Display with kable
 meta_rimod %>% 
@@ -1076,19 +1077,42 @@ prop_sh = diff_plt_sh %>%
     left_join(sh_d_gene) %>% 
     mutate(prop = n_genes / denom)
 
-prop_sh %>% 
-    mutate(tdp43_sensitivity_sh = glue::glue('{tdp43_sensitivity_sh} - {denom} genes')) %>% 
-
+sh_prop_plot = prop_sh %>% 
+    mutate(tdp43_sensitivity_sh = glue::glue('{tdp43_sensitivity_sh}\n{denom} genes')) %>% 
     complete(tdp43_sensitivity_sh, nesting(source, sig_de),
              fill = list(prop = 0,n_genes = 0)) %>% 
     mutate(source = as.factor(source)) %>% 
-    ggplot(aes(x = source, y = prop, group = sig_de,color = sig_de)) + 
+    filter(sig_de != "N.S.") %>% 
+    filter(!grepl("Non-splicing",tdp43_sensitivity_sh)) %>% 
+    mutate(sig_de = case_match(sig_de, "down" ~ "Downregulated",
+                               "up" ~ "Upregulated")) %>% 
+    ggplot(aes(x = source, y = prop, group = tdp43_sensitivity_sh,color = tdp43_sensitivity_sh)) + 
     geom_point() + 
     geom_line() + 
-    facet_wrap(~tdp43_sensitivity_sh) +
-    scale_color_manual(labels = c("Downregulated","N.S." ,"Upregulated"), values = c("blue","grey", "red")) +
+    facet_wrap(~sig_de,labeller = labeller()) +
+    scale_color_manual(values = c("#de53b0","steelblue", "#173dd3")) +
     ggpubr::theme_pubr() + 
     scale_y_continuous(labels = scales::percent_format()) +
+    ylab("Proportion of genes") +
+    guides(color = guide_legend(title = "SH-SY5Y TDP-43 sensitivity",,title.position='top',title.hjust = 0.5)) +
+    theme(legend.position = 'bottom') +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+    theme(text = element_text(size = 15)) +
+    theme(axis.title.x  = element_text(size = 13),
+    axis.text.x  = element_text(size = 11)) 
+
+prop_sh %>% 
+    mutate(tdp43_sensitivity_sh = glue::glue('{tdp43_sensitivity_sh}\n{denom} genes')) %>% 
+    complete(tdp43_sensitivity_sh, nesting(source, sig_de),
+             fill = list(prop = 0,n_genes = 0)) %>% 
+    mutate(source = as.factor(source)) %>% 
+    filter(sig_de != "N.S.") %>% 
+    ggplot(aes(x = tdp43_sensitivity_sh, y = prop, fill = sig_de)) + 
+    geom_col(position = 'dodge')  +
+    facet_wrap(~source) +
+    scale_color_manual(values = c("#de53b0","steelblue", "#173dd3")) +
+    ggpubr::theme_pubr() + 
+    scale_y_continuous(labels = scales::percent_format()) 
     ylab("Proportion of genes") +
     guides(color = guide_legend(title = "Differential expression",title.position='top',title.hjust = 0.5)) +
     theme(legend.position = 'bottom') +
@@ -1144,6 +1168,33 @@ prop_sk %>%
           theme(text = element_text(size = 15)) +
         theme(axis.title.x  = element_text(size = 13),
           axis.text.x  = element_text(size = 11))
+
+
+sk_prop_plot = prop_sk %>% 
+    mutate(tdp43_sensitivity_be2 = glue::glue('{tdp43_sensitivity_be2}\n{denom} genes')) %>% 
+    complete(tdp43_sensitivity_be2, nesting(source, sig_de),
+             fill = list(prop = 0,n_genes = 0)) %>% 
+    mutate(source = as.factor(source)) %>% 
+    filter(sig_de != "N.S.") %>%
+    filter(!grepl("Non-splicing",tdp43_sensitivity_be2)) %>% 
+    mutate(sig_de = case_match(sig_de, "down" ~ "Downregulated",
+                               "up" ~ "Upregulated")) %>% 
+    ggplot(aes(x = source, y = prop, group = tdp43_sensitivity_be2,color = tdp43_sensitivity_be2)) + 
+    geom_point() + 
+    geom_line() + 
+    facet_wrap(~sig_de,labeller = labeller()) +
+    scale_color_manual(values = c("#de53b0","steelblue", "#173dd3")) +
+    ggpubr::theme_pubr() + 
+    scale_y_continuous(labels = scales::percent_format()) +
+    ylab("Proportion of genes") +
+    guides(color = guide_legend(title = "SK-N-BE(2) TDP-43 sensitivity",,title.position='top',title.hjust = 0.5)) +
+    theme(legend.position = 'bottom') +
+    xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
+    theme(text = element_text(size = 15)) +
+    theme(axis.title.x  = element_text(size = 13),
+    axis.text.x  = element_text(size = 11)) 
+
+ggarrange(sh_prop_plot,sk_prop_plot)
 ```
 
 ### C. Is library depth stable throughout the 2 dose-dependent curves
