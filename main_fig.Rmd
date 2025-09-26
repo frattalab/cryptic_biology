@@ -1380,7 +1380,9 @@ splice_ai_score %>%
     geom_boxplot() + 
     facet_wrap(~junc_cat) + 
     stat_compare_means() + 
-    ylab("SpliceAI score")
+    ylab("SpliceAI score") +
+    theme_classic() 
+
 ```
 
 ### B. Conservation score for CE and non-ce in combined categories
@@ -1905,6 +1907,30 @@ col_fun = colorRamp2(c(-4,0, 4), c("blue", "gray95", "red"))
 simple_plot_acc <- repeats_heatmap(acceptor, title = "Acceptor", col_fun=col_fun)
 simple_plot_don <- repeats_heatmap(donor, title = "Donor", col_fun=col_fun)
 ```
+
+Enrichment of repeats in the flanking regions of acceptor and donors compared to exons of different inclusion rates
+
+```{r}
+## refer to scripts/plot_exon_different_inclusion_OR.r for analyses
+filtered_output = fread('data/logodds_against_different_exon_types.csv')
+filtered_output %>% 
+    mutate(position = position - 250) %>% 
+    filter(grepl("In",exon_inclusion_type)) %>%  
+    filter(grepl("LINE",repeat_cat)) %>% 
+    mutate(exon_inclusion_type = case_match(exon_inclusion_type,
+                                            "_99___In_frame.fa_rm.bed" ~ "99%+",
+                                            "1_25___In_frame.fa_rm.bed" ~ "1-25%",
+                                            "25_85___In_frame.fa_rm.bed" ~ "25-85%",
+                                            "85_99___In_frame.fa_rm.bed" ~ "85-99%")) %>% 
+    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type,linetype = timing)) + 
+    facet_grid(rows = vars(repeat_cat),col = vars(junc_type)) +
+    geom_line(size = 1.3) + 
+    theme_classic() +
+    ggtitle("In-frame") + 
+    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
+
+```
+
 
 ### E. Kmers enrichment analysis in SH-SY5Y
 ```{r kmer sh-sy5y, echo=FALSE, warning=FALSE, message=FALSE}

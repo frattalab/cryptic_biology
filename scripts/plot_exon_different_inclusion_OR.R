@@ -1,4 +1,6 @@
 source("~/Documents/GitHub/online/cryptic_biology/scripts/repeatmasker_analyses.R")
+library(tidyverse)
+library(data.table)
 rm_cryptics <- "data/repeatmasker/junction_windows.fa_rm.bed"
 cand_ctrl_dir <- "data/repeatmasker/cryp_set1.txt"
 dir_meta <- "data/repeatmasker/metadata.txt"
@@ -106,7 +108,7 @@ repeats_df2$rows <- paste0(repeats_df2$timing, "_", repeats_df2$rep_class)
 
 
 filtered_output = repeats_df2 %>% 
-    group_by(junc_type,timing,rep_class) %>% 
+    group_by(junc_type,timing,rep_class) %>%
     filter(sum(logOR, na.rm = TRUE) != 0) %>%
     ungroup() %>% 
     dplyr::rename(repeat_cat = rep_class)
@@ -119,11 +121,14 @@ filtered_output %>%
                                             "1_25___In_frame.fa_rm.bed" ~ "1-25%",
                                             "25_85___In_frame.fa_rm.bed" ~ "25-85%",
                                             "85_99___In_frame.fa_rm.bed" ~ "85-99%")) %>% 
-    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type)) + 
-    facet_wrap(~rows+junc_type) + 
-    geom_line() + 
+    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type,linetype = timing)) + 
+    facet_grid(rows = vars(repeat_cat),col = vars(junc_type)) +
+    geom_line(size = 1.3) + 
     theme_classic() +
-    ggtitle("In-frame")
+    ggtitle("In-frame") + 
+    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
+
+
 
 filtered_output %>% 
     mutate(position = position - 250) %>% 
@@ -133,11 +138,12 @@ filtered_output %>%
                                             "1_25___Out_frame.fa_rm.bed" ~ "1-25%",
                                             "25_85___Out_frame.fa_rm.bed" ~ "25-85%",
                                             "85_99___Out_frame.fa_rm.bed" ~ "85-99%")) %>% 
-    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type)) + 
-    facet_wrap(~rows+junc_type) + 
-    geom_line() + 
-    theme_classic() + 
-    ggtitle("Out-frame")
+    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type,linetype = timing)) + 
+    facet_grid(rows = vars(repeat_cat),col = vars(junc_type)) +
+    geom_line(size = 1.3) + 
+    theme_classic() +
+    ggtitle("Out-frame") + 
+    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
 
 # Enrichment of simple repeat types ---------------------------------------
 sr <- read.table(sr_table, header = T)
