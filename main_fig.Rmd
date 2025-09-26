@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE)
 ###load packages/libraries/scripts
 #BiocManager::install("ComplexHeatmap")
+library(shadowtext)
 library(zoo)
 library(gridExtra)
 library(data.table)
@@ -351,7 +352,7 @@ gene_list_slope = c("STMN2",
                     "UNC13A",
                     "KDM1B",
                     "NFKB1",
-                    "CORO7-PAM16")
+                    "TAF1")
 
 input_list = c("Control_Control",
                 "Cycloheximide_Control",
@@ -377,7 +378,7 @@ chx_slope_plot_table <- slope_plot_nmd(big_data_chx,
                 "Control_TDP43KD",
                 "Cycloheximide_TDP43KD"),
                nmd_label = 'CHX treatment',
-                true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
+                true_dark_junctions = "") #### NMD rescued and unaffected
 
 big_data_upf1 <- read.csv(here::here('data','nmd_or_not_upf1.csv'))
 big_data_upf1$alpha_gene_name = NULL
@@ -389,7 +390,7 @@ upf1_slope_plot_table <- slope_plot_nmd(big_data_upf1,
                 "ctrl_UPF1",
                 "TDP43_ctrl",
                 "TDP43_UPF1"),nmd_label = 'UPF1 KD',
-               true_dark_junctions = true_dark_selective) #### NMD rescued and unaffected
+               true_dark_junctions = "") #### NMD rescued and unaffected
 
 psi_all_groups = arrow::read_parquet("data/nuc_cyto/fractionation_psi_all_groups.parquet")
 
@@ -406,7 +407,7 @@ smg1_slope_plot_table_cyto <- slope_plot_nmd(psi_all_groups_cyto,
                                                                           "dox_ctrl_cytosol",
                                                                           "dox_nmd_cytosol"),
                                              nmd_label = 'SMG1i\ncytosolic fraction',
-                                             true_dark_junctions = true_dark_selective)
+                                             true_dark_junctions = "")
 pseudo_psi = psi_all_groups %>% filter(.id %in% c("nt_ctrl","nt_nmd","dox_ctrl","dox_nmd"))
 
 pseudo_bulk_plot_slope = slope_plot_nmd(pseudo_psi,
@@ -416,9 +417,12 @@ pseudo_bulk_plot_slope = slope_plot_nmd(pseudo_psi,
                                                         "dox_ctrl",
                                                         "dox_nmd"),
                                         nmd_label = 'SMG1i',
-                                        true_dark_junctions = true_dark_selective)
+                                        true_dark_junctions = "")
 
-ggarrange(chx_slope_plot_table$plot,upf1_slope_plot_table$plot,pseudo_bulk_plot_slope$plot,nrow = 1)
+ggarrange(chx_slope_plot_table$plot +geom_hline(yintercept = 0.1,linetype = 'dotted'),
+          upf1_slope_plot_table$plot + geom_hline(yintercept = 0.1,linetype = 'dotted'),
+          pseudo_bulk_plot_slope$plot + geom_hline(yintercept = 0.1,linetype = 'dotted'),
+          nrow = 1)
 ```
 
 ### B. Localization of cryptics at baseline
@@ -741,7 +745,12 @@ arranged_plots_sel <- grid.arrange(
 ```
 
 ### E. Dark cryptics are often not dark and very few dark cryptics are selective or detected in tissue
-```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```{r}
+detected_any = summary_post %>%
+    filter(value_tdp_path >=5) %>% 
+    pull(paste_into_igv_junction)
+
 selective_any = summary_post %>%
     filter(fpr_value <=0.1 & tpr_value >= 0.1) %>%
     filter(value_tdp_path >=5) %>% 
@@ -759,11 +768,16 @@ df = wide_chx %>%
     mutate(n_total = n_distinct(paste_into_igv_junction),
            n_true_dark = sum(true_dark)) %>% 
     ungroup() %>% 
+    # Add detected any calculation
+    mutate(detected_in_any = paste_into_igv_junction %in% detected_any & true_dark == TRUE) %>%
+    group_by(variable) %>%
+    mutate(n_detected_any = sum(detected_in_any)) %>%
+    ungroup() %>%
+    # Keep selective any calculation
     filter(paste_into_igv_junction %in% selective_any & true_dark == TRUE) %>% 
     group_by(variable) %>% 
     mutate(n_selective_anywhere = sum(true_dark)) %>% 
-    distinct(variable, n_total,n_true_dark,n_selective_anywhere) 
-
+    distinct(variable, n_total, n_true_dark, n_detected_any, n_selective_anywhere) 
 
 # Map variable → custom facet label
 facet_labels <- tibble(
@@ -774,28 +788,27 @@ facet_labels <- tibble(
 # Pivot to long and join facet labels
 df_long <- df %>%
     left_join(facet_labels, by = "variable") %>%
-    pivot_longer(cols = c(n_total, n_true_dark, n_selective_anywhere),
+    pivot_longer(cols = c(n_total, n_true_dark, n_detected_any, n_selective_anywhere),
                  names_to = "stage", values_to = "count") %>%
     mutate(
         stage = factor(stage,
-                       levels = c("n_total", "n_true_dark", "n_selective_anywhere"),
-                       labels = c("Total", "True Dark", "Selective\nTDP-43 proteinopathy")),
+                       levels = c("n_total", "n_true_dark", "n_detected_any", "n_selective_anywhere"),
+                       labels = c("Dark\ncryptic\njunctions", "Undetected\nother\nTDP-43 KD", "Observed\npostmortem", "Selective\nTDP-43\nproteinopathy")),
         facet = factor(facet, levels = c("SH-SY5Y CHX", "i3 Cortical UPF1 KD", "SH-SY5Y SMG1i")) # enforce order
     )
+
 ggplot(df_long,
        aes(x = stage, stratum = stage, alluvium = variable, y = count,
            fill = stage)) +
     geom_flow(stat = "alluvium", lode.guidance = "forward") +
     geom_stratum(width = 0.3) +
     geom_text(stat = "stratum", aes(label = count), size = 8, color = "black", vjust = -0.5) +
-    facet_wrap(~ facet, scales = "free_y") +
+    facet_wrap(~ facet, scales = "free_y",ncol =1) +
     theme_minimal() +
     labs(x = NULL, y = "N dark cryptic junctions") +
-    scale_fill_manual(values = c("#4A4747","black","#34113F")) +
+    scale_fill_manual(values = c("#4A4747", "black", "#666666", "#34113F")) +
     theme(legend.position = 'none') +
-    theme(text = element_text(size = 18)) 
-
-
+    theme(text = element_text(size = 18))
 ```
 
 
@@ -832,7 +845,7 @@ a = levels_sy5y_qpcr %>%
     mutate(source = c(rep(unique(diff_expr_sh$source),each = 3),rep(0,3))) %>%
   ggplot(aes(x = as.character(source), y = Value)) +
     geom_violin() +
-  geom_jitter() +
+  geom_jitter(height = 0, width = 0.1) +
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   theme_classic() +
@@ -841,7 +854,7 @@ c <- levels_dz_qpcr %>%
   filter(experiment == "new_new") %>%
   ggplot(aes(x = as.character(sample), y = 100*value)) +
     geom_violin() +
-  geom_jitter() +
+  geom_jitter(height = 0, width = 0.1) +
   xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
   ylab('TDP-43 levels (% of untreated)') +
   #facet_wrap(facets = vars(experiment)) +
@@ -882,9 +895,9 @@ e <- plot_de %>%
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
     xlim(c(-10, 10)) +
-    xlab('Gene expression Log2 FC compared to controls') +
+    xlab(expression(Log[2]~"fold change")) +
     ylab('TDP-43 knockdown level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++"),'\n',round(avg_tdp_level_sh,0),rep(" %",5))) +
+    scale_y_discrete(labels = paste0(c("0.0125", "0.0187", "0.021", "0.025", "0.075"),'\n',round(avg_tdp_level_sh,0),rep(" %",5))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size), plot.title = element_text(hjust = 0.5)) +
     ggtitle("SH-SY5Y") +
@@ -927,9 +940,9 @@ f <- plot_de_dz %>%
     scale_shape_manual(values = c(21, 21)) +  # Use shape 21 for both
     scale_fill_manual(values = c("grey", "black")) +  # Grey for non-sig, black for sig
     xlim(c(-10, 10)) +
-    xlab('Gene expression Log2 FC compared to controls') +
+    xlab(expression(Log[2]~"fold change")) +
     ylab('TDP-43 knockdown level') +
-    scale_y_discrete(labels = paste0(c("+", "++", "+++", "++++", "+++++","++++++","+++++++"),'\n',round(avg_be2_qpcr,0),rep(" %",7))) +
+    scale_y_discrete(labels = paste0(c("0.02", "0.03", "0.04", "0.05", "0.075","0.1","1"),'\n',round(avg_be2_qpcr,0),rep(" %",7))) +
     theme_classic() +
     theme(text = element_text(size = plot_text_size), plot.title = element_text(hjust = 0.5)) +
     ggtitle("SK-N-BE(2)") +
@@ -975,15 +988,17 @@ GG <- big_data_filtereds_early_late_sh %>%
   #geom_hline(yintercept = 0.2, linetype = "dotted") +
   scale_color_manual(values = plot_sensitivity_colors) +
   #scale_alpha_manual(values = c(0.1,1)) +
-  xlab("TDP-43 knockdown level") +
+  xlab("% Remaining TDP-43") +
   ylab("PSI") +
   scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++")
-                   paste0(round(avg_tdp_level_sh,0),rep("%",5))) +
+                   paste0(round(avg_tdp_level_sh,0))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_sh) +
   theme_classic()+
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-          theme(text = element_text(size = 18))
+          theme(text = element_text(size = 18)) +
+        theme(axis.text.x = element_text(size = 15))
+
 
 
 avg_be2_qpcr = levels_dz_qpcr %>%
@@ -1017,15 +1032,16 @@ HH = big_data_filtereds_early_late_be2 %>%
   #geom_hline(yintercept = 0.2, linetype = "dotted") +
   scale_color_manual(values = plot_sensitivity_colors) +
   #scale_alpha_manual(values = c(0.1,1)) +
-  xlab("TDP-43 knockdown level") +
+  xlab("% Remaining TDP-43") +
   ylab("PSI") +
   scale_x_discrete(labels = #c("-", "+", "++", "+++", "++++", "+++++", "++++++", "+++++++")
-                   paste0(round(avg_be2_qpcr,0),rep("%",7))) +
+                   paste0(round(avg_be2_qpcr,0))) +
   scale_y_continuous(breaks=seq(0,1,0.2)) +
   facet_wrap(~tdp43_sensitivity_be2) +
   theme_classic() +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-          theme(text = element_text(size = 18))
+          theme(text = element_text(size = 18)) +
+    theme(axis.text.x = element_text(size = 15))
 
 
 GG + HH
@@ -1046,7 +1062,7 @@ master_table <- master_table %>%
                                 tdp43_sensitivity_sh == 'Intermediate'~  'Intermediate')) %>%
         mutate(new_cate = ifelse(is.na(new_cate),"Ambiguous",new_cate))
 
-tmp = master_table %>%
+tmp = master_table %>% 
     filter(tdp43_sensitivity_be2 != "Not found") %>%
     filter(tdp43_sensitivity_sh != "Not found")
 df_long <- to_lodes_form(tmp, key = "axis", axes = c("tdp43_sensitivity_sh", "tdp43_sensitivity_be2"))
@@ -1064,7 +1080,6 @@ df_long %>%
     geom_flow(stat = "alluvium",
               lode.guidance = "frontback") +
     geom_stratum() +
-    theme(legend.position = "bottom") +
     facet_wrap(~cryptic,
                labeller = as_labeller(
                c(no = "Alternative splicing", yes = "Cryptic splicing"))) +
@@ -1073,7 +1088,9 @@ df_long %>%
               aes(label = after_stat(count))) +
     labs(fill = element_blank(),
          x = element_blank(),
-         y = 'N junctions')
+         y = 'N junctions') +
+    theme(text = element_text(size = 18)) +
+        theme(legend.position = "bottom") 
 ```
 
 ### E. Scatterplot
@@ -1099,7 +1116,9 @@ master_table %>%
     ylab("Max PSI in SK-N-BE(2)") +
     theme_classic() +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) 
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+        theme(text = element_text(size = 18))
+
 ```
 
 ### F. Early-lateness and NMD
@@ -1129,7 +1148,8 @@ ggplot(sh_nmd_sens) +
          x = element_blank(),
          fill = 'CHX treatment') +
     scale_fill_manual(values = c("#3288BD","#D53E4F","#BFCC94")) +
-    theme(legend.position = 'bottom', legend.text.position = 'bottom')
+    theme(legend.position = 'bottom', legend.text.position = 'bottom') +
+    theme(text = element_text(size = 18))
 
 sh_nmd_sens %>%
     filter(color_gene_name != "PSI > 95% at baseline") %>%
@@ -1154,52 +1174,52 @@ agreement_sushi = wide_smg1 %>%
     filter(gene_name != "STMN2")
 
 sushi_curve_annotated_nmd = agreement_sushi %>% 
-    left_join(sushi_curve_de,by = c("gene_id" = "Geneid")) %>%
-    distinct(gene_name,smg1_effect,log2FoldChange,source) %>% 
+    left_join(sushi_curve_de, by = c("gene_id" = "Geneid")) %>%
+    distinct(gene_name, smg1_effect, log2FoldChange, padj, source) %>%  # keep padj
     filter(!is.na(source)) %>% 
-    pivot_wider(names_from = 'source',
-                values_from = 'log2FoldChange') %>% 
     janitor::clean_names() %>% 
     group_by(gene_name) %>%
     mutate(smg1_effect = ifelse(any(smg1_effect == "NMD rescued"), "NMD rescued", smg1_effect)) %>%
     ungroup() %>% 
-    unique() %>% 
-    reshape2::melt(id.vars = c("gene_name", "smg1_effect"), 
-    variable.name = "condition", value.name = "expression")
+    unique() 
 
 annotation_df <- sushi_curve_annotated_nmd %>%
-    select(gene_name, smg1_effect) %>%
-    distinct() %>%
-    # Join back with the expression data to get log2FC values for ordering
-    left_join(
-        sushi_curve_annotated_nmd %>%
-        group_by(gene_name, smg1_effect) %>%
-        summarise(max_abs_log2fc = max(expression, na.rm = TRUE), .groups = "drop"),
-        by = c("gene_name", "smg1_effect")
-    ) %>%
+    group_by(gene_name, smg1_effect) %>%
+    summarise(max_abs_log2fc = max(log2fold_change, na.rm = TRUE), .groups = "drop") %>%
     mutate(annotation_x = "NMD sensitivity") %>%
     # First order by smg1_effect, then by absolute maximum log2FC within each group
     arrange(smg1_effect, desc(max_abs_log2fc))
 
-heatmap_sushi <- sushi_curve_annotated_nmd %>% 
+heatmap_sushi = sushi_curve_annotated_nmd %>% 
+    mutate(source = as.factor(source)) %>% 
     mutate(gene_name = factor(gene_name, levels = annotation_df$gene_name)) %>%
-    ggplot(aes(x = condition, 
-                y = gene_name, 
-                fill = expression)) +
-    geom_tile(color = 'black', size = 0.5) +  # Add black outline here
+    ggplot(aes(x = source, y = gene_name, fill = log2fold_change)) +
+    geom_tile(color = 'black', size = 0.5) +
     scale_fill_gradient2(low = "#440154", 
                          mid = "#f7f7f7", 
                          high = "#fca636", 
                          midpoint = 0, 
-                         name = "Log2FC\ngene expression") +    
+                         name = "Log2FC\ngene expression") +
+    geom_shadowtext(
+        data = . %>% filter(padj < 0.01),
+        aes(label = "*"),
+        color = "black",
+        bg.colour='white',
+        nudge_y = -0.3,
+        size = 6
+    ) +
     theme_minimal() +
     labs(y = "Gene", x = "Condition") +
     theme(axis.text.y = element_text(size = 8),
           legend.position = 'left',
-          panel.grid = element_blank(),        # Remove all grid lines
-          panel.background = element_blank()) + # Remove panel background
+          panel.grid = element_blank(),
+          panel.background = element_blank()) +
     xlab(expression(paste('Doxycycline concentration (', mu,'g/mL)'))) +
-    scale_x_discrete(labels = c("0", "0.0125", "0.0187", "0.0210", "0.0250", "0.0750"))
+    scale_x_discrete(labels = c("0", "0.0125", "0.0187", "0.0210", "0.0250", "0.0750")) +
+    theme(text = element_text(size = 18)) +
+    theme(axis.text.y = element_text(size = 14))
+
+
 
 nmd_annotation_plot <- ggplot(annotation_df, aes(x = annotation_x, 
                                 y = reorder(gene_name, as.numeric(factor(smg1_effect))), 
@@ -1215,10 +1235,11 @@ nmd_annotation_plot <- ggplot(annotation_df, aes(x = annotation_x,
           axis.title.x = element_blank(),
            panel.grid = element_blank(),
            panel.background = element_blank()) +
-    labs(x = "")
+    labs(x = "") +
+    theme(text = element_text(size = 18))
     
 my_annotated_heat_sushi = heatmap_sushi +nmd_annotation_plot+ plot_layout(widths = c(8, 1))
-
+my_annotated_heat_sushi
 #sk-n-be2
 sknbe2_curve_annotated_nmd = agreement_sushi %>% 
     left_join(sknbe2_curve_de,by = c("gene_id" = "Geneid")) %>%
@@ -1342,8 +1363,24 @@ ss_strength_plot <- df_ss_strength %>%
   theme_classic() +
   theme(text = element_text(size = plot_text_size)) +
   theme(legend.position = "top") +
-  guides(fill = "none")
+  guides(fill = "none") 
 ss_strength_plot
+```
+
+### A. Splice site strength - Splice AI
+
+```{r}
+splice_ai_score = fread('data/spliceai_scores.csv')
+splice_ai_score %>% 
+    mutate(donor_swap = ifelse(score < 0, score * -1,score)) %>% 
+    filter(cryptic == 'yes') %>% 
+    filter(new_cate %in% c("Early","Late")) %>% 
+    filter(junc_cat != "exon_skip") %>% 
+    ggplot(aes(x = new_cate, y = donor_swap)) + 
+    geom_boxplot() + 
+    facet_wrap(~junc_cat) + 
+    stat_compare_means() + 
+    ylab("SpliceAI score")
 ```
 
 ### B. Conservation score for CE and non-ce in combined categories
@@ -1970,14 +2007,22 @@ master_table <- master_table %>%
   ) %>%
   select(-start, -end)
 
-ug_repeats <- master_table %>%
+ master_table %>%
+ filter(cryptic == 'yes') %>% 
   filter(new_cate %in% c("Early", "Late")) %>%
-  ggplot(aes(x = cryptic, y = ug_density, fill = new_cate)) +
+  ggplot(aes(y = ug_density, fill = new_cate)) +
+     stat_ecdf()
   geom_boxplot() +
   xlab("") +
-  ylab('UG-repeat density') +
-  scale_x_discrete(labels = c("Not cryptic", "Cryptic")) +
+  ylab('UG-repeat density whole intron') +
+  scale_x_discrete(labels = c("", "")) +
   scale_fill_manual(values = plot_sensitivity_colors) +
+     stat_compare_means(label = 'p.signif',size = 15,label.y.npc = 'middle') +
+       theme_classic() +
+  theme(text = element_text(size = 20)) +
+     labs(fill = 'TDP-43 sensitivity') +
+     theme(legend.position = 'bottom')
+
   guides(fill = "none") +
   geom_signif(
     y_position = c(max(master_table$ug_density) * 1.05,max(master_table$ug_density) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
@@ -2017,7 +2062,7 @@ ug_repeats_max_psi <- master_table %>%
 ```{r postar3_coverage_fraction_early and late, echo=FALSE, warning=FALSE, message=FALSE}
 tdp_3 = rtracklayer::import('data/postar3_tardbp_reduced.bed')
 
-flank_size = 250
+flank_size = 500
 flank_region = master_table %>%
       filter(new_cate %in% c("Early", "Late")) %>%
     mutate(new_max = case_when(max_psi_be2 == max_psi_sh ~ max_psi_sh,
@@ -2065,7 +2110,7 @@ distance_plot <- coverage_matrix_tdp %>%
     mutate(
         smoothed_weight = rollmean(
             cov_val,
-            k = 5,
+            k = 20,
             fill = NA,
             align = "center"
         )) %>%
@@ -2187,7 +2232,35 @@ detection_plot <- early_late_plots$detection_plot +
     theme(text = element_text(size = 18)) +
         guides(x = guide_axis(n.dodge = 2)) +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-detection_plot
+
+early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
+    theme(text = element_text(size = 18)) +
+        theme(text = element_text(size = 18)) +
+        guides(x = guide_axis(n.dodge = 2)) +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+
+```{r detection_rate_early_late_max_min}
+summary_post =fread('data/cryptic_detection_summary_long_version.csv')
+cryptic_min_max = master_table %>%
+    filter(cryptic == 'yes') %>%
+    filter(max_psi_sh %in% c("Bottom","Top"))
+
+early_late_post = generate_summary_table(summary_post,
+                       cryptic_min_max,
+                            category_column = 'max_psi_sh',
+                               detected_threshold_for_observed = 2,
+        detected_threshold_for_bio = 5,
+        selective_fpr_threshold = 0.01,
+        selective_tpr_threshold = 0.1)
+fisher_timing = run_fisher_test(early_late_post,
+                                category_column = 'max_psi_sh')
+
+early_late_plots = make_final_plot(early_late_post,
+                                      fisher_timing,
+                                      category_column = 'max_psi_sh',
+                                      color_choices = c("blue", "orange"))
+
 
 selectivity_plot <- early_late_plots$selectivity_plot + ggtitle('Early/Late Selectivity Rate') +
     theme(text = element_text(size = 18)) +
