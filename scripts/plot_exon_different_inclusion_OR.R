@@ -18,7 +18,7 @@ cryp_rep <- merge(cryp_rep, distinct(cand_ctrl[,c("cryptic", "junc_type", "new_c
 
 
 # Folder path
-control_folder <- "/Users/annaleigh/Desktop/output_rm/"
+control_folder <- "data/output_rm_different_exons/"
 
 # Get all files that match your pattern
 files <- list.files(control_folder, pattern = "\\.fa_rm\\.bed$", full.names = TRUE)
