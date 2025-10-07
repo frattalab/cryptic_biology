@@ -1311,7 +1311,7 @@ ggarrange(my_annotated_heat_sushi,my_annotated_heat_sk)
 ```
 
 ## Figure 4 - Features
-### A. Splice site strength
+### A. Splice site strength - pangolin and splice ai
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 get_signif_stars <- function(p_value) {
   if (p_value < 0.001) {
@@ -1326,50 +1326,72 @@ get_signif_stars <- function(p_value) {
 }
 ```
 
-```{r splice_site_strength, echo = FALSE, warning=FALSE, message=FALSE}
-get_significance <- function(df, value, group, category_col, category) {
-  test_formula <- as.formula(paste(value, "~", group))
-  p_test <- kruskal.test(test_formula, data = df %>% filter(!!sym(category_col) == category))
-  #p1_annotation <- paste("p =", format(p1_test$p.value, digits = 3), get_signif_stars(p1_test$p.value))
-  return(get_signif_stars(p_test$p.value))
-}
+This section prepares the data for running through Pangolin 
+Google Colab for running is here:
 
-df_5ss_strength <- read.csv(here::here('data', 'maxent/5ss_strength_combined.csv'))
-df_3ss_strength <- read.csv(here::here('data', 'maxent/3ss_strength_combined.csv'))
-df_ss_strength <- rbind(
-  df_5ss_strength  %>%
-    mutate(site = "5' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
-    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon),
-  df_3ss_strength  %>%
-    mutate(site = "3' splice site", ss_ratio = ss_score_cryptic/ss_score_ann) %>%
-    select(ss_score_ann, ss_score_cryptic, ss_ratio, new_cate, site, ID_exon)
-) %>%
-  filter(new_cate %in% c("Early", "Late"))
+https://github.com/aleighbrown/pangolin_run_cryptic_biology/blob/main/PangolinColab.ipynb
 
-ss_strength_plot <- df_ss_strength %>%
-  ggplot(aes(x=site, y = log2(ss_ratio), fill = new_cate)) +
-  geom_boxplot() +
-  geom_abline(intercept = 0, slope = 0, color = "black", linetype = "dashed") +
-  # geom_signif(
-  #  y_position = c(max(df_ss_strength$ss_ratio) * 1.05,max(df_ss_strength$ss_ratio) * 1.05), xmin = c(0.8, 1.8), xmax = c(1.2, 2.2),
-  #  annotation = c(get_significance(df_ss_strength,
-  #                                  "ss_ratio", "new_cate", "site", "3' splice site"),
-  #                 get_significance(df_ss_strength,
-  #                                  "ss_ratio", "new_cate", "site", "5' splice site")), tip_length = 0.02
-  # ) +
-  scale_fill_manual(values = plot_sensitivity_colors) +
-  #ylim(-4.1, 2.5) +
-  labs(y = "Log2 Ratio MaxEnt score cryptic site vs annotated site", x = "") +
-  theme_classic() +
-  theme(text = element_text(size = plot_text_size)) +
-  theme(legend.position = "top") +
-  guides(fill = "none") 
-ss_strength_plot
+```{r splice_site_strength_pangolin, echo = FALSE, warning=FALSE, message=FALSE}
+
+flank_size = 5000
+flank_region = master_table %>%
+    filter(new_cate %in% c("Early", "Late")) %>%
+    filter(junc_cat != "exon_skip") %>%
+    filter(cryptic == 'yes') %>%
+    separate(paste_into_igv_junction,into = c("seqnames","og_start","og_end"),convert = TRUE,remove = FALSE) %>%
+    mutate(start = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end - flank_size,
+                             junc_cat == "donor" & strand == "+" ~ og_start - flank_size,
+                             junc_cat == "acceptor" & strand == "-" ~ og_start - flank_size,
+                             junc_cat == "donor" & strand == "-" ~ og_end - flank_size)) %>%
+    mutate(end = case_when(junc_cat == "acceptor" & strand == "+" ~ og_end + flank_size,
+                           junc_cat == "donor" & strand == "+" ~ og_start + flank_size,
+                           junc_cat == "acceptor" & strand == "-" ~ og_start + flank_size,
+                           junc_cat == "donor" & strand == "-" ~ og_end + flank_size)) %>%
+    mutate(name = snakecase::to_snake_case(paste(gene,junc_cat,paste_into_igv_junction,cryptic,new_cate,sep  = "_"))) %>%
+    unique() %>%
+    makeGRangesFromDataFrame(,keep.extra.columns = TRUE)
+
+cryptic_flank_seqs = getSeq(BSgenome.Hsapiens.UCSC.hg38,flank_region)
+cryptic_flank_seqs = as.data.table(cryptic_flank_seqs)
+cryptic_flank_seqs = cryptic_flank_seqs %>% 
+    dplyr::rename(sequence = x)
+cryptic_flank_seqs$ID_exon = flank_region$ID_exon
+cryptic_flank_seqs$type = flank_region$junc_cat
+cryptic_flank_seqs$gene = flank_region$gene
+cryptic_flank_seqs$paste_into_igv_junction = flank_region$paste_into_igv_junction
+
+fwrite(cryptic_flank_seqs,'data/pangolin_cryptic_sequences.csv')
+```
+
+```{r pangolin_score_plot, echo = FALSE, warning=FALSE, message=FALSE}
+pangolin_score = fread('data/pangolin_predictions.csv')
+pangolin_score %>% 
+    left_join(master_table %>% distinct(ID_exon,paste_into_igv_junction,new_cate)) %>% 
+    ggplot(aes(x = new_cate, y = usage,fill = new_cate)) + 
+    geom_boxplot(show.legend = FALSE) + 
+    stat_compare_means(label = 'p.signif',size = 12,label.y.npc = 'middle',label.x.npc = 'middle') +
+    theme_classic() +
+    ylab("Pangolin brain usage score") +
+    xlab(element_blank())+
+    theme(text = element_text(size = plot_text_size)) +
+    scale_fill_manual(values = c("#de53b0", "#173dd3")) 
+
+pangolin_score %>% 
+    janitor::clean_names() %>% 
+    left_join(master_table %>% distinct(ID_exon,paste_into_igv_junction,new_cate)) %>% 
+    ggplot(aes(x = new_cate, y = p_splice,fill = new_cate)) + 
+    geom_boxplot(show.legend = FALSE) + 
+    stat_compare_means(label = 'p.signif',size = 12,label.y.npc = 'middle',label.x.npc = 'middle') +
+    theme_classic() +
+    ylab("Pangolin brain probability of splicing") +
+    xlab(element_blank())+
+    theme(text = element_text(size = plot_text_size)) +
+    scale_fill_manual(values = c("#de53b0", "#173dd3")) 
 ```
 
 ### A. Splice site strength - Splice AI
 
-```{r}
+```{r splice_ai_scores, echo = FALSE, warning=FALSE, message=FALSE}
 splice_ai_score = fread('data/spliceai_scores.csv')
 splice_ai_score %>% 
     mutate(donor_swap = ifelse(score < 0, score * -1,score)) %>% 
@@ -2006,6 +2028,9 @@ kmer_heatmap <- Heatmap(heatmap_data[c("Early Cryptic","Early Not cryptic","Late
         show_heatmap_legend = T)
 kmer_heatmap
 ```
+
+
+
 
 ### F. Density UG motifs by early-late in SH-SY5Y
 ```{r ug_dense sh-y5y, echo=FALSE, warning=FALSE, message=FALSE}

@@ -166,9 +166,9 @@ for(i in 1:nrow(possible_simples)) {
     timing <- possible_simples$timing[i]
     type <- possible_simples$junc_type[i]
     exon_inclusion_type <- possible_simples$exon_inclusion_type[i]
-    this_rep_type <- possible_simples$exon_inclusion_type[i]
+    this_rep_type <- possible_simples$rep_type[i]
     
-    cat("Processing:", timing, type, this_rep_type,"\n")
+    cat("Processing:", timing, type, this_rep_type,'vs', exon_inclusion_type,"\n")
     
     # Filter cryptic set for this combination
     this_cryptic_set <- cryp_rep %>% 
@@ -181,20 +181,26 @@ for(i in 1:nrow(possible_simples)) {
     
     colnames(control_set) <- c("id", "rep_start", "rep_end", "repeats", "rep_length", 
                                "rep_strand", "rep_class", "rep_family", "V9", "rep_ID")
+    control_set = control_set %>% 
+        left_join(sr) %>% 
+        filter(!is.na(rep_type))
+    
     # Get all the possible repeat classes
     simple_cryptics = this_cryptic_set %>% 
         left_join(sr) %>% 
         filter(!is.na(rep_type))
-    repeat_clases = unique(c(this_cryptic_set$rep_class))
+    repeat_clases = unique(c(simple_cryptics$rep_type))
     cat("This event type has these classes:", timing, type, repeat_clases,"\n")
     
     for(rep in repeat_clases){
         
         cryptic_set_this_repeat = this_cryptic_set %>% 
-            filter(rep_class == rep)
+            left_join(sr) %>% 
+            filter(rep_type == rep)
+        
         # Generate the position dataframe for cryptics
         cryptic_postion_df <- rep_ranges(cryptic_set_this_repeat, "cryptic")
-        control_set_this_rep <- control_set %>% filter(rep_class == rep)
+        control_set_this_rep <- control_set %>% filter(rep_type == rep)
         control_postion_df <- rep_ranges(control_set_this_rep, "controls")
         # Merge and create final combination
         this_combination <- cryptic_postion_df %>% 
@@ -202,12 +208,175 @@ for(i in 1:nrow(possible_simples)) {
             mutate(n_cry = length(unique(this_cryptic_set$name)),
                    n_ctrl = length(unique(control_set$id)),
                    timing = timing,
-                   rep_class = rep,
+                   rep_type = rep,
                    junc_type = type,
                    exon_inclusion_type = exon_inclusion_type)
         
         # Store result (assuming you want to collect all results)
-        results_list = rbind(results_list,this_combination)
+        simple_results_list = rbind(simple_results_list,this_combination)
     }
     
 }
+
+
+simple_test <- rowwise_fisher_test(
+    simple_results_list,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
+    n_ctrl_col = "n_ctrl",
+    pval_out = "pv",
+    or_out = "OR"
+)
+simple_test$adj.p = p.adjust(simple_test$pv)
+simple_test$logOR <- log((simple_test$OR)+0.01)
+simple_test = simple_test %>% 
+    mutate(logOR = ifelse(adj.p > 0.05,0,logOR)) %>% 
+    mutate(logOR = ifelse(is.infinite(logOR),0.5,logOR))
+simple_test$rows <- paste0(simple_test$timing, "_", simple_test$rep_type)
+
+
+simple_filtered_output = simple_test %>% 
+    group_by(junc_type,timing,rep_type) %>%
+    filter(sum(logOR, na.rm = TRUE) != 0) %>%
+    ungroup() %>% 
+    dplyr::rename(repeat_cat = rep_type)
+
+
+# specific LINE element types ---------------------------------------------
+
+
+# Get all LINE families from the data
+line_families <- cryp_rep %>% 
+    filter(rep_class == "LINE") %>% 
+    pull(rep_family) %>% 
+    unique()
+
+possible_lines <- expand.grid(
+    timing = c("Early", "Late"),
+    junc_type = c("acceptor", "donor"),
+    exon_inclusion_type = possible_exon_inclusion_rates,
+    rep_family = line_families,
+    stringsAsFactors = FALSE
+)
+
+line_results_list <- data.table()
+
+for(i in 1:nrow(possible_lines)) {
+    
+    timing <- possible_lines$timing[i]
+    type <- possible_lines$junc_type[i]
+    exon_inclusion_type <- possible_lines$exon_inclusion_type[i]
+    this_rep_family <- possible_lines$rep_family[i]
+    
+    cat("Processing:", timing, type, this_rep_family, 'vs', exon_inclusion_type, "\n")
+    
+    # Filter cryptic set for this combination (LINE elements only)
+    this_cryptic_set <- cryp_rep %>% 
+        filter(new_cate == timing, 
+               junc_type == type,
+               rep_class == "LINE")
+    
+    # Read in the control
+    control_file_path <- file.path(control_folder, paste0(type, exon_inclusion_type))
+    control_set <- fread(control_file_path)
+    
+    colnames(control_set) <- c("id", "rep_start", "rep_end", "repeats", "rep_length", 
+                               "rep_strand", "rep_class", "rep_family", "V9", "rep_ID")
+    
+    # Filter controls for LINE elements only
+    control_set <- control_set %>% 
+        filter(rep_class == "LINE")
+    
+    # Get LINE families in cryptic set
+    line_cryptics <- this_cryptic_set %>% 
+        filter(rep_class == "LINE")
+    
+    repeat_families <- unique(c(line_cryptics$rep_family))
+    cat("This event type has these LINE families:", timing, type, repeat_families, "\n")
+    
+    for(fam in repeat_families){
+        
+        cryptic_set_this_family <- this_cryptic_set %>% 
+            filter(rep_family == fam)
+        
+        # Generate the position dataframe for cryptics
+        cryptic_postion_df <- rep_ranges(cryptic_set_this_family, "cryptic")
+        
+        control_set_this_fam <- control_set %>% 
+            filter(rep_family == fam)
+        
+        control_postion_df <- rep_ranges(control_set_this_fam, "controls")
+        
+        # Merge and create final combination
+        this_combination <- cryptic_postion_df %>% 
+            left_join(control_postion_df) %>% 
+            mutate(n_cry = length(unique(this_cryptic_set$name)),
+                   n_ctrl = length(unique(control_set$id)),
+                   timing = timing,
+                   rep_family = fam,
+                   junc_type = type,
+                   exon_inclusion_type = exon_inclusion_type)
+        
+        # Store result
+        line_results_list <- rbind(line_results_list, this_combination)
+    }
+}
+
+# Perform Fisher's exact test
+line_test <- rowwise_fisher_test(
+    line_results_list,
+    cryptic_col = "cryptic",
+    set1_col = "controls",
+    n_cry_col = "n_cry",
+    n_ctrl_col = "n_ctrl",
+    pval_out = "pv",
+    or_out = "OR"
+)
+
+line_test$adj.p <- p.adjust(line_test$pv)
+line_test$logOR <- log((line_test$OR) + 0.01)
+line_test <- line_test %>% 
+    mutate(logOR = ifelse(adj.p > 0.05, 0, logOR)) %>% 
+    mutate(logOR = ifelse(is.infinite(logOR), 0.5, logOR))
+
+line_test$rows <- paste0(line_test$timing, "_", line_test$rep_family)
+
+# Filter out non-significant results
+line_filtered_output <- line_test %>% 
+    group_by(junc_type, timing, rep_family) %>%
+    filter(sum(logOR, na.rm = TRUE) != 0) %>%
+    ungroup() %>% 
+    dplyr::rename(repeat_cat = rep_family)
+
+# Plot In-frame LINE families
+line_test %>% 
+    mutate(position = position - 250) %>% 
+    filter(grepl("In", exon_inclusion_type)) %>%  
+    mutate(exon_inclusion_type = case_match(exon_inclusion_type,
+                                            "_99___In_frame.fa_rm.bed" ~ "99%+",
+                                            "1_25___In_frame.fa_rm.bed" ~ "1-25%",
+                                            "25_85___In_frame.fa_rm.bed" ~ "25-85%",
+                                            "85_99___In_frame.fa_rm.bed" ~ "85-99%")) %>% 
+    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type, linetype = timing)) + 
+    facet_grid(rows = vars(rep_family), col = vars(junc_type)) +
+    geom_line(size = 1.3) + 
+    theme_classic() +
+    ggtitle("LINE Families - In-frame") + 
+    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
+
+# Plot Out-frame LINE families
+line_filtered_output %>% 
+    mutate(position = position - 250) %>% 
+    filter(grepl("Out", exon_inclusion_type)) %>%  
+    mutate(exon_inclusion_type = case_match(exon_inclusion_type,
+                                            "_99___Out_frame.fa_rm.bed" ~ "99%+",
+                                            "1_25___Out_frame.fa_rm.bed" ~ "1-25%",
+                                            "25_85___Out_frame.fa_rm.bed" ~ "25-85%",
+                                            "85_99___Out_frame.fa_rm.bed" ~ "85-99%")) %>% 
+    ggplot(aes(x = position, y = logOR, color = exon_inclusion_type, linetype = timing)) + 
+    facet_grid(rows = vars(repeat_cat), col = vars(junc_type)) +
+    geom_line(size = 1.3) + 
+    theme_classic() +
+    ggtitle("LINE Families - Out-frame") + 
+    scale_color_manual(values = c("#BE6FD2", "#B0E17C", "#DC977F", "#A8CCD5"))
