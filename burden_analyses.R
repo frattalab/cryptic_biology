@@ -573,7 +573,7 @@ annot_row <- frontal_fit$mk$cell_table %>%
     tibble::enframe(name = "cell", value = "Cell group") %>%
     tibble::column_to_rownames("cell")
 
-pheatmap(
+cortical_correlation_heatmap = pheatmap(
     cor_mat,
     color             = colorRampPalette(c("blue", "white", "red"))(100),
     cluster_rows      = TRUE, cluster_cols = TRUE,
@@ -605,7 +605,7 @@ cord_annot_row <- spinal_fit$mk$cell_table %>%
     tibble::enframe(name = "cell", value = "Cell group") %>%
     tibble::column_to_rownames("cell")
 
-pheatmap(
+cord_correlation_heatmap = pheatmap(
     cord_cor_mat,
     color             = colorRampPalette(c("blue", "white", "red"))(100),
     cluster_rows      = TRUE, cluster_cols = FALSE,   # single column - don't cluster cols
@@ -617,5 +617,6 @@ pheatmap(
     number_color      = "black", fontsize_number = 16,
     main              = "Cryptic burden vs cell-type deconvolution (spinal cord)"
 )
+
 
 

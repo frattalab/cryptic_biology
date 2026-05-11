@@ -1,0 +1,739 @@
+---
+title: "Per-CE contributions to the cryptic burden score"
+author: "AL"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    df_print: paged
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo    = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.width  = 11,
+    fig.height = 7,
+    dpi        = 150
+)
+```
+
+# Background
+
+
+The composite burden score is defined per sample as
+\( B_i = \sum_j z_{ij} \) where \(z_{ij} = \text{scale}(\psi)\) is the
+junction-wise z-scored PSI of CE *j* across all samples in the queried
+cohort (see `compute_burden()` in `burden_analyses.R`). Because the
+composite is an additive sum, the **mean** of `scale_psi` for one CE across
+a disease group **is** that CE's mean contribution to the burden in that
+group, in the same units as the burden itself. Per-CE attribution is
+therefore mechanical and exact.
+
+This document addresses two questions:
+
+1. **Q1 - Shape of the score.** Within each cohort, are some CEs driving
+   the burden more than others, or is the contribution broadly distributed
+   across many CEs?
+2. **Q2 - GRN vs C9 dissociation.** In GRN-FTLD-TDP versus C9-FTLD-TDP,
+   are the burden-driving CEs the same set (consistent with "GRN is just
+   C9 with the volume turned up") or different (consistent with mechanism-
+   specific cryptic signatures)? We test this within each FTLD cohort and
+   then check whether any differential pattern is reproducible across two
+   independent cohorts (NYGC, RiMOD).
+
+# Setup
+
+Run the main burden script. This produces the per-sample burden tables
+(`motor_burden`, `frontal_burden`, `cord_burden`, `rimod_burden`), the
+junction QC table (`summary_post`), the queried junction data
+(`nygc_queried`, `rimod_queried`), and per-cohort metadata
+(`motor_meta`, `frontal_meta`, `cord_meta`, `rimod_meta`). It caches the
+parquet queries, so the second run is fast.
+
+```{r source-burden}
+source("burden_analyses.R")
+library(tidyverse)
+library(patchwork)
+library(glue)
+```
+
+# Helper functions
+
+Three helpers do all the per-CE work: one returns the long per-sample
+per-CE contribution table (the matrix of `scale_psi` values, unsummed),
+one ranks CEs within a disease group, and one wraps the three-panel
+"what drives the burden in this cohort" figure.
+
+```{r helpers}
+#' Per-sample per-CE contribution to the burden score.
+#' Mirrors compute_burden() but stops short of summing across junctions.
+compute_ce_contributions <- function(queried_data,
+                                     samples_meta,
+                                     summary_post,
+                                     group_label,
+                                     sample_col   = "sample",
+                                     fpr_thresh   = 0.1,
+                                     tpr_thresh   = 0.1,
+                                     min_tdp_path = 5) {
+
+    passing <- summary_post %>%
+        filter(fpr_value      <= fpr_thresh,
+               tpr_value      >= tpr_thresh,
+               value_tdp_path >= min_tdp_path,
+               group          == group_label) %>%
+        pull(paste_into_igv_junction)
+
+    queried_data %>%
+        mutate(paste_into_igv_junction = as.character(glue("{chrom}:{start}-{end}"))) %>%
+        filter(sample                  %in% samples_meta[[sample_col]],
+               paste_into_igv_junction %in% passing) %>%
+        group_by(paste_into_igv_junction) %>%
+        mutate(scale_psi = scale(psi) %>% as.vector()) %>%
+        ungroup() %>%
+        distinct(sample, paste_into_igv_junction, scale_psi) %>%
+        left_join(samples_meta, by = setNames(sample_col, "sample"))
+}
+
+#' Rank CEs by mean contribution within one disease group.
+#'
+#' Operates on the z-scored contributions table only. Penetrance is NOT
+#' computed here - it comes from raw PSI via `compute_ce_penetrance()`
+#' and is joined in by `compute_ce_drivers()`.
+rank_ce_in_group <- function(contributions, burden_tbl,
+                             group_col, group_value,
+                             gene_annotation = NULL,
+                             sample_col      = "sample") {
+
+    grp_samples <- contributions %>%
+        filter(.data[[group_col]] == group_value) %>%
+        pull(.data[[sample_col]]) %>% unique()
+    if (length(grp_samples) == 0) {
+        warning("No samples for ", group_col, " == ", group_value)
+        return(tibble())
+    }
+
+    mean_burden <- burden_tbl %>%
+        filter(.data[[sample_col]] %in% grp_samples) %>%
+        pull(cryptic_burden) %>% mean(na.rm = TRUE)
+
+    ranked <- contributions %>%
+        filter(.data[[sample_col]] %in% grp_samples) %>%
+        group_by(paste_into_igv_junction) %>%
+        summarise(mean_scale_psi   = mean(scale_psi,   na.rm = TRUE),
+                  median_scale_psi = median(scale_psi, na.rm = TRUE),
+                  n_samples        = sum(!is.na(scale_psi)),
+                  .groups = "drop") %>%
+        mutate(frac_of_mean_burden = mean_scale_psi / mean_burden,
+               n_in_group          = length(grp_samples),
+               group_value         = group_value) %>%
+        arrange(desc(mean_scale_psi))
+
+    if (!is.null(gene_annotation))
+        ranked <- ranked %>% left_join(gene_annotation,
+                                       by = "paste_into_igv_junction")
+    ranked
+}
+
+#' Per-CE detection penetrance within a disease group.
+#'
+#' Reads raw PSI directly from the queried-data parquet bind. Penetrance
+#' is the fraction of group samples where `psi > psi_detection_thresh`.
+#' Independent of the burden's z-scoring step.
+#'
+#' @param queried_data         Bound parquet rows with chrom/start/end/psi/sample
+#' @param samples_meta         Metadata with sample_col + group_col
+#' @param group_col            Column in samples_meta to filter on
+#' @param group_value          Value within group_col
+#' @param sample_col           Column mapping samples_meta to queried_data$sample
+#' @param psi_detection_thresh PSI threshold for "detected" (default 0)
+compute_ce_penetrance <- function(queried_data, samples_meta,
+                                  group_col, group_value,
+                                  sample_col           = "sample",
+                                  psi_detection_thresh = 0) {
+
+    grp_samples <- samples_meta %>%
+        filter(.data[[group_col]] == group_value) %>%
+        pull(.data[[sample_col]]) %>% unique()
+    if (length(grp_samples) == 0) return(tibble())
+
+    queried_data %>%
+        mutate(paste_into_igv_junction = as.character(glue("{chrom}:{start}-{end}"))) %>%
+        filter(sample %in% grp_samples) %>%
+        distinct(sample, paste_into_igv_junction, psi) %>%
+        group_by(paste_into_igv_junction) %>%
+        summarise(mean_psi          = mean(psi, na.rm = TRUE),
+                  median_psi        = median(psi, na.rm = TRUE),
+                  penetrance        = mean(psi > psi_detection_thresh, na.rm = TRUE),
+                  n_detected        = sum(psi > psi_detection_thresh,  na.rm = TRUE),
+                  n_with_psi_value  = sum(!is.na(psi)),
+                  .groups = "drop")
+}
+
+#' Add a human-readable label column: "GENE (coords)" if gene known.
+ce_label <- function(df) {
+    df %>%
+        mutate(label = ifelse(!is.na(gene_name) & gene_name != "",
+                              paste0(gene_name, " (", paste_into_igv_junction, ")"),
+                              paste_into_igv_junction))
+}
+
+#' Collapse multiple junctions per gene to the highest-contribution one.
+#' Junctions without a gene_name are kept as distinct events.
+#' Use to dedupe before picking top-N for figures.
+top_ce_per_gene <- function(ranked) {
+    ranked %>%
+        mutate(.gene_key = ifelse(!is.na(gene_name) & gene_name != "",
+                                  gene_name, paste_into_igv_junction)) %>%
+        group_by(.gene_key) %>%
+        slice_max(mean_scale_psi, n = 1, with_ties = FALSE) %>%
+        ungroup() %>%
+        select(-.gene_key) %>%
+        arrange(desc(mean_scale_psi))
+}
+
+#' Compute the ranked CE table + cumulative-burden saturation summary
+#' for a single cohort. Joins penetrance (from raw PSI) onto the ranked
+#' z-scored contributions. Returns ranked / cumulative / n50 / n80 / n_tot.
+compute_ce_drivers <- function(contributions, burden_tbl,
+                               group_col, group_value,
+                               cohort_label,
+                               queried_data,
+                               samples_meta,
+                               junction_gene_tbl,
+                               psi_detection_thresh = 0) {
+
+    ranked <- rank_ce_in_group(contributions, burden_tbl,
+                               group_col, group_value,
+                               gene_annotation = junction_gene_tbl)
+    pen    <- compute_ce_penetrance(queried_data, samples_meta,
+                                    group_col, group_value,
+                                    psi_detection_thresh = psi_detection_thresh)
+    ranked <- ranked %>% left_join(pen, by = "paste_into_igv_junction")
+
+    cum <- ranked %>%
+        arrange(desc(mean_scale_psi)) %>%
+        mutate(cum_contrib = cumsum(mean_scale_psi),
+               cum_frac    = cum_contrib / sum(mean_scale_psi),
+               rank        = row_number(),
+               rank_frac   = rank / n())
+    n50   <- cum %>% filter(cum_frac >= 0.50) %>% slice_head(n = 1) %>% pull(rank)
+    n80   <- cum %>% filter(cum_frac >= 0.80) %>% slice_head(n = 1) %>% pull(rank)
+    n_tot <- nrow(cum)
+    list(ranked = ranked, cum = cum, cohort = cohort_label,
+         n50 = n50, n80 = n80, n_tot = n_tot)
+}
+```
+
+```{r gene-annotation}
+junction_gene <- summary_post %>%
+    distinct(paste_into_igv_junction, gene_name)
+```
+
+# Per-cohort contribution tables
+
+```{r compute-contributions}
+ce_contrib_motor <- compute_ce_contributions(
+    nygc_queried,  motor_meta,   summary_post, "Motor Cortex")
+ce_contrib_frontal <- compute_ce_contributions(
+    nygc_queried,  frontal_meta, summary_post, "FTD frontal/temporal")
+ce_contrib_cord  <- compute_ce_contributions(
+    nygc_queried,  cord_meta,    summary_post, "Cord")
+ce_contrib_rimod <- compute_ce_contributions(
+    rimod_queried, rimod_meta,   summary_post, "RiMOD")
+```
+
+# Q1: which CEs drive the burden?
+
+The burden score is `sum(scale_psi)` across passing CEs per sample. To
+answer "which CEs drive it" within a disease group we just take the mean
+of `scale_psi` per CE across samples in that group. We do this for all
+four burden cohorts so the answer can be generalised.
+
+```{r drivers-all-cohorts}
+driver_specs <- tribble(
+    ~contributions,     ~burden,        ~queried_data, ~samples_meta, ~group_col,          ~group,     ~cohort_label,                       ~prefix,
+    ce_contrib_motor,   motor_burden,   nygc_queried,  motor_meta,    "tdp_proteinopathy", "ALS-TDP",  "NYGC Motor Cortex (ALS-TDP)",       "nygc_motor_alstdp",
+    ce_contrib_frontal, frontal_burden, nygc_queried,  frontal_meta,  "tdp_proteinopathy", "FTLD-TDP", "NYGC Frontal/Temporal (FTLD-TDP)",  "nygc_frontal_ftldtdp",
+    ce_contrib_cord,    cord_burden,    nygc_queried,  cord_meta,     "tdp_proteinopathy", "ALS-TDP",  "NYGC Spinal Cord (ALS-TDP)",        "nygc_cord_alstdp",
+    ce_contrib_rimod,   rimod_burden,   rimod_queried, rimod_meta,    "tdp_proteinopathy", "FTLD-TDP", "RiMOD Frontal Cortex (FTLD-TDP)",   "rimod_ftldtdp"
+)
+
+drivers <- pmap(driver_specs, function(contributions, burden, queried_data,
+                                       samples_meta, group_col, group,
+                                       cohort_label, prefix) {
+    compute_ce_drivers(contributions       = contributions,
+                       burden_tbl          = burden,
+                       group_col           = group_col,
+                       group_value         = group,
+                       cohort_label        = cohort_label,
+                       queried_data        = queried_data,
+                       samples_meta        = samples_meta,
+                       junction_gene_tbl   = junction_gene,
+                       psi_detection_thresh = 0)
+}) %>% set_names(driver_specs$prefix)
+
+# Persist the ranked tables per cohort
+walk2(drivers, names(drivers), function(d, prefix) {
+    write_csv(d$ranked,
+              file.path(OUTPUT_DIR, paste0(prefix, "_ranked_ce.csv")))
+})
+```
+
+## Cumulative-burden saturation per cohort
+
+```{r saturation-summary}
+driver_summary <- imap_dfr(drivers, function(d, prefix) {
+    tibble(cohort  = d$cohort,
+           n_total = d$n_tot,
+           n50     = d$n50,  pct50 = round(100 * d$n50 / d$n_tot, 1),
+           n80     = d$n80,  pct80 = round(100 * d$n80 / d$n_tot, 1))
+})
+driver_summary
+write_csv(driver_summary,
+          file.path(OUTPUT_DIR, "ce_drivers_saturation_summary.csv"))
+```
+
+## Figure 1: cumulative contribution to burden across cohorts
+
+One curve per cohort, x = rank as a fraction of passing CEs (so cohorts
+are directly comparable despite different panel sizes). The dashed
+diagonal is the uniform-contribution reference: a CE panel where every CE
+contributes equally would trace it exactly. The further a curve sits below
+the diagonal, the more concentrated the burden is in a few CEs.
+
+```{r fig1-cumulative, fig.width=10, fig.height=7}
+cohort_colours <- c(
+    `NYGC Motor Cortex (ALS-TDP)`       = "#5F4BB6",
+    `NYGC Frontal/Temporal (FTLD-TDP)`  = "#ACD7E5",
+    `NYGC Spinal Cord (ALS-TDP)`        = "#4A5240",
+    `RiMOD Frontal Cortex (FTLD-TDP)`   = "#EF7F7F"
+)
+
+
+all_cum <- imap_dfr(drivers, function(d, prefix) {
+    d$cum %>% mutate(cohort = d$cohort)
+})
+
+cohort_anchors <- imap_dfr(drivers, function(d, prefix) {
+    tibble(cohort = d$cohort,
+           x      = d$n50 / d$n_tot,
+           y      = 0.5,
+           label  = sprintf("%s: 50%% at %d/%d (%.0f%%)",
+                            d$cohort, d$n50, d$n_tot,
+                            100 * d$n50 / d$n_tot))
+})
+
+fig_cumulative <- ggplot(all_cum, aes(rank_frac, cum_frac, colour = cohort)) +
+    geom_abline(slope = 1, intercept = 0,
+                linetype = "dashed", colour = "grey50") +
+    geom_step(linewidth = 1) +
+    geom_hline(yintercept = c(0.5, 0.8),
+               linetype = "dotted", colour = "grey70") +
+    scale_colour_manual(values = cohort_colours, name = NULL) +
+    scale_x_continuous(labels = scales::percent_format(accuracy = 1),
+                       limits = c(0, 1)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                       limits = c(0, 1)) +
+    theme_bw(base_size = PLOT_TEXT_SIZE) +
+    theme(legend.position = "bottom") +
+    labs(x = "Fraction of CEs (rank / total)",
+         y = "Cumulative fraction of mean burden",
+         title = "Cumulative contribution to cryptic burden, by cohort",
+         subtitle = "Dashed line = uniform-contribution reference. Curves further above the diagonal = more concentrated burden.")
+
+ggsave(file.path(OUTPUT_DIR, "fig1_cumulative_contribution_all_cohorts.pdf"),
+       fig_cumulative, width = 10, height = 7)
+ggsave(file.path(OUTPUT_DIR, "fig1_cumulative_contribution_all_cohorts.png"),
+       fig_cumulative, width = 10, height = 7, dpi = 200)
+
+fig_cumulative
+```
+
+**Interpretation.** Because CEs are sorted in descending order of
+contribution, every curve sits at or above the dashed diagonal; the
+diagonal itself would correspond to perfectly uniform contribution (every
+CE adds the same amount). The further a curve bows above the diagonal,
+the more concentrated the burden is in its top-ranked CEs. Three cortical
+cohorts (motor, frontal/temporal, RiMOD) hug the diagonal closely — the
+burden is broadly distributed across many CEs and no single CE dominates.
+Spinal cord bows noticeably further above the diagonal: the top ~22% of
+CEs accounts for 50% of the burden, suggesting a more focal contribution
+in cord. Sample size and the smaller passing-CE panel in cord may
+contribute to this; the comparison is descriptive, not mechanistically
+established.
+
+## Figure 2: top-20 CEs per cohort
+
+Because some events generate multiple junctions per gene (e.g. a single
+cryptic exon contributes two flanking junctions), each cohort's top-20 is
+first deduplicated by gene: for genes with multiple passing junctions we
+keep the one with the highest mean contribution. Unannotated junctions
+(no gene_name) are retained as distinct events.
+
+One panel per cohort, top 20 CEs by mean contribution, bars coloured by
+penetrance (the fraction of samples in that group with `scale_psi > 0`).
+
+```{r fig2-top20, fig.width=16, fig.height=10}
+build_top20_panel <- function(d) {
+    d$ranked %>%
+        top_ce_per_gene() %>%      # collapse to one junction per gene first
+        ce_label() %>%
+        slice_head(n = 20) %>%
+        ggplot(aes(x    = mean_scale_psi,
+                   y    = fct_reorder(label, mean_scale_psi),
+                   fill = penetrance)) +
+        geom_col() +
+        scale_fill_gradient(low = "grey80", high = "#D64933",
+                            limits = c(0, 1),
+                            name = "Penetrance") +
+        theme_bw(base_size = 11) +
+        labs(x = "Mean contribution to cryptic burden",
+             y = NULL,
+             title = d$cohort)
+}
+
+panels_top20    <- map(drivers, build_top20_panel)
+
+fig_top20 <- wrap_plots(panels_top20, ncol = 2) +
+    plot_layout(guides = "collect") +
+    plot_annotation(tag_levels = "A",
+                    title = "Top-20 CEs by mean contribution to burden",
+                    theme = theme(plot.title = element_text(face = "bold")))
+
+ggsave(file.path(OUTPUT_DIR, "fig2_top20_ces_all_cohorts.pdf"),
+       fig_top20, width = 16, height = 10)
+ggsave(file.path(OUTPUT_DIR, "fig2_top20_ces_all_cohorts.png"),
+       fig_top20, width = 16, height = 10, dpi = 200)
+
+fig_top20
+```
+
+## Figure 3: cross-cohort overlap of the top-20 drivers
+
+A reviewer-facing direct comparison: of the four cohorts' top-20 gene-
+deduped drivers, which genes appear in the top-20 of more than one
+cohort? The union of these sets defines the "ever top-20" gene list;
+each cohort marks whether (and at what rank) each gene appears in its
+own top-20. Genes are ordered by cohort breadth (how many of the four
+cohorts they appear in) and then by mean rank.
+
+```{r fig3-overlap}
+# Top-20 deduped per cohort, in a long table
+top20_long <- imap_dfr(drivers, function(d, prefix) {
+    d$ranked %>%
+        top_ce_per_gene() %>%
+        slice_head(n = 20) %>%
+        mutate(rank     = row_number(),
+               cohort   = d$cohort,
+               gene_key = ifelse(!is.na(gene_name) & gene_name != "",
+                                 gene_name, paste_into_igv_junction))
+})
+
+# Cohort breadth and mean rank per gene_key, used for ordering
+gene_breadth <- top20_long %>%
+    group_by(gene_key) %>%
+    summarise(n_cohorts = n_distinct(cohort),
+              mean_rank = mean(rank),
+              best_rank = min(rank),
+              .groups   = "drop") %>%
+    arrange(desc(n_cohorts), mean_rank)
+
+gene_levels <- gene_breadth %>% pull(gene_key)
+
+cohort_levels <- c("NYGC Motor Cortex (ALS-TDP)",
+                   "NYGC Frontal/Temporal (FTLD-TDP)",
+                   "NYGC Spinal Cord (ALS-TDP)",
+                   "RiMOD Frontal Cortex (FTLD-TDP)")
+
+write_csv(top20_long  %>% select(cohort, rank, gene_key, gene_name,
+                                 paste_into_igv_junction, mean_scale_psi,
+                                 penetrance, mean_psi),
+          file.path(OUTPUT_DIR, "top20_per_cohort_long.csv"))
+write_csv(gene_breadth,
+          file.path(OUTPUT_DIR, "top20_gene_breadth.csv"))
+
+message("\nTop-20 driver overlap summary:")
+print(gene_breadth %>% count(n_cohorts, name = "n_genes"))
+```
+
+```{r fig3-overlap-plot, fig.width=11, fig.height=11}
+p_tile <- top20_long %>%
+    mutate(gene_key = factor(gene_key, levels = rev(gene_levels)),
+           cohort   = factor(cohort,   levels = cohort_levels)) %>%
+    ggplot(aes(x = cohort, y = gene_key, fill = rank)) +
+    geom_tile(colour = "white", linewidth = 0.6) +
+    geom_text(aes(label  = rank,
+                  colour = rank > 10), size = 3) +
+    scale_fill_gradient(low = "#D64933", high = "#FAD3CB",
+                        limits = c(1, 20), name = "Rank") +
+    scale_colour_manual(values = c(`TRUE` = "black", `FALSE` = "white"),
+                        guide  = "none") +
+    theme_bw(base_size = PLOT_TEXT_SIZE) +
+    theme(axis.text.x = element_text(angle = 25, hjust = 1),
+          panel.grid  = element_blank()) +
+    labs(x = NULL, y = NULL,
+         title = "Rank of each top-20 driver gene across cohorts",
+         subtitle = "Filled cell = gene is in that cohort's top 20; number = rank within that cohort")
+
+p_breadth <- gene_breadth %>%
+    mutate(gene_key = factor(gene_key, levels = rev(gene_levels))) %>%
+    ggplot(aes(x = n_cohorts, y = gene_key)) +
+    geom_col(fill = "grey40") +
+    geom_text(aes(label = n_cohorts), hjust = -0.3, size = 3) +
+    scale_x_continuous(limits = c(0, 4.6), breaks = 1:4) +
+    theme_bw(base_size = PLOT_TEXT_SIZE) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          panel.grid.major.y = element_blank()) +
+    labs(x = "# cohorts in top-20", y = NULL,
+         title = "Cohort breadth")
+
+fig_top20_overlap <- p_tile + p_breadth + plot_layout(widths = c(3.2, 1))
+
+ggsave(file.path(OUTPUT_DIR, "fig3_top20_overlap_across_cohorts.pdf"),
+       fig_top20_overlap, width = 11, height = 11)
+ggsave(file.path(OUTPUT_DIR, "fig3_top20_overlap_across_cohorts.png"),
+       fig_top20_overlap, width = 11, height = 11, dpi = 200)
+
+fig_top20_overlap
+```
+
+**Interpretation.** Genes at the top of the figure (breadth = 4) are
+top-20 drivers in every cohort — the canonical, tissue-agnostic CE set
+contributing most to the composite burden. Genes appearing in only one
+cohort (breadth = 1) are the cohort-specific tail. The number of
+universal-vs-specific genes is a direct readout of whether the burden
+score is dominated by a shared core or by tissue-/disease-specific
+subsets.
+
+# Q2: is GRN-FTLD-TDP just C9 with the volume turned up?
+
+Test the hypothesis "the GRN burden is a uniform amplification of the C9
+burden" by comparing per-CE mean contributions in the two groups within
+each FTLD cohort. If the hypothesis holds, mean contributions should be
+strongly correlated (same CEs drive both), with the GRN means shifted up
+relative to C9 (positive intercept and/or slope > 1).
+
+## Per-cohort GRN and C9 rankings
+
+```{r grn-c9-rankings}
+ranked_frontal_grn <- rank_ce_in_group(
+    ce_contrib_frontal, frontal_burden,
+    "simplified_mutations", "GRN",     gene_annotation = junction_gene)
+ranked_frontal_c9  <- rank_ce_in_group(
+    ce_contrib_frontal, frontal_burden,
+    "simplified_mutations", "C9ORF72", gene_annotation = junction_gene)
+ranked_rimod_grn   <- rank_ce_in_group(
+    ce_contrib_rimod, rimod_burden,
+    "DiseaseCode", "FTD-GRN",          gene_annotation = junction_gene)
+ranked_rimod_c9    <- rank_ce_in_group(
+    ce_contrib_rimod, rimod_burden,
+    "DiseaseCode", "FTD-C9",           gene_annotation = junction_gene)
+
+# Paired tables (GRN, C9) per cohort
+make_paired <- function(grn, c9) {
+    grn %>%
+        select(paste_into_igv_junction, gene_name,
+               mean_grn = mean_scale_psi) %>%
+        inner_join(c9 %>% select(paste_into_igv_junction,
+                                 mean_c9 = mean_scale_psi),
+                   by = "paste_into_igv_junction") %>%
+        mutate(delta = mean_grn - mean_c9)
+}
+paired_nygc  <- make_paired(ranked_frontal_grn, ranked_frontal_c9)
+paired_rimod <- make_paired(ranked_rimod_grn,   ranked_rimod_c9)
+```
+
+## Within-cohort GRN vs C9 means
+
+```{r grn-vs-c9-stats}
+fit_grn_c9 <- function(paired) {
+    fit <- lm(mean_grn ~ mean_c9, data = paired)
+    s   <- summary(fit)
+    list(fit       = fit,
+         intercept = unname(coef(fit)[1]),
+         slope     = unname(coef(fit)[2]),
+         slope_ci  = confint(fit)["mean_c9", ],
+         pearson   = cor.test(paired$mean_grn, paired$mean_c9, method = "pearson"),
+         spearman  = suppressWarnings(cor.test(paired$mean_grn, paired$mean_c9,
+                                               method = "spearman")))
+}
+
+fit_nygc  <- fit_grn_c9(paired_nygc)
+fit_rimod <- fit_grn_c9(paired_rimod)
+
+within_cohort_stats <- tibble(
+    cohort      = c("NYGC frontal/temporal", "RiMOD frontal cortex"),
+    pearson_r   = c(fit_nygc$pearson$estimate,  fit_rimod$pearson$estimate),
+    pearson_p   = c(fit_nygc$pearson$p.value,   fit_rimod$pearson$p.value),
+    spearman_r  = c(fit_nygc$spearman$estimate, fit_rimod$spearman$estimate),
+    spearman_p  = c(fit_nygc$spearman$p.value,  fit_rimod$spearman$p.value),
+    intercept   = c(fit_nygc$intercept,         fit_rimod$intercept),
+    slope       = c(fit_nygc$slope,             fit_rimod$slope)
+)
+within_cohort_stats
+```
+
+Within each cohort the per-CE means in GRN and C9 are essentially
+uncorrelated (NYGC) or weakly anti-correlated (RiMOD). That looks like a
+rejection of "uniform volume scaling" at first glance, but the relevant
+quantity is the GRN-minus-C9 *delta* per CE, not the GRN-vs-C9 correlation
+— see the cross-cohort analysis below.
+
+## Cross-cohort reproducibility of the GRN-vs-C9 delta
+
+```{r cross-cohort}
+cross_cohort <- paired_nygc %>%
+    select(paste_into_igv_junction, gene_name,
+           delta_nygc = delta, mean_grn_nygc = mean_grn, mean_c9_nygc = mean_c9) %>%
+    inner_join(
+        paired_rimod %>% select(paste_into_igv_junction,
+                                delta_rimod    = delta,
+                                mean_grn_rimod = mean_grn,
+                                mean_c9_rimod  = mean_c9),
+        by = "paste_into_igv_junction"
+    )
+
+n_overlap <- nrow(cross_cohort)
+
+quad <- cross_cohort %>%
+    mutate(quadrant = case_when(
+        delta_nygc > 0 & delta_rimod > 0 ~ "GRN-high in both",
+        delta_nygc < 0 & delta_rimod < 0 ~ "C9-high in both",
+        delta_nygc > 0 & delta_rimod < 0 ~ "GRN-high NYGC, C9-high RiMOD",
+        delta_nygc < 0 & delta_rimod > 0 ~ "C9-high NYGC, GRN-high RiMOD",
+        TRUE ~ "tie"))
+
+quad_counts <- quad %>% count(quadrant)
+quad_counts
+
+concordant <- sum(quad$quadrant %in% c("GRN-high in both", "C9-high in both"))
+discordant <- sum(quad$quadrant %in% c("GRN-high NYGC, C9-high RiMOD",
+                                       "C9-high NYGC, GRN-high RiMOD"))
+binom_test <- binom.test(concordant, concordant + discordant, p = 0.5,
+                         alternative = "greater")
+
+cross_pearson  <- cor.test(cross_cohort$delta_nygc, cross_cohort$delta_rimod,
+                           method = "pearson")
+cross_spearman <- suppressWarnings(cor.test(cross_cohort$delta_nygc,
+                                            cross_cohort$delta_rimod,
+                                            method = "spearman"))
+
+cross_stats <- tibble(
+    n_CEs        = n_overlap,
+    pearson_r    = cross_pearson$estimate,
+    pearson_p    = cross_pearson$p.value,
+    spearman_rho = cross_spearman$estimate,
+    spearman_p   = cross_spearman$p.value,
+    concordant   = concordant,
+    discordant   = discordant,
+    pct_concord  = round(100 * concordant / (concordant + discordant), 1),
+    binom_p      = binom_test$p.value
+)
+cross_stats
+```
+
+```{r reproducible-lists}
+reproducible_grn_high <- cross_cohort %>%
+    filter(delta_nygc > 0, delta_rimod > 0) %>%
+    mutate(combined_delta = delta_nygc + delta_rimod) %>%
+    arrange(desc(combined_delta))
+
+reproducible_c9_high <- cross_cohort %>%
+    filter(delta_nygc < 0, delta_rimod < 0) %>%
+    mutate(combined_delta = delta_nygc + delta_rimod) %>%
+    arrange(combined_delta)
+
+write_csv(cross_cohort,
+          file.path(OUTPUT_DIR, "cross_cohort_grn_vs_c9.csv"))
+write_csv(reproducible_grn_high,
+          file.path(OUTPUT_DIR, "reproducible_grn_high_ces.csv"))
+write_csv(reproducible_c9_high,
+          file.path(OUTPUT_DIR, "reproducible_c9_high_ces.csv"))
+```
+
+## Figure 4: cross-cohort reproducibility of GRN-vs-C9 delta
+
+Two-panel figure. Panel A: scatter of per-CE GRN-minus-C9 delta in NYGC
+(x) vs RiMOD (y), with sign-concordant CEs in red and discordant CEs in
+grey. Panel B: paired bar plot of the top-15 reproducibly-GRN-high CEs
+(positive delta in both cohorts), side-by-side per cohort.
+
+```{r fig4-cross-cohort, fig.width=14, fig.height=12}
+# Labels: top concordant in each direction + biggest discordant CEs
+to_label <- bind_rows(
+    reproducible_grn_high %>% slice_head(n = 8),
+    reproducible_c9_high  %>% slice_head(n = 8),
+    cross_cohort %>%
+        filter(sign(delta_nygc) != sign(delta_rimod),
+               !is.na(delta_nygc), !is.na(delta_rimod)) %>%
+        mutate(disc = abs(delta_nygc - delta_rimod)) %>%
+        arrange(desc(disc)) %>% slice_head(n = 5)
+) %>% distinct(paste_into_igv_junction) %>% pull(paste_into_igv_junction)
+
+stats_text <- sprintf(
+    "Pearson r = %.3f (p = %.2g)\nSpearman ρ = %.3f (p = %.2g)\nConcordant: %d / %d (%.0f%%, binom p = %.2g)",
+    cross_pearson$estimate,  cross_pearson$p.value,
+    cross_spearman$estimate, cross_spearman$p.value,
+    concordant, concordant + discordant,
+    100 * concordant / (concordant + discordant),
+    binom_test$p.value
+)
+
+p_cross <- cross_cohort %>%
+    mutate(label_show = gene_name,
+           sign_match = sign(delta_nygc) == sign(delta_rimod) &
+               delta_nygc != 0 & delta_rimod != 0) %>%
+    ggplot(aes(delta_nygc, delta_rimod)) +
+    geom_hline(yintercept = 0, linetype = "dashed", colour = "grey50") +
+    geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+    geom_point(aes(colour = sign_match), alpha = 0.7) +
+    scale_colour_manual(values = c(`TRUE` = "#D64933", `FALSE` = "grey60"),
+                        labels = c(`TRUE` = "Same direction",
+                                   `FALSE` = "Opposite"),
+                        name = NULL) +
+    geom_text(aes(label = label_show), size = 3,
+              na.rm = TRUE, check_overlap = TRUE, vjust = -0.5) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.05, vjust = 1.2,
+             size = 3.5, label = stats_text) +
+    theme_bw(base_size = PLOT_TEXT_SIZE) +
+    labs(x = "GRN - C9 mean contribution (NYGC)",
+         y = "GRN - C9 mean contribution (RiMOD)",
+         title = sprintf("Cross-cohort reproducibility of GRN-C9 delta (n CEs = %d)",
+                         n_overlap))
+
+p_repro_bar <- reproducible_grn_high %>%
+    slice_head(n = 15) %>%
+    pivot_longer(c(delta_nygc, delta_rimod),
+                 names_to = "cohort", values_to = "delta") %>%
+    mutate(cohort = recode(cohort, delta_nygc = "NYGC", delta_rimod = "RiMOD"),
+           label  = ifelse(!is.na(gene_name) & gene_name != "",
+                           paste0(gene_name, " (", paste_into_igv_junction, ")"),
+                           paste_into_igv_junction)) %>%
+    ggplot(aes(x = delta,
+               y = fct_reorder(label, delta, .fun = max),
+               fill = cohort)) +
+    geom_col(position = position_dodge(width = 0.7), width = 0.7) +
+    scale_fill_manual(values = c(NYGC = "#D64933", RiMOD = "#2E6F95")) +
+    theme_bw(base_size = PLOT_TEXT_SIZE) +
+    labs(x = "GRN − C9 mean contribution",
+         y = NULL, fill = "Cohort",
+         title = "Reproducible 'GRN-high vs C9' CEs (top 15 by combined delta)")
+
+fig_cross <- p_cross / p_repro_bar +
+    plot_layout(heights = c(1, 1.2)) +
+    plot_annotation(tag_levels = "A")
+
+ggsave(file.path(OUTPUT_DIR, "fig4_grn_vs_c9_cross_cohort.pdf"),
+       fig_cross, width = 14, height = 12)
+ggsave(file.path(OUTPUT_DIR, "fig4_grn_vs_c9_cross_cohort.png"),
+       fig_cross, width = 14, height = 12, dpi = 200)
+
+fig_cross
+```
+
