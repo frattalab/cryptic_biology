@@ -762,45 +762,52 @@ p_cross <- cross_cohort %>%
 p_cross
 ```
 
-## Figure 7: magnitude and breadth of the GRN vs C9 burden
+## Figure 7: per-sample breadth of the GRN vs C9 burden
 
+For each sample, count the number of CEs whose cohort-wide z-scored PSI
+exceeds successive thresholds. This is a per-sample breadth measure
+(how many CEs is *this sample* sitting above the cohort baseline for),
+not a group-mean measure. Then compare the distribution of those counts
+across mutational groups within each FTLD cohort.
 
-- **Panel B** — the number of CEs whose mean contribution exceeds
-  successive z-score thresholds (0, 0.5, 1, 2). This is the breadth
-  axis: how many CEs are *substantially* active in each group.
-
-```{r fig7-magnitude-spread, fig.width=12, fig.height=8}
+```{r fig7-breadth-per-sample, fig.width=12, fig.height=6}
 group_colours <- c(GRN = "#D64933", C9 = "#2E6F95")
 
-grn_c9_ranked <- bind_rows(
-    ranked_frontal_grn %>% mutate(cohort = "NYGC Frontal/Temporal", group = "GRN"),
-    ranked_frontal_c9  %>% mutate(cohort = "NYGC Frontal/Temporal", group = "C9"),
-    ranked_rimod_grn   %>% mutate(cohort = "RiMOD Frontal Cortex",  group = "GRN"),
-    ranked_rimod_c9    %>% mutate(cohort = "RiMOD Frontal Cortex",  group = "C9")
+per_sample_thresholds <- function(contributions, group_col, grn_value,
+                                  c9_value, cohort_label) {
+    contributions %>%
+        filter(.data[[group_col]] %in% c(grn_value, c9_value)) %>%
+        group_by(sample, .grp = .data[[group_col]]) %>%
+        summarise(
+            n_above_0      = sum(scale_psi >= 0,   na.rm = TRUE),
+            n_above_half   = sum(scale_psi >= 0.5, na.rm = TRUE),
+            n_above_1      = sum(scale_psi >= 1,   na.rm = TRUE),
+            n_above_1_half = sum(scale_psi >= 1.5, na.rm = TRUE),
+            n_above_2      = sum(scale_psi >= 2,   na.rm = TRUE),
+            .groups = "drop"
+        ) %>%
+        mutate(group  = ifelse(.grp == grn_value, "GRN", "C9"),
+               cohort = cohort_label) %>%
+        select(-.grp)
+}
+
+per_sample_breadth <- bind_rows(
+    per_sample_thresholds(ce_contrib_frontal, "simplified_mutations",
+                          "GRN", "C9ORF72",
+                          "NYGC Frontal/Temporal"),
+    per_sample_thresholds(ce_contrib_rimod,   "DiseaseCode",
+                          "FTD-GRN", "FTD-C9",
+                          "RiMOD Frontal Cortex")
 )
 
-# Magnitude + threshold counts per (cohort × group)
-magnitude_spread <- grn_c9_ranked %>%
-    group_by(cohort, group) %>%
-    summarise(
-        total_burden     = sum(mean_scale_psi, na.rm = TRUE),
-        n_total          = n(),
-        n_above_0        = sum(mean_scale_psi >  0,   na.rm = TRUE),
-        n_above_half     = sum(mean_scale_psi >= 0.5, na.rm = TRUE),
-        n_above_1        = sum(mean_scale_psi >= 1,   na.rm = TRUE),
-        n_above_1_half   = sum(mean_scale_psi >= 1.5,   na.rm = TRUE),
-        n_above_2        = sum(mean_scale_psi >= 2,   na.rm = TRUE),
-        max_contribution = max(mean_scale_psi, na.rm = TRUE),
-        .groups = "drop"
-    )
+breadth_n <- per_sample_breadth %>%
+    distinct(cohort, group, sample) %>%
+    count(cohort, group) %>%
+    pivot_wider(names_from = group, values_from = n) %>%
+    mutate(cohort_label = sprintf("%s\nGRN n = %d  |  C9 n = %d",
+                                  cohort, GRN, C9))
 
-
-
-
-# CEs above each threshold
-thresholds_long <- magnitude_spread %>%
-    select(cohort, group, n_above_0, n_above_half, n_above_1,
-           n_above_1_half, n_above_2) %>%
+breadth_long <- per_sample_breadth %>%
     pivot_longer(starts_with("n_above_"),
                  names_to = "threshold", values_to = "n_ces") %>%
     mutate(threshold = recode(threshold,
@@ -811,22 +818,22 @@ thresholds_long <- magnitude_spread %>%
                               n_above_2      = ">= 2"),
            threshold = factor(threshold,
                               levels = c(">= 0", ">= 0.5",
-                                         ">= 1", ">= 1.5", ">= 2")))
+                                         ">= 1", ">= 1.5", ">= 2"))) %>%
+    left_join(breadth_n %>% select(cohort, cohort_label), by = "cohort") %>%
+    mutate(cohort_label = factor(cohort_label,
+                                 levels = breadth_n$cohort_label))
 
-p_thresholds <- thresholds_long %>%
+p_breadth <- breadth_long %>%
     ggplot(aes(x = threshold, y = n_ces, fill = group)) +
-    geom_col(position = position_dodge(width = 0.75), width = 0.7) +
-    geom_text(aes(label = n_ces),
-              position = position_dodge(width = 0.75),
-              vjust = -0.3, size = 3.3) +
-    facet_wrap(~ cohort, ncol = 2) +
+    geom_boxplot(position = position_dodge(width = 0.75),
+                 width = 0.6, outlier.size = 0.7) +
+    facet_wrap(~ cohort_label, ncol = 2) +
     scale_fill_manual(values = group_colours, name = "Mutation") +
-    expand_limits(y = max(thresholds_long$n_ces) * 1.1) +
     theme_bw(base_size = PLOT_TEXT_SIZE) +
-    labs(x = "Mean scale_psi threshold (per CE)",
-         y = "Number of CEs above threshold",
-         title = "Breadth: CEs contributing above each z-score threshold")
+    labs(x = "Per-sample cohort-z-scored PSI threshold",
+         y = "Number of CEs in sample above threshold",
+         title = "Per-sample breadth: CEs above cohort z-score thresholds")
 
-p_thresholds
+p_breadth
 ```
 
